@@ -13,6 +13,9 @@ button{margin-top:20px;font-size:1.3rem;padding:14px 40px;border:0;border-radius
 button:disabled{opacity:.5}#msg{min-height:2.5em;margin-top:18px;font-size:1.15rem;max-width:380px}#score{color:#9ca3af;margin-top:6px}
 #msg.win{font-size:clamp(2.2rem,8vw,4.5rem);font-weight:900;line-height:1.05;max-width:95vw;color:#fde047;text-transform:uppercase;text-shadow:0 0 12px #f59e0b,0 0 30px #ef4444,4px 4px 0 #b91c1c;animation:win .5s ease-in-out infinite alternate}
 @keyframes win{from{transform:scale(1) rotate(-2deg);color:#fde047}to{transform:scale(1.12) rotate(2deg);color:#fff}}
+#msg.super{animation:win .25s ease-in-out infinite alternate}
+.sup{font-size:1.3em;color:#f0f;text-shadow:0 0 15px #f0f,0 0 40px #0ff,5px 5px 0 #000}
+body:has(#msg.super){animation:bg .3s infinite alternate}@keyframes bg{from{background:#111827}to{background:#4c1d95}}
 </style></head><body>
 <h1>🎰 Київський однорукий бандит</h1><div class="sub">Що сьогодні випаде?</div>
 <div class="machine"><div class="reels"><div class="reel" id="r0">❓</div><div class="reel" id="r1">❓</div><div class="reel" id="r2">❓</div></div></div>
@@ -26,8 +29,9 @@ b.onclick=()=>{b.disabled=true;m.textContent='';m.className='';const res=[0,1,2]
 [0,1,2].forEach(i=>{const r=document.getElementById('r'+i);r.classList.add('spin');
 const t=setInterval(()=>show(i,S[Math.floor(Math.random()*3)]),80);
 setTimeout(()=>{clearInterval(t);r.classList.remove('spin');show(i,S[res[i]]);
-if(i==2){spins++;if(res[0]==res[1]&&res[1]==res[2]){jp++;m.className='win';m.textContent=J[res[0]]}
-else if(new Set(res).size==3)m.textContent="Повний набір: тривога, без світла і під дощем. Звичайний київський вечір.";
-else m.textContent="Майже! Звичайний день у Києві.";
-document.getElementById('score').textContent=`Спроб: ${spins} · Джекпотів: ${jp}`;b.disabled=false}},900+i*500)})}
+if(i==2){spins++;const u=[...new Set(res)];m.className='win';
+let h=u.map(k=>'<div>'+J[k]+'</div>').join('');
+if(u.length==3){jp++;m.className='win super';h='<div class="sup">💥 СУПЕРВИГРАШ 💥</div>'+h}
+m.innerHTML=h;
+document.getElementById('score').textContent=`Спроб: ${spins} · Супервиграшів: ${jp}`;b.disabled=false}},900+i*500)})}
 </script></body></html>
