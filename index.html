@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="uk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Київський однорукий бандит</title>
+<style>
+body{margin:0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#111827;color:#f9fafb;font-family:system-ui,sans-serif;text-align:center}
+h1{font-size:1.6rem;margin:0 0 .3rem}.sub{color:#9ca3af;margin-bottom:1.5rem}
+.machine{background:linear-gradient(#b91c1c,#7f1d1d);padding:24px;border-radius:24px;box-shadow:0 10px 40px #000a}
+.reels{display:flex;gap:12px}
+.reel{width:110px;height:130px;background:#fff;color:#111;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:3.4rem;box-shadow:inset 0 4px 10px #0005}
+.reel small{font-size:.7rem;margin-top:4px;color:#374151}
+.reel.spin{animation:sh .1s infinite}@keyframes sh{50%{transform:translateY(4px)}}
+button{margin-top:20px;font-size:1.3rem;padding:14px 40px;border:0;border-radius:999px;background:#facc15;font-weight:700;cursor:pointer}
+button:disabled{opacity:.5}#msg{min-height:2.5em;margin-top:18px;font-size:1.15rem;max-width:380px}#score{color:#9ca3af;margin-top:6px}
+</style></head><body>
+<h1>🎰 Київський однорукий бандит</h1><div class="sub">Що сьогодні випаде?</div>
+<div class="machine"><div class="reels"><div class="reel" id="r0">❓</div><div class="reel" id="r1">❓</div><div class="reel" id="r2">❓</div></div></div>
+<button id="b">Крутити!</button><div id="msg"></div><div id="score"></div>
+<script>
+const S=[{e:"🚨",n:"Тривога"},{e:"💡",n:"Світла нема"},{e:"🌧️",n:"Дощ"}];
+const J=["🚨 Джекпот! Три тривоги — всі в укриття!","🕯️ Джекпот! Тотальний блекаут, діставай павербанк.","☔ Джекпот! Злива на весь день, парасолька обов'язкова."];
+let spins=0,jp=0;const b=document.getElementById('b'),m=document.getElementById('msg');
+function show(i,s){const r=document.getElementById('r'+i);r.innerHTML=s.e+'<small>'+s.n+'</small>'}
+b.onclick=()=>{b.disabled=true;m.textContent='';const res=[0,1,2].map(()=>Math.floor(Math.random()*3));
+[0,1,2].forEach(i=>{const r=document.getElementById('r'+i);r.classList.add('spin');
+const t=setInterval(()=>show(i,S[Math.floor(Math.random()*3)]),80);
+setTimeout(()=>{clearInterval(t);r.classList.remove('spin');show(i,S[res[i]]);
+if(i==2){spins++;if(res[0]==res[1]&&res[1]==res[2]){jp++;m.textContent=J[res[0]]}
+else if(new Set(res).size==3)m.textContent="Повний набір: тривога, без світла і під дощем. Звичайний київський вечір.";
+else m.textContent="Майже! Звичайний день у Києві.";
+document.getElementById('score').textContent=`Спроб: ${spins} · Джекпотів: ${jp}`;b.disabled=false}},900+i*500)})}
+</script></body></html>
