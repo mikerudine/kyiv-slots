@@ -1,4 +1,4 @@
-/* One Day in Kyiv — dog walk pseudo-3D courtyard runner (v4) */
+/* One Day in Kyiv — dog walk pseudo-3D courtyard runner (v7 evening) */
 (function () {
   'use strict';
 
@@ -15,8 +15,10 @@
   const Z_DOG = 5.8;       // only visible character
   const Z_NEAR = 4.2;
   const Z_FAR = 78;
-  const LANE_X = [-1.25, 0, 1.25];
-  const PATH_HALF = 2.05;  // courtyard path half-width (no car lanes)
+  // Road fills screen edge-to-edge at the near plane (evening courtyard walk)
+  const LANE_X = [-2.02, 0, 2.02];
+  const PATH_HALF = 3.32;  // bottom of canvas: path spans corner → corner
+  const CAT_HIT_R = 0.90;  // scaled with lane spacing (~0.55 * 3.32/2.05)
 
   function project(wx, z) {
     const zz = Math.max(0.7, z);
@@ -179,13 +181,46 @@
 
   function seedScenery() {
     scenery = [];
-    const kinds = ['khrush', 'garage', 'tree', 'lamp', 'hedge'];
-    for (let i = 0; i < 30; i++) {
-      const z = 9 + i * 2.5 + Math.random();
-      scenery.push({ kind: kinds[i % kinds.length], side: i % 2 === 0 ? -1 : 1, z, variant: (Math.random() * 3) | 0 });
-      if (Math.random() < 0.4) {
-        scenery.push({ kind: kinds[(i + 2) % kinds.length], side: i % 2 === 0 ? 1 : -1, z: z + 0.9, variant: (Math.random() * 3) | 0 });
+    // Dense roadside both sides — no visual holes
+    const roadside = ['lamp', 'tree', 'hedge', 'garage', 'khrush', 'tree', 'fence', 'lamp', 'hedge', 'garage'];
+    for (let i = 0; i < 56; i++) {
+      const zBase = 7.5 + i * 1.12;
+      for (const side of [-1, 1]) {
+        const kind = roadside[(i + (side < 0 ? 0 : 3)) % roadside.length];
+        // force lamps regularly so light pools feel continuous
+        const forcedLamp = (i % 4 === (side < 0 ? 0 : 2));
+        scenery.push({
+          kind: forcedLamp ? 'lamp' : kind,
+          side,
+          z: zBase + (side > 0 ? 0.28 : 0) + Math.random() * 0.25,
+          variant: (Math.random() * 5) | 0,
+          winMask: (Math.random() * 0xffffff) | 0,
+          stories: 2 + ((Math.random() * 3) | 0),
+        });
+        // Extra filler on same side to kill gaps
+        if (!forcedLamp && Math.random() < 0.55) {
+          const fill = Math.random() < 0.5 ? 'hedge' : 'tree';
+          scenery.push({
+            kind: fill,
+            side,
+            z: zBase + 0.55 + Math.random() * 0.3,
+            variant: (Math.random() * 3) | 0,
+            winMask: 0,
+            stories: 1,
+          });
+        }
       }
+    }
+    // Far building silhouettes (deeper / farther out)
+    for (let i = 0; i < 28; i++) {
+      scenery.push({
+        kind: 'building',
+        side: i % 2 === 0 ? -1 : 1,
+        z: 16 + i * 2.4 + Math.random() * 1.2,
+        variant: (Math.random() * 4) | 0,
+        winMask: (Math.random() * 0xffffff) | 0,
+        stories: 4 + ((Math.random() * 6) | 0),
+      });
     }
   }
 
@@ -333,100 +368,244 @@
     applyLang();
   });
 
+  function windowColor(mask, r, c, flicker) {
+    // Deterministic warm/varied window tones; occasional soft flicker
+    const bit = (mask >> ((r * 3 + c) % 24)) & 1;
+    if (!bit) return null;
+    const tone = (mask + r * 7 + c * 13) % 5;
+    const pulse = flicker ? (0.72 + 0.28 * Math.sin(time * 3.1 + r + c * 1.7 + (mask % 9))) : 1;
+    const colors = [
+      `rgba(253,230,138,${0.95 * pulse})`,
+      `rgba(251,191,36,${0.9 * pulse})`,
+      `rgba(253,186,116,${0.88 * pulse})`,
+      `rgba(254,243,199,${0.85 * pulse})`,
+      `rgba(147,197,253,${0.55 * pulse})`, // rare cool TV glow
+    ];
+    return colors[tone];
+  }
+
   function drawSky() {
     if (blackout) {
-      ctx.fillStyle = '#030712';
-      ctx.fillRect(0, 0, W, HORIZON + 20);
+      ctx.fillStyle = '#010104';
+      ctx.fillRect(0, 0, W, HORIZON + 28);
       return;
     }
-    const g = ctx.createLinearGradient(0, 0, 0, HORIZON + 24);
-    g.addColorStop(0, '#0b1224');
-    g.addColorStop(0.6, '#334155');
-    g.addColorStop(1, '#94a3b8');
+    // Deep evening / early night
+    const g = ctx.createLinearGradient(0, 0, 0, HORIZON + 28);
+    g.addColorStop(0, '#020617');
+    g.addColorStop(0.45, '#0b1530');
+    g.addColorStop(0.8, '#1a1030');
+    g.addColorStop(1, '#2a1838');
     ctx.fillStyle = g;
-    ctx.fillRect(0, 0, W, HORIZON + 30);
+    ctx.fillRect(0, 0, W, HORIZON + 32);
+    // faint stars
+    ctx.fillStyle = '#e2e8f055';
+    for (let i = 0; i < 18; i++) {
+      const sx = ((i * 97 + 13) % (W - 8)) + 4;
+      const sy = ((i * 53 + 7) % Math.max(8, HORIZON - 18)) + 4;
+      ctx.fillRect(sx, sy, 1.5, 1.5);
+    }
+  }
+
+  function drawCityBackdrop() {
+    // Far silhouettes just under the horizon — darkness & glowing windows
+    const baseY = HORIZON + 6;
+    for (let i = 0; i < 14; i++) {
+      const x = -20 + i * 30 + ((i * 17) % 11);
+      const bw = 22 + (i % 5) * 6;
+      const bh = 18 + (i % 4) * 10 + ((i * 3) % 7);
+      ctx.fillStyle = blackout ? '#030308' : '#07060e';
+      ctx.fillRect(x, baseY - bh, bw, bh + 8);
+      if (blackout) continue;
+      const mask = (i * 7919 + 104729) | 0;
+      const cols = 2 + (i % 3);
+      const rows = 2 + (i % 4);
+      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+        const col = windowColor(mask, r, c, (i + r + c) % 5 === 0);
+        if (!col) continue;
+        ctx.fillStyle = col;
+        ctx.fillRect(x + 3 + c * ((bw - 6) / cols), baseY - bh + 3 + r * ((bh - 6) / rows), Math.max(2, bw * 0.12), Math.max(2, bh * 0.1));
+      }
+    }
+    // Fog veil over far city / path vanishing point
+    const fog = ctx.createLinearGradient(0, HORIZON - 10, 0, HORIZON + 90);
+    if (blackout) {
+      fog.addColorStop(0, 'rgba(2,2,8,0.55)');
+      fog.addColorStop(0.55, 'rgba(2,2,8,0.35)');
+      fog.addColorStop(1, 'rgba(2,2,8,0)');
+    } else {
+      fog.addColorStop(0, 'rgba(12,10,24,0.75)');
+      fog.addColorStop(0.4, 'rgba(20,14,36,0.45)');
+      fog.addColorStop(1, 'rgba(20,14,36,0)');
+    }
+    ctx.fillStyle = fog;
+    ctx.fillRect(0, HORIZON - 12, W, 110);
   }
 
   function drawPath() {
-    // Courtyard path / sidewalk — no painted car lanes
+    // Evening asphalt path — fills screen edge-to-edge at the near plane
     for (let y = HORIZON; y < H + 4; y++) {
       const row = y - HORIZON + 1;
       const z = (CAM_H * FOCAL) / row;
       if (z < Z_NEAR - 0.6 || z > Z_FAR + 10) continue;
       const left = pathEdgeX(-1, z);
       const right = pathEdgeX(1, z);
-      // dirt yard shoulders
-      ctx.fillStyle = blackout ? '#0a0a0a' : '#3f3a36';
+      // Beyond road: night fog / void (no grey yard field)
+      ctx.fillStyle = blackout ? '#000000' : '#05040a';
       ctx.fillRect(0, y, Math.max(0, left), 1);
       ctx.fillRect(right, y, Math.max(0, W - right), 1);
-      // soft tile / packed earth path
+      // Dark evening pavement
       const tile = (((z * 1.6 + pathPhase * 0.4) | 0) % 3);
-      if (blackout) ctx.fillStyle = tile === 0 ? '#1c1917' : '#171412';
-      else ctx.fillStyle = tile === 0 ? '#a8a29e' : tile === 1 ? '#78716c' : '#57534e';
+      if (blackout) ctx.fillStyle = tile === 0 ? '#0c0a0f' : '#09080c';
+      else ctx.fillStyle = tile === 0 ? '#2a2433' : tile === 1 ? '#211c29' : '#18141f';
       ctx.fillRect(left, y, Math.max(1, right - left), 1);
-      // subtle path edge (curb stone, not hazard stripes)
-      const edge = Math.max(1.5, (right - left) * 0.018);
-      ctx.fillStyle = blackout ? '#292524' : '#d6d3d1';
+      // soft curb
+      const edge = Math.max(1.2, (right - left) * 0.012);
+      ctx.fillStyle = blackout ? '#1a1520' : '#3f3a4a';
       ctx.fillRect(left, y, edge, 1);
       ctx.fillRect(right - edge, y, edge, 1);
     }
   }
 
+  function drawLampPools() {
+    // Warm street-lamp light pools cast onto the road from the sides
+    if (blackout) return;
+    for (const s of scenery) {
+      if (s.kind !== 'lamp') continue;
+      if (s.z < Z_NEAR || s.z > Z_FAR - 4) continue;
+      const lampWX = s.side * (PATH_HALF + 0.55);
+      const lamp = project(lampWX, s.z);
+      const sc = lamp.s;
+      // Pool sits on the road, inset from the edge toward center
+      const poolWX = s.side * (PATH_HALF * 0.62);
+      const pool = project(poolWX, s.z);
+      const rw = Math.max(8, sc * 1.35);
+      const rh = Math.max(3, sc * 0.42);
+      const g = ctx.createRadialGradient(pool.x, pool.y, 0, pool.x, pool.y, rw);
+      g.addColorStop(0, 'rgba(255, 236, 160, 0.42)');
+      g.addColorStop(0.35, 'rgba(251, 191, 36, 0.22)');
+      g.addColorStop(0.75, 'rgba(245, 158, 11, 0.07)');
+      g.addColorStop(1, 'rgba(245, 158, 11, 0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.ellipse(pool.x, pool.y, rw, rh, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Soft airborne cone from lamp head down toward road
+      const headY = lamp.y - sc * 1.5;
+      const cone = ctx.createRadialGradient(lamp.x, headY, 0, lamp.x, headY, sc * 1.8);
+      cone.addColorStop(0, 'rgba(254, 243, 199, 0.22)');
+      cone.addColorStop(0.45, 'rgba(253, 224, 71, 0.08)');
+      cone.addColorStop(1, 'rgba(253, 224, 71, 0)');
+      ctx.fillStyle = cone;
+      ctx.beginPath();
+      ctx.arc(lamp.x, headY, sc * 1.8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
   function drawSceneryItem(s) {
     if (s.z < Z_NEAR || s.z > Z_FAR) return;
-    const wx = s.side * (PATH_HALF + 0.6 + (s.kind === 'tree' ? 0.2 : 0));
+    const out = s.kind === 'building' ? 1.55 : (s.kind === 'tree' ? 0.85 : 0.55);
+    const wx = s.side * (PATH_HALF + out + (s.kind === 'building' ? 0.4 : 0));
     const p = project(wx, s.z);
     const sc = p.s, baseY = p.y;
-    const dim = blackout ? 0.25 : 1;
-    const mul = (c) => {
-      // crude darken hex-ish via alpha overlay later; use darker fills in blackout
-      return c;
-    };
-    if (s.kind === 'khrush') {
-      const bw = sc * 1.15, bh = sc * 1.7;
-      ctx.fillStyle = blackout ? '#1c1410' : (s.variant === 0 ? '#b45309' : s.variant === 1 ? '#a8a29e' : '#ca8a04');
+    const mask = s.winMask || 0;
+
+    if (s.kind === 'building') {
+      const stories = s.stories || 5;
+      const bw = sc * (1.6 + (s.variant % 3) * 0.35);
+      const bh = sc * (0.55 * stories);
+      ctx.fillStyle = blackout ? '#04040a' : '#0a0914';
       ctx.fillRect(p.x - bw / 2, baseY - bh, bw, bh);
-      ctx.fillStyle = blackout ? '#0f172a' : '#1e3a5f';
-      for (let r = 0; r < 4; r++) for (let c = 0; c < 3; c++) {
-        const lit = blackout && Math.random() > 0.92; // rare window glow — avoid flicker: use variant
-        const on = blackout ? ((s.variant + r + c) % 5 === 0) : true;
-        if (!blackout || on) {
-          ctx.fillStyle = blackout ? '#fbbf2444' : '#1e3a5f';
-          if (!blackout) ctx.fillStyle = '#1e3a5f';
+      // roof ledge
+      ctx.fillStyle = blackout ? '#020208' : '#050510';
+      ctx.fillRect(p.x - bw / 2 - 2, baseY - bh - 3, bw + 4, 4);
+      if (!blackout) {
+        const cols = 3 + (s.variant % 2);
+        const rows = Math.max(3, stories);
+        for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+          const col = windowColor(mask, r, c, ((mask >> (r + c)) & 1) && ((r + c + s.variant) % 6 === 0));
+          if (!col) continue;
+          ctx.fillStyle = col;
+          ctx.fillRect(
+            p.x - bw / 2 + bw * (0.1 + c * (0.8 / cols)),
+            baseY - bh + bh * (0.08 + r * (0.85 / rows)),
+            bw * 0.12, bh * 0.07
+          );
+        }
+      }
+      return;
+    }
+
+    if (s.kind === 'khrush') {
+      const bw = sc * 1.2, bh = sc * 1.75;
+      // Evening silhouette / brick dusk tones
+      ctx.fillStyle = blackout ? '#0c0a10' : (s.variant % 3 === 0 ? '#2a1c18' : s.variant % 3 === 1 ? '#1c1a22' : '#241e14');
+      ctx.fillRect(p.x - bw / 2, baseY - bh, bw, bh);
+      if (!blackout) {
+        for (let r = 0; r < 4; r++) for (let c = 0; c < 3; c++) {
+          const col = windowColor(mask, r, c, (r + c + s.variant) % 7 === 0);
+          if (!col) continue;
+          ctx.fillStyle = col;
           ctx.fillRect(p.x - bw / 2 + bw * (0.12 + c * 0.28), baseY - bh + bh * (0.12 + r * 0.2), bw * 0.14, bh * 0.1);
         }
       }
     } else if (s.kind === 'garage') {
       const bw = sc * 0.95, bh = sc * 0.65;
-      ctx.fillStyle = blackout ? '#142014' : '#3f6212';
+      ctx.fillStyle = blackout ? '#080c08' : '#101810';
       ctx.fillRect(p.x - bw / 2, baseY - bh, bw, bh);
-      ctx.fillStyle = blackout ? '#0a120a' : '#14532d';
+      ctx.fillStyle = blackout ? '#050805' : '#0a120a';
       ctx.fillRect(p.x - bw * 0.35, baseY - bh * 0.75, bw * 0.7, bh * 0.55);
+      // tiny warm slit when power is on
+      if (!blackout && (mask & 1)) {
+        ctx.fillStyle = 'rgba(251,191,36,0.55)';
+        ctx.fillRect(p.x - bw * 0.08, baseY - bh * 0.55, bw * 0.16, bh * 0.08);
+      }
     } else if (s.kind === 'tree') {
-      ctx.fillStyle = blackout ? '#2a1810' : '#78350f';
+      ctx.fillStyle = blackout ? '#0a0604' : '#1a0f0a';
       ctx.fillRect(p.x - sc * 0.08, baseY - sc * 0.65, sc * 0.16, sc * 0.65);
-      ctx.fillStyle = blackout ? '#0f2a14' : '#166534';
+      ctx.fillStyle = blackout ? '#040a06' : '#0a1f12';
       ctx.beginPath(); ctx.arc(p.x, baseY - sc * 0.8, sc * 0.45, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(p.x - sc * 0.22, baseY - sc * 0.7, sc * 0.28, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(p.x + sc * 0.2, baseY - sc * 0.72, sc * 0.26, 0, Math.PI * 2); ctx.fill();
     } else if (s.kind === 'lamp') {
-      ctx.fillStyle = blackout ? '#1e293b' : '#475569';
+      ctx.fillStyle = blackout ? '#111827' : '#1e293b';
       ctx.fillRect(p.x - sc * 0.05, baseY - sc * 1.45, sc * 0.1, sc * 1.45);
-      // lamps dead in blackout (flashlight is player)
-      ctx.fillStyle = blackout ? '#334155' : '#fde68a';
-      ctx.beginPath(); ctx.arc(p.x, baseY - sc * 1.5, sc * 0.16, 0, Math.PI * 2); ctx.fill();
+      if (blackout) {
+        ctx.fillStyle = '#1f2937';
+        ctx.beginPath(); ctx.arc(p.x, baseY - sc * 1.5, sc * 0.14, 0, Math.PI * 2); ctx.fill();
+      } else {
+        // glowing lamp head
+        ctx.fillStyle = '#fef3c7';
+        ctx.beginPath(); ctx.arc(p.x, baseY - sc * 1.5, sc * 0.18, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(253, 224, 71, 0.35)';
+        ctx.beginPath(); ctx.arc(p.x, baseY - sc * 1.5, sc * 0.38, 0, Math.PI * 2); ctx.fill();
+      }
     } else if (s.kind === 'hedge') {
-      ctx.fillStyle = blackout ? '#0c1f12' : '#14532d';
+      ctx.fillStyle = blackout ? '#040a06' : '#0c1a10';
       ctx.fillRect(p.x - sc * 0.55, baseY - sc * 0.42, sc * 1.1, sc * 0.42);
+      ctx.fillStyle = blackout ? '#030806' : '#08140c';
+      ctx.fillRect(p.x - sc * 0.4, baseY - sc * 0.52, sc * 0.8, sc * 0.16);
+    } else if (s.kind === 'fence') {
+      ctx.fillStyle = blackout ? '#0a080c' : '#1a1520';
+      ctx.fillRect(p.x - sc * 0.7, baseY - sc * 0.35, sc * 1.4, sc * 0.08);
+      for (let i = 0; i < 5; i++) {
+        ctx.fillRect(p.x - sc * 0.65 + i * sc * 0.3, baseY - sc * 0.55, sc * 0.06, sc * 0.55);
+      }
     }
   }
 
   function drawPuddle(laneIdx, z) {
     const p = project(LANE_X[laneIdx], z);
     const w = p.s * 0.9, h = p.s * 0.28;
-    ctx.fillStyle = blackout ? '#0c1a2a' : '#1e3a5f';
+    ctx.fillStyle = blackout ? '#060a12' : '#0c1524';
     ctx.beginPath(); ctx.ellipse(p.x, p.y, w, h, 0, 0, Math.PI * 2); ctx.fill();
     if (!blackout) {
-      ctx.fillStyle = '#93c5fd66';
-      ctx.beginPath(); ctx.ellipse(p.x - w * 0.2, p.y - h * 0.2, w * 0.22, h * 0.22, 0, 0, Math.PI * 2); ctx.fill();
+      // warm street-lamp reflection in water
+      ctx.fillStyle = 'rgba(253, 230, 138, 0.35)';
+      ctx.beginPath(); ctx.ellipse(p.x - w * 0.15, p.y - h * 0.15, w * 0.28, h * 0.2, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(147, 197, 253, 0.2)';
+      ctx.beginPath(); ctx.ellipse(p.x + w * 0.2, p.y + h * 0.05, w * 0.18, h * 0.14, 0, 0, Math.PI * 2); ctx.fill();
     }
   }
 
@@ -725,9 +904,12 @@
     ctx.setTransform(1, 0, 0, 1, ox, oy);
 
     drawSky();
-    ctx.fillStyle = blackout ? '#050505' : '#292524';
+    // Night void beyond the road (replaces the old grey yard field)
+    ctx.fillStyle = blackout ? '#000000' : '#05040a';
     ctx.fillRect(0, HORIZON, W, H - HORIZON);
+    drawCityBackdrop();
     drawPath();
+    drawLampPools();
 
     const deco = scenery.map((s) => ({ z: s.z, draw: () => drawSceneryItem(s) }));
     for (const o of obstacles) {
@@ -820,7 +1002,7 @@
       if (o.kind === 'cat') {
         // collision when cat crosses player's depth AND same lane
         if (o.z < Z_DOG + 1.4 && o.z > Z_DOG - 1.6) {
-          if (Math.abs(o.x - lerpLane(dogLaneF)) < 0.55) {
+          if (Math.abs(o.x - lerpLane(dogLaneF)) < CAT_HIT_R) {
             o.hit = true;
             // dog lunges / leash yank
             shake = Math.max(shake, 14);
