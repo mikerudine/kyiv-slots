@@ -1,4 +1,4 @@
-/* One Day in Kyiv — dog walk pseudo-3D courtyard runner (v10 textured skyline) */
+/* One Day in Kyiv — dog walk pseudo-3D courtyard runner (v11 outlines + lamp pools) */
 (function () {
   'use strict';
 
@@ -510,13 +510,13 @@
   function seedScenery() {
     scenery = [];
     // Dense roadside both sides — no visual holes
-    const roadside = ['lamp', 'tree', 'hedge', 'garage', 'khrush', 'tree', 'fence', 'lamp', 'hedge', 'garage'];
+    const roadside = ['tree', 'hedge', 'garage', 'khrush', 'tree', 'fence', 'hedge', 'garage', 'tree', 'khrush'];
     for (let i = 0; i < 56; i++) {
       const zBase = 7.5 + i * 1.12;
       for (const side of [-1, 1]) {
         const kind = roadside[(i + (side < 0 ? 0 : 3)) % roadside.length];
-        // force lamps regularly so light pools feel continuous
-        const forcedLamp = (i % 4 === (side < 0 ? 0 : 2));
+        // ~half as many lamps; each pool covers ~2 path tiles so coverage stays fair
+        const forcedLamp = (i % 8 === (side < 0 ? 0 : 4));
         scenery.push({
           kind: forcedLamp ? 'lamp' : kind,
           side,
@@ -797,11 +797,11 @@
     }
     return [
       // farthest / softest
-      packLayer(1103, 2, 0.72, '#05040c', '#060510'),
+      packLayer(1103, 2, 0.72, '#14121f', '#161422'),
       // mid depth
-      packLayer(44021, 5, 0.92, '#07060f', '#0a0914'),
+      packLayer(44021, 5, 0.92, '#1a1728', '#1c1930'),
       // nearest skyline ridge (still behind road)
-      packLayer(91711, 8, 1.12, '#0b0a16', '#0e0c1a'),
+      packLayer(91711, 8, 1.12, '#221e36', '#252040'),
     ];
   })();
 
@@ -810,43 +810,64 @@
     const bw = b.bw;
     const bh = b.bh;
     const y0 = baseY + b.yLift;
-    ctx.fillStyle = blackout ? '#030308' : b.fill;
-    ctx.fillRect(x, y0 - bh, bw, bh + 10);
-    // Roof ledge / parapet (like side khrush/building)
-    ctx.fillStyle = blackout ? '#020208' : '#04030a';
-    ctx.fillRect(x - 1, y0 - bh - 2, bw + 2, 3);
-    // Occasional roof accents — chimneys, water tower, step-back (asymmetric)
-    if (!blackout) {
-      const st = b.style;
-      if (st === 1) {
-        // chimney
-        ctx.fillStyle = '#0a0914';
-        ctx.fillRect(x + bw * 0.2, y0 - bh - 8, Math.max(2, bw * 0.08), 8);
-        ctx.fillRect(x + bw * 0.65, y0 - bh - 6, Math.max(2, bw * 0.07), 6);
-      } else if (st === 2) {
-        // pitched / triangle roof hint
-        ctx.fillStyle = '#080712';
-        ctx.beginPath();
-        ctx.moveTo(x - 1, y0 - bh);
-        ctx.lineTo(x + bw / 2, y0 - bh - 7 - (b.seed % 5));
-        ctx.lineTo(x + bw + 1, y0 - bh);
-        ctx.closePath();
-        ctx.fill();
-      } else if (st === 3) {
-        // water-tower blob
-        ctx.fillStyle = '#0c0a14';
-        ctx.fillRect(x + bw * 0.55, y0 - bh - 10, Math.max(4, bw * 0.22), 10);
-        ctx.beginPath();
-        ctx.arc(x + bw * 0.66, y0 - bh - 10, Math.max(3, bw * 0.1), 0, Math.PI * 2);
-        ctx.fill();
-      } else if (st === 4) {
-        // step-back upper floor
-        ctx.fillStyle = blackout ? '#030308' : '#090814';
-        ctx.fillRect(x + bw * 0.15, y0 - bh - 6, bw * 0.55, 6);
-      }
+    const top = y0 - bh;
+    // Body slightly lighter than night sky so mass reads even without windows
+    ctx.fillStyle = blackout ? '#0a0a12' : b.fill;
+    ctx.fillRect(x, top, bw, bh + 10);
+    // Roof ledge / parapet
+    ctx.fillStyle = blackout ? '#14121c' : '#2a2640';
+    ctx.fillRect(x - 1, top - 2, bw + 2, 3);
+    // Occasional roof accents
+    const st = b.style;
+    if (st === 1) {
+      ctx.fillStyle = blackout ? '#101018' : '#2e2a44';
+      ctx.fillRect(x + bw * 0.2, top - 8, Math.max(2, bw * 0.08), 8);
+      ctx.fillRect(x + bw * 0.65, top - 6, Math.max(2, bw * 0.07), 6);
+    } else if (st === 2) {
+      ctx.fillStyle = blackout ? '#0c0c14' : '#26223a';
+      ctx.beginPath();
+      ctx.moveTo(x - 1, top);
+      ctx.lineTo(x + bw / 2, top - 7 - (b.seed % 5));
+      ctx.lineTo(x + bw + 1, top);
+      ctx.closePath();
+      ctx.fill();
+    } else if (st === 3) {
+      ctx.fillStyle = blackout ? '#101018' : '#2c2842';
+      ctx.fillRect(x + bw * 0.55, top - 10, Math.max(4, bw * 0.22), 10);
+      ctx.beginPath();
+      ctx.arc(x + bw * 0.66, top - 10, Math.max(3, bw * 0.1), 0, Math.PI * 2);
+      ctx.fill();
+    } else if (st === 4) {
+      ctx.fillStyle = blackout ? '#0c0c14' : '#2a2640';
+      ctx.fillRect(x + bw * 0.15, top - 6, bw * 0.55, 6);
+    }
+    // Thin but clear silhouette contour — what makes houses read as shapes
+    ctx.strokeStyle = blackout ? '#2a2838' : '#6b6588';
+    ctx.lineWidth = 1.35;
+    ctx.strokeRect(x + 0.5, top + 0.5, bw - 1, bh + 9);
+    // Roof edge highlight
+    ctx.strokeStyle = blackout ? '#3a3850' : '#8b84a8';
+    ctx.lineWidth = 1.15;
+    ctx.beginPath();
+    ctx.moveTo(x - 0.5, top - 0.5);
+    ctx.lineTo(x + bw + 0.5, top - 0.5);
+    ctx.stroke();
+    // Side edge catch-light (one side only — avoids flat stamp look)
+    if ((b.seed & 1) === 0) {
+      ctx.strokeStyle = blackout ? '#222030' : '#5c5678';
+      ctx.beginPath();
+      ctx.moveTo(x + 0.5, top);
+      ctx.lineTo(x + 0.5, y0 + 8);
+      ctx.stroke();
+    } else {
+      ctx.strokeStyle = blackout ? '#222030' : '#5c5678';
+      ctx.beginPath();
+      ctx.moveTo(x + bw - 0.5, top);
+      ctx.lineTo(x + bw - 0.5, y0 + 8);
+      ctx.stroke();
     }
     if (blackout) return;
-    // Window grid — lit / dark via windowColor mask (same as side houses)
+    // Window grid — lit / dark
     const padX = Math.max(2, bw * 0.08);
     const padY = Math.max(2, bh * 0.08);
     const cellW = (bw - padX * 2) / b.cols;
@@ -860,7 +881,7 @@
         ctx.fillStyle = col;
         ctx.fillRect(
           x + padX + c * cellW + (cellW - ww) * 0.5,
-          y0 - bh + padY + r * cellH + (cellH - wh) * 0.35,
+          top + padY + r * cellH + (cellH - wh) * 0.35,
           ww, wh
         );
       }
@@ -918,7 +939,7 @@
   }
 
   function drawLampPools() {
-    // Warm street-lamp light pools cast onto the road from the sides
+    // Warm street-lamp pools — each covers ~2 path tiles along depth
     if (blackout) return;
     for (const s of scenery) {
       if (s.kind !== 'lamp') continue;
@@ -926,29 +947,35 @@
       const lampWX = s.side * (PATH_HALF + 0.55);
       const lamp = project(lampWX, s.z);
       const sc = lamp.s;
-      // Pool sits on the road, inset from the edge toward center
       const poolWX = s.side * (PATH_HALF * 0.62);
+      // Two-cell length: blend projections at z and z+~1.25 (≈2 path tiles)
+      const zA = Math.max(Z_NEAR, s.z - 0.62);
+      const zB = s.z + 0.62;
+      const pA = project(poolWX, zA);
+      const pB = project(poolWX, zB);
       const pool = project(poolWX, s.z);
-      const rw = Math.max(8, sc * 1.35);
-      const rh = Math.max(3, sc * 0.42);
-      const g = ctx.createRadialGradient(pool.x, pool.y, 0, pool.x, pool.y, rw);
-      g.addColorStop(0, 'rgba(255, 236, 160, 0.42)');
-      g.addColorStop(0.35, 'rgba(251, 191, 36, 0.22)');
-      g.addColorStop(0.75, 'rgba(245, 158, 11, 0.07)');
+      const cx = (pA.x + pB.x) * 0.5;
+      const cy = (pA.y + pB.y) * 0.5;
+      const rw = Math.max(9, sc * 1.45);
+      const rh = Math.max(8, Math.abs(pB.y - pA.y) * 0.55 + sc * 0.35);
+      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(rw, rh));
+      g.addColorStop(0, 'rgba(255, 236, 160, 0.44)');
+      g.addColorStop(0.35, 'rgba(251, 191, 36, 0.24)');
+      g.addColorStop(0.75, 'rgba(245, 158, 11, 0.08)');
       g.addColorStop(1, 'rgba(245, 158, 11, 0)');
       ctx.fillStyle = g;
       ctx.beginPath();
-      ctx.ellipse(pool.x, pool.y, rw, rh, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx, cy, rw, rh, 0, 0, Math.PI * 2);
       ctx.fill();
-      // Soft airborne cone from lamp head down toward road
+      // Soft airborne cone
       const headY = lamp.y - sc * 1.5;
-      const cone = ctx.createRadialGradient(lamp.x, headY, 0, lamp.x, headY, sc * 1.8);
+      const cone = ctx.createRadialGradient(lamp.x, headY, 0, lamp.x, headY, sc * 2.1);
       cone.addColorStop(0, 'rgba(254, 243, 199, 0.22)');
       cone.addColorStop(0.45, 'rgba(253, 224, 71, 0.08)');
       cone.addColorStop(1, 'rgba(253, 224, 71, 0)');
       ctx.fillStyle = cone;
       ctx.beginPath();
-      ctx.arc(lamp.x, headY, sc * 1.8, 0, Math.PI * 2);
+      ctx.arc(lamp.x, headY, sc * 2.1, 0, Math.PI * 2);
       ctx.fill();
     }
   }
