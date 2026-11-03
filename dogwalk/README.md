@@ -32,3 +32,13 @@ dogwalk/
 ## Archived raycaster
 
 The Wolfenstein-like courtyard prototype was moved to [`/raycaster/`](../raycaster/) (tag `raycaster-v1`) for reuse in other projects. See [`docs/gdd-dogwalk.md`](../docs/gdd-dogwalk.md).
+
+
+## Balance check
+
+`balance-bot.mjs` — Playwright bot with ~400ms reaction delay. Expectation: survive **>60s** on current tuning (casual first minute).
+
+```bash
+# from repo with playwright installed
+node dogwalk/balance-bot.mjs
+```

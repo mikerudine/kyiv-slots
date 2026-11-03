@@ -113,14 +113,17 @@
 
   const LANES = 3;
   let lane = 1, laneF = 1, dogLaneF = 1;
-  // Much slower walk pace
-  let speed = 9;
-  const SPEED0 = 9, SPEED_MAX = 20;
-  let distance = 0, score = 0, lives = 3;
+  // Casual-first balance: easy first minute, old difficulty ~3 min
+  let speed = 4.5;
+  const SPEED0 = 4.5, SPEED_MAX = 18;
+  const RAMP_SECS = 180; // reach SPEED_MAX only after ~3 minutes
+  const START_LIVES = 5;
+  const INVULN_HIT = 2.0;
+  let distance = 0, score = 0, lives = START_LIVES;
   let running = false, dead = false, invuln = 0, shake = 0;
-  let spawnAcc = 0, notifAcc = 0, notifRate = 3.4;
+  let spawnAcc = 0, notifAcc = 0, notifRate = 6.5;
   let obstacles = [], scenery = [], pathPhase = 0;
-  let blackout = false, blackoutTimer = 0, nextBlackoutIn = 14;
+  let blackout = false, blackoutTimer = 0, nextBlackoutIn = 55;
   let time = 0;
 
   const notifRoot = document.getElementById('notifs');
@@ -128,10 +131,11 @@
 
   function resetGame() {
     lane = 1; laneF = 1; dogLaneF = 1;
-    speed = SPEED0; distance = 0; score = 0; lives = 3;
-    invuln = 0; spawnAcc = 0; notifAcc = 0; notifRate = 3.4;
+    speed = SPEED0; distance = 0; score = 0; lives = START_LIVES;
+    invuln = 0; spawnAcc = 0; notifAcc = 0; notifRate = 6.5;
     obstacles = []; pathPhase = 0; shake = 0; dead = false; time = 0;
-    blackout = false; blackoutTimer = 0; nextBlackoutIn = 10 + Math.random() * 8;
+    blackout = false; blackoutTimer = 0; nextBlackoutIn = 50 + Math.random() * 20;
+    update._catAcc = 0; update._nDrain = 0;
     seedScenery();
     clearNotifs();
   }
@@ -148,8 +152,29 @@
 
   function hit() {
     if (invuln > 0) return;
-    lives -= 1; invuln = 1.2; shake = 12;
+    lives -= 1; invuln = INVULN_HIT; shake = 12;
     if (lives <= 0) gameOver();
+  }
+
+  function occupiedLanesNear(zMin, zMax) {
+    const set = new Set();
+    for (const o of obstacles) {
+      if (o.hit) continue;
+      if (o.kind === 'cat') continue; // crossing — temporary
+      if (o.z >= zMin && o.z <= zMax) set.add(o.lane | 0);
+    }
+    return set;
+  }
+
+  function pickFreeLane() {
+    // Never fill all 3 approach lanes — always leave an escape
+    const occ = occupiedLanesNear(Z_DOG + 4, Z_FAR + 8);
+    const free = [];
+    for (let i = 0; i < LANES; i++) if (!occ.has(i)) free.push(i);
+    if (free.length === 0) return -1; // skip spawn
+    // Prefer leaving at least one free after this spawn
+    if (free.length === 1 && occ.size >= 2) return -1;
+    return free[(Math.random() * free.length) | 0];
   }
 
   function seedScenery() {
@@ -190,7 +215,7 @@
       kind: 'cat',
       lane: laneFromX(0),
       x, z, dir,
-      crossSpeed: 2.4 + Math.random() * 1.8,
+      crossSpeed: 1.25 + Math.random() * 0.9,
       color: pal.body,
       colorDark: pal.dark,
       phase: Math.random() * Math.PI * 2,
@@ -202,20 +227,27 @@
   function spawnObstacle() {
     const r = Math.random();
     let kind = 'puddle';
-    if (r < 0.26) kind = 'puddle';
-    else if (r < 0.52) kind = 'dog';
-    else if (r < 0.78) kind = 'cat';
-    else kind = 'generator';
+    // Early game: fewer dogs/cats; cats also throttled separately
+    const early = time < 60;
+    if (early) {
+      if (r < 0.45) kind = 'puddle';
+      else if (r < 0.70) kind = 'dog';
+      else if (r < 0.82) kind = 'cat';
+      else kind = 'generator';
+    } else {
+      if (r < 0.26) kind = 'puddle';
+      else if (r < 0.52) kind = 'dog';
+      else if (r < 0.78) kind = 'cat';
+      else kind = 'generator';
+    }
     if (kind === 'cat') { spawnCat(); return; }
-    let l = (Math.random() * LANES) | 0;
-    const near = obstacles.filter((o) => o.z > Z_FAR - 14 && o.kind !== 'cat');
-    if (near.some((o) => o.lane === l && Math.abs(o.z - Z_FAR) < 7)) l = (l + 1) % LANES;
+    const l = pickFreeLane();
+    if (l < 0) return; // would block all escapes — skip
     obstacles.push({
       kind, lane: l, z: Z_FAR + Math.random() * 5, hit: false,
       phase: Math.random() * Math.PI * 2,
       bob: 0,
-      // angry dogs charge toward camera faster than world scroll
-      rush: kind === 'dog' ? (1.55 + Math.random() * 0.55) : 1,
+      rush: kind === 'dog' ? (1.15 + Math.random() * 0.25) : 1,
       growlT: 0,
     });
   }
@@ -737,7 +769,9 @@
     laneF += (lane - laneF) * Math.min(1, 10 * dt);
     dogLaneF += (laneF - dogLaneF) * Math.min(1, 6 * dt);
 
-    speed = Math.min(SPEED_MAX, SPEED0 + distance * 0.012);
+    // Linear ramp: old mid/late difficulty only around 3 minutes
+    const rampT = Math.min(1, time / RAMP_SECS);
+    speed = SPEED0 + (SPEED_MAX - SPEED0) * rampT;
     const dz = speed * dt;
     pathPhase += dz * 0.7;
     distance += dz * 1.05;
@@ -764,18 +798,21 @@
     });
 
     spawnAcc += dt;
-    const every = Math.max(0.7, 1.6 - distance / 700);
+    // Wide gaps early; tighten only with ramp
+    const every = 3.2 - rampT * 1.8; // 3.2s → ~1.4s over 3 min
     if (spawnAcc >= every) {
       spawnAcc = 0;
       spawnObstacle();
-      if (Math.random() < 0.2) spawnObstacle();
+      if (rampT > 0.45 && Math.random() < 0.15 * rampT) spawnObstacle();
     }
-    // occasional extra cat dash
+    // cats: rare in first minute
     if (!update._catAcc) update._catAcc = 0;
     update._catAcc += dt;
-    if (update._catAcc > 2.8 + Math.random() * 1.5) {
+    const catEvery = time < 60 ? (5.5 + Math.random() * 2) : (3.2 + Math.random() * 1.8);
+    if (update._catAcc > catEvery) {
       update._catAcc = 0;
-      if (Math.random() < 0.7) spawnCat();
+      if (time < 45) { if (Math.random() < 0.35) spawnCat(); }
+      else if (Math.random() < 0.65) spawnCat();
     }
 
     for (const o of obstacles) {
@@ -801,28 +838,30 @@
       }
     }
 
-    // blackout cycle
+    // blackout: first one after ~1 min; shorter early
     if (blackout) {
       blackoutTimer -= dt;
       if (blackoutTimer <= 0) {
         blackout = false;
-        nextBlackoutIn = 12 + Math.random() * 10;
+        nextBlackoutIn = 18 + Math.random() * 14;
       }
     } else {
       nextBlackoutIn -= dt;
-      if (nextBlackoutIn <= 0) {
+      if (nextBlackoutIn <= 0 && time > 45) {
         blackout = true;
-        blackoutTimer = 5.5 + Math.random() * 3.5;
+        blackoutTimer = (time < 90 ? 3.5 : 5.5) + Math.random() * 2.5;
       }
     }
 
     notifAcc += dt;
-    notifRate = Math.max(1.0, 3.5 - distance / 260);
+    // Slow pushes at start; still pressure later
+    notifRate = 7.5 - rampT * 4.5; // 7.5s → 3.0s
+    if (notifRate < 2.5) notifRate = 2.5;
     if (notifAcc >= notifRate) { notifAcc = 0; spawnNotif(); }
-    if (notifs.length >= 6) {
+    if (notifs.length >= 7) {
       if (!update._nDrain) update._nDrain = 0;
       update._nDrain += dt;
-      if (update._nDrain > 2.5) { update._nDrain = 0; hit(); }
+      if (update._nDrain > 3.5) { update._nDrain = 0; hit(); }
     } else update._nDrain = 0;
 
     document.getElementById('scoreLine').textContent = t().score(distance, score);
@@ -838,22 +877,32 @@
     start: () => document.getElementById('oBtn').click(),
     setBlackout: (v) => { blackout = !!v; blackoutTimer = v ? 99 : 0; nextBlackoutIn = v ? 99 : 12; },
     spawnDogAt: (lane, z) => {
-      obstacles.push({ kind: 'dog', lane: lane|0, z: z, hit: false, phase: Math.random()*6, bob: 0, rush: 1.8, growlT: 0 });
+      obstacles.push({ kind: 'dog', lane: lane|0, z: z, hit: false, phase: Math.random()*6, bob: 0, rush: 1.25, growlT: 0 });
     },
     spawnCatAt: (z, dir) => {
       const d = dir === -1 ? -1 : 1;
       const pal = CAT_COLORS[(Math.random() * CAT_COLORS.length) | 0];
       obstacles.push({
         kind: 'cat', lane: 1, z: z, x: d > 0 ? -(PATH_HALF + 1.0) : (PATH_HALF + 1.0),
-        dir: d, crossSpeed: 3.2, color: pal.body, colorDark: pal.dark,
+        dir: d, crossSpeed: 1.6, color: pal.body, colorDark: pal.dark,
         phase: Math.random() * 6, hit: false, rush: 1,
       });
     },
+    setLane: (n) => { if (!running) return; lane = Math.max(0, Math.min(LANES - 1, n | 0)); },
+    getLane: () => lane,
+    dismissAllNotifs: () => {
+      document.querySelectorAll('.notif').forEach((el) => el.click());
+    },
     getState: () => ({
       distance, score, lives, running, dead, notifs: notifs.length,
-      obstacles: obstacles.length, blackout, speed, perspective: true, dogOnly: true,
+      obstacles: obstacles.length, blackout, speed, time, perspective: true, dogOnly: true,
+      lane, dogLaneF,
       dogs: obstacles.filter(o=>o.kind==='dog').map(o=>({lane:o.lane,z:o.z,rush:o.rush})),
       cats: obstacles.filter(o=>o.kind==='cat').map(o=>({x:o.x,z:o.z,dir:o.dir,lane:o.lane})),
+      hazards: obstacles.filter(o=>!o.hit).map(o=>({
+        kind: o.kind, lane: o.kind==='cat' ? laneFromX(o.x) : (o.lane|0),
+        z: o.z, x: o.x || 0, dir: o.dir || 0,
+      })),
     }),
   };
 
