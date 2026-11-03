@@ -9,20 +9,27 @@
 *{box-sizing:border-box;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;background:#02040c;color:#f1f5f9;font-family:system-ui,-apple-system,sans-serif;overflow:hidden}
 #wrap{position:relative;width:100%;height:100%;max-width:480px;margin:0 auto;background:#010208}
-canvas#game{display:block;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges;background:#05040a}
-#hud{position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;padding:10px 12px calc(12px + env(safe-area-inset-bottom))}
+canvas#game{display:block;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges;background:#05040a;transition:filter .15s linear}
+#hud{position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;padding:10px 12px calc(12px + env(safe-area-inset-bottom));z-index:3}
 #hud .row{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
 #hud .title{font-weight:800;font-size:15px;text-shadow:0 1px 2px #000}
 #hud .meta{text-align:right;font-size:12px;opacity:.9;text-shadow:0 1px 2px #000}
-#lang{pointer-events:auto;border:0;border-radius:999px;background:#1e293bcc;color:#fff;font-weight:800;padding:6px 12px;font-size:12px}
+#hud .btns{display:flex;gap:6px;justify-content:flex-end;margin-bottom:4px}
+#lang,#pauseBtn{pointer-events:auto;border:0;border-radius:999px;background:#1e293bcc;color:#fff;font-weight:800;padding:6px 12px;font-size:12px}
+#pauseBtn{min-width:36px;padding:6px 10px}
+#pauseBtn.hidden{display:none}
 #hint{font-size:12px;opacity:.75;max-width:70%;text-shadow:0 1px 2px #000}
-#overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#010208e6;z-index:5;padding:24px;text-align:center}
+#overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#010208e6;z-index:6;padding:24px;text-align:center}
 #overlay.hidden{display:none}
 #overlay h1{margin:0 0 8px;font-size:1.4rem}
 #overlay p{margin:0 0 16px;opacity:.85;line-height:1.4}
 #overlay button{pointer-events:auto;border:0;border-radius:999px;background:#facc15;color:#111;font-weight:800;font-size:1.05rem;padding:12px 28px}
+#pauseOverlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:#020617e8;z-index:7;padding:24px;text-align:center;pointer-events:auto}
+#pauseOverlay.show{display:flex}
+#pauseOverlay h1{margin:0 0 8px;font-size:2rem;font-weight:900;letter-spacing:.04em;text-shadow:0 2px 12px #000}
+#pauseOverlay p{margin:0;opacity:.8;font-size:14px}
 #notifs{position:absolute;inset:0;z-index:4;pointer-events:none;overflow:hidden}
-.notif{pointer-events:auto;position:absolute;width:min(92%,340px);background:#05040a827;border:1px solid #334155;border-radius:14px;box-shadow:0 10px 30px #000a,0 0 0 1px #ef444455;padding:10px 12px;display:flex;gap:10px;align-items:flex-start;transform:translateX(110%);transition:transform .18s ease-out;touch-action:none}
+.notif{pointer-events:auto;position:absolute;width:min(92%,340px);background:#111827;border:1px solid #334155;border-radius:14px;box-shadow:0 10px 30px #000a,0 0 0 1px #ef444455;padding:10px 12px;display:flex;gap:10px;align-items:flex-start;transform:translateX(110%);transition:transform .18s ease-out;touch-action:none}
 .notif.show{transform:translateX(0)}
 .notif.swiping{transition:none}
 .notif .icon{width:36px;height:36px;border-radius:10px;background:linear-gradient(#dc2626,#7f1d1d);display:flex;align-items:center;justify-content:center;font-size:18px;flex:0 0 auto}
@@ -30,12 +37,23 @@ canvas#game{display:block;width:100%;height:100%;image-rendering:pixelated;image
 .notif .app{font-size:11px;color:#fca5a5;font-weight:700;letter-spacing:.02em}
 .notif .msg{font-size:13px;line-height:1.25;margin-top:2px;color:#f8fafc}
 .notif .swipe{font-size:10px;color:#94a3b8;margin-top:4px}
+#glassPane{position:absolute;inset:0;z-index:5;display:none;pointer-events:auto;touch-action:none;overflow:hidden}
+#glassPane.show{display:block}
+#glassPane.swiping{transition:none}
+#glassPane .sheet{position:absolute;inset:0;background:rgba(148,163,184,0.08);backdrop-filter:blur(0px);-webkit-backdrop-filter:blur(0px);transition:backdrop-filter .2s linear}
+#glassPane .hint{position:absolute;left:50%;bottom:18%;transform:translateX(-50%);background:#0f172acc;border:1px solid #64748b88;border-radius:999px;padding:8px 14px;font-size:12px;font-weight:700;white-space:nowrap;pointer-events:none;text-shadow:0 1px 2px #000}
+#glassPane canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 </style>
 </head>
 <body>
 <div id="wrap">
   <canvas id="game" width="360" height="640"></canvas>
   <div id="notifs"></div>
+  <div id="glassPane" aria-hidden="true">
+    <div class="sheet"></div>
+    <canvas id="glassCanvas" width="360" height="640"></canvas>
+    <div class="hint" id="glassHint"></div>
+  </div>
   <div id="hud">
     <div class="row">
       <div>
@@ -43,7 +61,10 @@ canvas#game{display:block;width:100%;height:100%;image-rendering:pixelated;image
         <div id="hint"></div>
       </div>
       <div class="meta">
-        <button type="button" id="lang">UA</button>
+        <div class="btns">
+          <button type="button" id="pauseBtn" class="hidden" title="Pause">⏸</button>
+          <button type="button" id="lang">UA</button>
+        </div>
         <div id="scoreLine"></div>
         <div id="livesLine"></div>
         <div id="fps">— fps</div>
@@ -55,6 +76,12 @@ canvas#game{display:block;width:100%;height:100%;image-rendering:pixelated;image
       <h1 id="oTitle">Прогулянка</h1>
       <p id="oBody"></p>
       <button type="button" id="oBtn">Старт</button>
+    </div>
+  </div>
+  <div id="pauseOverlay">
+    <div>
+      <h1 id="pauseTitle">Пауза</h1>
+      <p id="pauseBody">Торкніться, щоб продовжити</p>
     </div>
   </div>
 </div>

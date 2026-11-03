@@ -1,4 +1,4 @@
-/* One Day in Kyiv — dog walk pseudo-3D courtyard runner (v7 evening) */
+/* One Day in Kyiv — dog walk pseudo-3D courtyard runner (v7.1 weather+pause) */
 (function () {
   'use strict';
 
@@ -60,6 +60,11 @@
       swipeHint: 'змахни / клік',
       blackout: '💡 Світла нема',
       growl: 'ГРРР!',
+      pause: 'Пауза',
+      pauseBody: 'Торкніться, щоб продовжити',
+      glassWipe: '💧 Змахни скло / клік',
+      weatherRain: '🌧 Дощ',
+      weatherSnow: '❄ Сніг',
     },
     en: {
       title: 'Walking the dog',
@@ -82,6 +87,11 @@
       swipeHint: 'swipe / click',
       blackout: '💡 Blackout',
       growl: 'GRRR!',
+      pause: 'Paused',
+      pauseBody: 'Tap to resume',
+      glassWipe: '💧 Wipe the glass / click',
+      weatherRain: '🌧 Rain',
+      weatherSnow: '❄ Snow',
     },
   };
 
@@ -94,6 +104,9 @@
     document.getElementById('hint').textContent = L.hint;
     document.getElementById('lang').textContent = lang.toUpperCase();
     document.documentElement.lang = lang === 'ua' ? 'uk' : 'en';
+    document.getElementById('pauseTitle').textContent = L.pause;
+    document.getElementById('pauseBody').textContent = L.pauseBody;
+    document.getElementById('glassHint').textContent = L.glassWipe;
     if (!running) {
       document.getElementById('oTitle').textContent = dead ? L.overTitle : L.overlayTitle;
       document.getElementById('oBody').textContent = dead ? L.overBody(distance, score) : L.overlayBody;
@@ -127,9 +140,22 @@
   let obstacles = [], scenery = [], pathPhase = 0;
   let blackout = false, blackoutTimer = 0, nextBlackoutIn = 55;
   let time = 0;
+  let paused = false;
+  // Weather: rain/snow particles + accumulating glass smear (swipe to wipe)
+  let weather = null; // 'rain' | 'snow' | null
+  let weatherTimer = 0, nextWeatherIn = 38;
+  let glassDirt = 0; // 0..1 progressive blur / drops on glass
+  let particles = [];
+  let glassShown = false;
 
   const notifRoot = document.getElementById('notifs');
   let notifs = [];
+  const glassPane = document.getElementById('glassPane');
+  const glassSheet = glassPane.querySelector('.sheet');
+  const glassCanvas = document.getElementById('glassCanvas');
+  const gctx = glassCanvas.getContext('2d');
+  const pauseOverlay = document.getElementById('pauseOverlay');
+  const pauseBtn = document.getElementById('pauseBtn');
 
   function resetGame() {
     lane = 1; laneF = 1; dogLaneF = 1;
@@ -137,9 +163,14 @@
     invuln = 0; spawnAcc = 0; notifAcc = 0; notifRate = 6.5;
     obstacles = []; pathPhase = 0; shake = 0; dead = false; time = 0;
     blackout = false; blackoutTimer = 0; nextBlackoutIn = 50 + Math.random() * 20;
+    paused = false; hidePauseUI();
+    weather = null; weatherTimer = 0; nextWeatherIn = 32 + Math.random() * 18;
+    glassDirt = 0; particles = []; hideGlassPane(true);
+    canvas.style.filter = 'none';
     update._catAcc = 0; update._nDrain = 0;
     seedScenery();
     clearNotifs();
+    syncPauseBtn();
   }
 
   function clearNotifs() {
@@ -147,8 +178,227 @@
     notifs = [];
   }
 
+  function syncPauseBtn() {
+    if (running && !dead) pauseBtn.classList.remove('hidden');
+    else pauseBtn.classList.add('hidden');
+  }
+
+  function hidePauseUI() {
+    pauseOverlay.classList.remove('show');
+  }
+
+  function setPaused(v) {
+    if (!running || dead) return;
+    paused = !!v;
+    if (paused) {
+      pauseOverlay.classList.add('show');
+      // Hide swipe-glass UI under pause (dirt kept); restore after resume
+      if (glassShown) {
+        glassPane.classList.remove('show');
+        glassPane.setAttribute('aria-hidden', 'true');
+      }
+      applyLang();
+    } else {
+      hidePauseUI();
+      last = performance.now(); // avoid huge dt after unpause
+      if (glassDirt >= 0.28 && weather) {
+        glassShown = false; // force re-show
+        ensureGlassPane();
+        applyGlassVisuals();
+      }
+    }
+  }
+
+  function togglePause() {
+    if (!running || dead) return;
+    setPaused(!paused);
+  }
+
+  function hideGlassPane(instant) {
+    glassShown = false;
+    glassPane.classList.remove('show', 'swiping');
+    glassPane.style.transform = '';
+    glassPane.setAttribute('aria-hidden', 'true');
+    if (instant) {
+      gctx.clearRect(0, 0, W, H);
+      glassSheet.style.backdropFilter = 'blur(0px)';
+      glassSheet.style.webkitBackdropFilter = 'blur(0px)';
+    }
+  }
+
+  function wipeGlass() {
+    glassDirt = 0;
+    canvas.style.filter = 'none';
+    hideGlassPane(true);
+  }
+
+  function ensureGlassPane() {
+    if (glassShown || glassDirt < 0.28 || !running || paused || dead) return;
+    glassShown = true;
+    glassPane.classList.add('show');
+    glassPane.setAttribute('aria-hidden', 'false');
+    glassPane.style.transform = 'translateX(0)';
+    document.getElementById('glassHint').textContent = t().glassWipe;
+    paintGlassDrops(true);
+  }
+
+  function paintGlassDrops(force) {
+    if (!glassShown && !force) return;
+    gctx.clearRect(0, 0, W, H);
+    const n = 18 + Math.floor(glassDirt * 55);
+    const kind = weather || 'rain';
+    for (let i = 0; i < n; i++) {
+      // Stable-ish positions from dirt + index so they don't jump every frame wildly
+      const seed = (i * 7919 + Math.floor(glassDirt * 7) * 104729) >>> 0;
+      const x = (seed % W);
+      const y = ((seed * 13) % H);
+      if (kind === 'snow') {
+        const r = 2 + (seed % 5) * 0.7 * (0.5 + glassDirt);
+        gctx.fillStyle = `rgba(241,245,249,${0.25 + glassDirt * 0.45})`;
+        gctx.beginPath(); gctx.arc(x, y, r, 0, Math.PI * 2); gctx.fill();
+      } else {
+        const len = 6 + (seed % 10);
+        gctx.strokeStyle = `rgba(186,230,253,${0.2 + glassDirt * 0.5})`;
+        gctx.lineWidth = 1.2 + glassDirt;
+        gctx.beginPath();
+        gctx.moveTo(x, y);
+        gctx.lineTo(x - 1.2, y + len);
+        gctx.stroke();
+        // bead
+        gctx.fillStyle = `rgba(224,242,254,${0.25 + glassDirt * 0.4})`;
+        gctx.beginPath(); gctx.ellipse(x - 0.5, y + len + 2, 2.2, 3.2, 0, 0, Math.PI * 2); gctx.fill();
+      }
+    }
+    // Smear streaks when very dirty
+    if (glassDirt > 0.55) {
+      gctx.fillStyle = `rgba(148,163,184,${(glassDirt - 0.55) * 0.25})`;
+      gctx.fillRect(0, 0, W, H);
+    }
+  }
+
+  function applyGlassVisuals() {
+    const blurPx = Math.min(5.5, glassDirt * 5.2);
+    canvas.style.filter = blurPx > 0.15 ? `blur(${blurPx.toFixed(2)}px)` : 'none';
+    const sheetBlur = Math.min(7, glassDirt * 6.5);
+    glassSheet.style.backdropFilter = `blur(${sheetBlur.toFixed(2)}px)`;
+    glassSheet.style.webkitBackdropFilter = `blur(${sheetBlur.toFixed(2)}px)`;
+    glassSheet.style.background = `rgba(148,163,184,${(0.04 + glassDirt * 0.12).toFixed(3)})`;
+    if (glassShown) paintGlassDrops(true);
+  }
+
+  function spawnWeather(kind) {
+    weather = kind === 'snow' ? 'snow' : 'rain';
+    weatherTimer = 10 + Math.random() * 6; // 10–16s — fair window
+    particles = [];
+    const count = weather === 'snow' ? 55 : 70;
+    for (let i = 0; i < count; i++) {
+      particles.push({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        sp: weather === 'snow' ? (28 + Math.random() * 40) : (220 + Math.random() * 260),
+        drift: (Math.random() - 0.5) * (weather === 'snow' ? 28 : 40),
+        size: weather === 'snow' ? (1.5 + Math.random() * 2.5) : (1 + Math.random() * 1.4),
+        phase: Math.random() * Math.PI * 2,
+      });
+    }
+  }
+
+  function stopWeather() {
+    weather = null;
+    weatherTimer = 0;
+    particles = [];
+    nextWeatherIn = 26 + Math.random() * 18;
+    // glass stays until wiped — still accumulates only while precip falls
+  }
+
+  function updateWeather(dt) {
+    if (weather) {
+      weatherTimer -= dt;
+      // Accumulate glass slowly; wipe resets; re-accumulates while precip continues
+      glassDirt = Math.min(1, glassDirt + dt * 0.075);
+      applyGlassVisuals();
+      ensureGlassPane();
+      for (const p of particles) {
+        p.y += p.sp * dt;
+        p.x += (p.drift + Math.sin(time * 2 + p.phase) * (weather === 'snow' ? 12 : 6)) * dt;
+        if (p.y > H + 8) { p.y = -8; p.x = Math.random() * W; }
+        if (p.x < -10) p.x = W + 10;
+        if (p.x > W + 10) p.x = -10;
+      }
+      if (weatherTimer <= 0) stopWeather();
+    } else {
+      nextWeatherIn -= dt;
+      // First weather after ~35s; never stacks with opening chaos
+      if (nextWeatherIn <= 0 && time > 32) {
+        spawnWeather(Math.random() < 0.45 ? 'snow' : 'rain');
+      }
+      // Dirt slowly dries when precip stops (fair)
+      if (glassDirt > 0 && !glassShown) {
+        glassDirt = Math.max(0, glassDirt - dt * 0.04);
+        applyGlassVisuals();
+        if (glassDirt <= 0.02) wipeGlass();
+      }
+    }
+  }
+
+  function drawWeatherParticles() {
+    if (!weather) return;
+    if (weather === 'rain') {
+      ctx.strokeStyle = 'rgba(186,230,253,0.55)';
+      ctx.lineWidth = 1.25;
+      for (const p of particles) {
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(p.x - 1.4, p.y + 10 + p.size * 4);
+        ctx.stroke();
+      }
+    } else {
+      for (const p of particles) {
+        ctx.fillStyle = 'rgba(241,245,249,0.85)';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  function bindGlassSwipe() {
+    let startX = 0, dx = 0, dragging = false;
+    const dismiss = () => {
+      glassPane.style.transform = 'translateX(120%)';
+      setTimeout(() => { wipeGlass(); }, 160);
+    };
+    const onDown = (e) => {
+      if (paused) return;
+      e.preventDefault();
+      const p = e.touches ? e.touches[0] : e;
+      dragging = true; startX = p.clientX; dx = 0;
+      glassPane.classList.add('swiping');
+      glassPane.setPointerCapture?.(e.pointerId);
+    };
+    const onMove = (e) => {
+      if (!dragging) return;
+      const p = e.touches ? e.touches[0] : e;
+      dx = p.clientX - startX;
+      glassPane.style.transform = `translateX(${dx}px)`;
+    };
+    const onUp = () => {
+      if (!dragging) return;
+      dragging = false; glassPane.classList.remove('swiping');
+      if (Math.abs(dx) > 64) dismiss();
+      else { glassPane.style.transform = 'translateX(0)'; }
+    };
+    glassPane.addEventListener('click', () => { if (Math.abs(dx) < 8) dismiss(); });
+    glassPane.addEventListener('pointerdown', onDown);
+    glassPane.addEventListener('pointermove', onMove);
+    glassPane.addEventListener('pointerup', onUp);
+    glassPane.addEventListener('pointercancel', onUp);
+  }
+  bindGlassSwipe();
+
   function gameOver() {
-    running = false; dead = true; applyLang();
+    running = false; dead = true; paused = false; hidePauseUI();
+    wipeGlass(); stopWeather(); syncPauseBtn(); applyLang();
     document.getElementById('overlay').classList.remove('hidden');
   }
 
@@ -338,7 +588,7 @@
   }
 
   function tryLane(dir) {
-    if (!running) return;
+    if (!running || paused) return;
     lane = Math.max(0, Math.min(LANES - 1, lane + dir));
   }
 
@@ -346,11 +596,12 @@
     if (e.code === 'ArrowLeft' || e.code === 'KeyA') { tryLane(-1); e.preventDefault(); }
     if (e.code === 'ArrowRight' || e.code === 'KeyD') { tryLane(1); e.preventDefault(); }
     if ((e.code === 'Space' || e.code === 'Enter') && !running) document.getElementById('oBtn').click();
+    if (e.code === 'KeyP' || e.code === 'Escape') { togglePause(); e.preventDefault(); }
   });
 
   let swipeX0 = 0, swipeY0 = 0, swipeArmed = false;
   canvas.addEventListener('pointerdown', (e) => {
-    if (!running) return;
+    if (!running || paused) return;
     swipeArmed = true; swipeX0 = e.clientX; swipeY0 = e.clientY;
     canvas.setPointerCapture(e.pointerId);
   });
@@ -366,6 +617,15 @@
     resetGame(); running = true;
     document.getElementById('overlay').classList.add('hidden');
     applyLang();
+    syncPauseBtn();
+  });
+
+  pauseBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    togglePause();
+  });
+  pauseOverlay.addEventListener('click', () => {
+    if (paused) setPaused(false);
   });
 
   function windowColor(mask, r, c, flicker) {
@@ -924,6 +1184,7 @@
     drawDogAndLeash();
     drawFlashlightOverlay();
     drawAngryDogEyesAboveDark();
+    drawWeatherParticles();
 
     if (notifs.length >= 4) {
       ctx.fillStyle = 'rgba(127,29,29,0.14)';
@@ -932,18 +1193,27 @@
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
 
-    // blackout HUD chip
+    // HUD chips
+    let chipY = H - 36;
     if (running && blackout) {
       ctx.fillStyle = '#111827cc';
-      ctx.fillRect(10, H - 36, 130, 24);
+      ctx.fillRect(10, chipY, 130, 24);
       ctx.fillStyle = '#fde68a';
       ctx.font = 'bold 12px system-ui,sans-serif';
-      ctx.fillText(t().blackout, 18, H - 19);
+      ctx.fillText(t().blackout, 18, chipY + 17);
+      chipY -= 28;
+    }
+    if (running && weather) {
+      ctx.fillStyle = '#0f172acc';
+      ctx.fillRect(10, chipY, 110, 24);
+      ctx.fillStyle = '#e2e8f0';
+      ctx.font = 'bold 12px system-ui,sans-serif';
+      ctx.fillText(weather === 'snow' ? t().weatherSnow : t().weatherRain, 18, chipY + 17);
     }
   }
 
   function update(dt) {
-    if (!running) return;
+    if (!running || paused) return;
     time += dt;
     if (invuln > 0) invuln -= dt;
     if (shake > 0) shake = Math.max(0, shake - dt * 28);
@@ -1035,6 +1305,8 @@
       }
     }
 
+    updateWeather(dt);
+
     notifAcc += dt;
     // Slow pushes at start; still pressure later
     notifRate = 7.5 - rampT * 4.5; // 7.5s → 3.0s
@@ -1058,6 +1330,22 @@
     getFpsSamples: () => fpsSamples.slice(),
     start: () => document.getElementById('oBtn').click(),
     setBlackout: (v) => { blackout = !!v; blackoutTimer = v ? 99 : 0; nextBlackoutIn = v ? 99 : 12; },
+    setWeather: (kind) => {
+      if (!kind || kind === 'none') { stopWeather(); return; }
+      spawnWeather(kind === 'snow' ? 'snow' : 'rain');
+      glassDirt = Math.max(glassDirt, 0.45);
+      applyGlassVisuals();
+      ensureGlassPane();
+    },
+    setGlassDirt: (v) => {
+      glassDirt = Math.max(0, Math.min(1, +v || 0));
+      applyGlassVisuals();
+      if (glassDirt >= 0.28) ensureGlassPane();
+      else wipeGlass();
+    },
+    wipeGlass: () => wipeGlass(),
+    setPaused: (v) => setPaused(!!v),
+    togglePause: () => togglePause(),
     spawnDogAt: (lane, z) => {
       obstacles.push({ kind: 'dog', lane: lane|0, z: z, hit: false, phase: Math.random()*6, bob: 0, rush: 1.25, growlT: 0 });
     },
@@ -1076,8 +1364,9 @@
       document.querySelectorAll('.notif').forEach((el) => el.click());
     },
     getState: () => ({
-      distance, score, lives, running, dead, notifs: notifs.length,
-      obstacles: obstacles.length, blackout, speed, time, perspective: true, dogOnly: true,
+      distance, score, lives, running, dead, paused, notifs: notifs.length,
+      obstacles: obstacles.length, blackout, weather, glassDirt, glassShown,
+      speed, time, perspective: true, dogOnly: true,
       lane, dogLaneF,
       dogs: obstacles.filter(o=>o.kind==='dog').map(o=>({lane:o.lane,z:o.z,rush:o.rush})),
       cats: obstacles.filter(o=>o.kind==='cat').map(o=>({x:o.x,z:o.z,dir:o.dir,lane:o.lane})),
