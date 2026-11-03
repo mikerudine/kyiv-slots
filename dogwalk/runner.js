@@ -1,4 +1,4 @@
-/* One Day in Kyiv — dog walk pseudo-3D courtyard runner (v8 crossroads/lens/AA) */
+/* One Day in Kyiv — dog walk pseudo-3D courtyard runner (v9 rare crosses, busy sky) */
 (function () {
   'use strict';
 
@@ -352,8 +352,8 @@
       });
       return;
     }
-    // Occasional dashed laser tracers over far skyline
-    if (Math.random() < dt * 0.55) {
+    // Frequent dashed laser tracers over far skyline during alerts
+    if (Math.random() < dt * 2.4) {
       const x0 = 20 + Math.random() * (W - 40);
       const y0 = HORIZON - 8 - Math.random() * 36;
       const x1 = x0 + (Math.random() - 0.5) * 80;
@@ -364,8 +364,8 @@
         phase: Math.random() * 10,
       });
     }
-    // Rare interception puff
-    if (Math.random() < dt * 0.09) {
+    // Interception puffs — noticeably more often during alerts
+    if (Math.random() < dt * 0.42) {
       skyFx.push({
         kind: 'boom',
         x: 40 + Math.random() * (W - 80),
@@ -550,11 +550,11 @@
         stories: 4 + ((Math.random() * 6) | 0),
       });
     }
-    // Occasional decorative crossroads (no gameplay challenges)
+    // Rare decorative crossroads (plain pavement only, ~5× rarer)
     crossings = [];
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 2; i++) {
       crossings.push({
-        z: 18 + i * 11 + Math.random() * 3,
+        z: 40 + i * 55 + Math.random() * 8,
         half: 1.15 + Math.random() * 0.35,
       });
     }
@@ -813,34 +813,6 @@
         ctx.fillStyle = blackout ? '#1a1520' : '#3f3a4a';
         ctx.fillRect(left, y, edge, 1);
         ctx.fillRect(right - edge, y, edge, 1);
-      }
-    }
-  }
-
-  function drawCrossingMarks() {
-    // Subtle side-street perspective lines at each crossroads (decorative only)
-    for (const c of crossings) {
-      if (c.z < Z_NEAR + 0.5 || c.z > Z_FAR - 4) continue;
-      const y = project(0, c.z).y;
-      const y2 = project(0, Math.max(Z_NEAR, c.z - c.half)).y;
-      const y3 = project(0, c.z + c.half).y;
-      // horizontal band edges
-      ctx.strokeStyle = blackout ? '#1f1a24' : '#4b4458';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.moveTo(0, y2); ctx.lineTo(W, y2); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(0, y3); ctx.lineTo(W, y3); ctx.stroke();
-      // dashed center of side street
-      ctx.strokeStyle = blackout ? '#29252488' : '#a8a29e66';
-      ctx.setLineDash([6, 8]);
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
-      ctx.setLineDash([]);
-      // little sign posts at mouth of side street
-      if (!blackout) {
-        const left = pathEdgeX(-1, c.z);
-        const right = pathEdgeX(1, c.z);
-        ctx.fillStyle = '#fbbf24';
-        ctx.fillRect(left - 3, y - 14, 3, 10);
-        ctx.fillRect(right, y - 14, 3, 10);
       }
     }
   }
@@ -1289,7 +1261,6 @@
     drawSkyFx();
     drawSideBuildingFills();
     drawPath();
-    drawCrossingMarks();
     drawLampPools();
 
     const deco = scenery.map((s) => ({ z: s.z, draw: () => drawSceneryItem(s) }));
@@ -1363,7 +1334,7 @@
     }
     for (const c of crossings) {
       c.z -= dz;
-      if (c.z < Z_NEAR - 2) c.z += (Z_FAR - Z_NEAR) + 8 + Math.random() * 6;
+      if (c.z < Z_NEAR - 2) c.z += (Z_FAR - Z_NEAR) + 45 + Math.random() * 25;
     }
     obstacles = obstacles.filter((o) => {
       if (o.kind === 'cat') {
