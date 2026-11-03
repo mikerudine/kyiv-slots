@@ -9,7 +9,7 @@
 *{box-sizing:border-box;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;background:#02040c;color:#f1f5f9;font-family:system-ui,-apple-system,sans-serif;overflow:hidden}
 #wrap{position:relative;width:100%;height:100%;max-width:480px;margin:0 auto;background:#010208}
-canvas#game{display:block;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges;background:#05040a;transition:filter .15s linear}
+canvas#game{display:block;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges;background:#05040a}
 #hud{position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;padding:10px 12px calc(12px + env(safe-area-inset-bottom));z-index:3}
 #hud .row{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
 #hud .title{font-weight:800;font-size:15px;text-shadow:0 1px 2px #000}
@@ -37,23 +37,30 @@ canvas#game{display:block;width:100%;height:100%;image-rendering:pixelated;image
 .notif .app{font-size:11px;color:#fca5a5;font-weight:700;letter-spacing:.02em}
 .notif .msg{font-size:13px;line-height:1.25;margin-top:2px;color:#f8fafc}
 .notif .swipe{font-size:10px;color:#94a3b8;margin-top:4px}
-#glassPane{position:absolute;inset:0;z-index:5;display:none;pointer-events:auto;touch-action:none;overflow:hidden}
-#glassPane.show{display:block}
-#glassPane.swiping{transition:none}
-#glassPane .sheet{position:absolute;inset:0;background:rgba(148,163,184,0.08);backdrop-filter:blur(0px);-webkit-backdrop-filter:blur(0px);transition:backdrop-filter .2s linear}
-#glassPane .hint{position:absolute;left:50%;bottom:18%;transform:translateX(-50%);background:#0f172acc;border:1px solid #64748b88;border-radius:999px;padding:8px 14px;font-size:12px;font-weight:700;white-space:nowrap;pointer-events:none;text-shadow:0 1px 2px #000}
-#glassPane canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+/* Individual lens splats — same swipe mechanic as alerts */
+.lens-splat{pointer-events:auto;position:absolute;width:78px;height:78px;border-radius:50%;transform:translateX(0) scale(1);transition:transform .16s ease-out,opacity .16s;touch-action:none;z-index:5}
+.lens-splat.swiping{transition:none}
+.lens-splat.rain{
+  background:
+    radial-gradient(circle at 35% 30%, rgba(255,255,255,.55) 0 8%, transparent 18%),
+    radial-gradient(circle at 50% 55%, rgba(186,230,253,.55) 0 28%, rgba(56,189,248,.18) 45%, transparent 70%);
+  box-shadow:0 0 0 1px rgba(186,230,253,.25), 0 8px 18px #0006;
+  backdrop-filter:blur(2.5px);-webkit-backdrop-filter:blur(2.5px);
+}
+.lens-splat.snow{
+  background:
+    radial-gradient(circle at 40% 35%, rgba(255,255,255,.9) 0 14%, transparent 22%),
+    radial-gradient(circle at 50% 50%, rgba(241,245,249,.75) 0 34%, rgba(148,163,184,.2) 55%, transparent 72%);
+  box-shadow:0 0 0 1px rgba(226,232,240,.35), 0 6px 14px #0005;
+  backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);
+}
+.lens-splat .cap{position:absolute;left:50%;bottom:-2px;transform:translateX(-50%);font-size:9px;font-weight:800;color:#e2e8f0;text-shadow:0 1px 2px #000;white-space:nowrap;opacity:.85;pointer-events:none}
 </style>
 </head>
 <body>
 <div id="wrap">
   <canvas id="game" width="360" height="640"></canvas>
   <div id="notifs"></div>
-  <div id="glassPane" aria-hidden="true">
-    <div class="sheet"></div>
-    <canvas id="glassCanvas" width="360" height="640"></canvas>
-    <div class="hint" id="glassHint"></div>
-  </div>
   <div id="hud">
     <div class="row">
       <div>

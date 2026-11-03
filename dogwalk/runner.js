@@ -1,4 +1,4 @@
-/* One Day in Kyiv — dog walk pseudo-3D courtyard runner (v7.1 weather+pause) */
+/* One Day in Kyiv — dog walk pseudo-3D courtyard runner (v8 crossroads/lens/AA) */
 (function () {
   'use strict';
 
@@ -62,7 +62,7 @@
       growl: 'ГРРР!',
       pause: 'Пауза',
       pauseBody: 'Торкніться, щоб продовжити',
-      glassWipe: '💧 Змахни скло / клік',
+      lensWipe: 'змахни',
       weatherRain: '🌧 Дощ',
       weatherSnow: '❄ Сніг',
     },
@@ -89,7 +89,7 @@
       growl: 'GRRR!',
       pause: 'Paused',
       pauseBody: 'Tap to resume',
-      glassWipe: '💧 Wipe the glass / click',
+      lensWipe: 'wipe',
       weatherRain: '🌧 Rain',
       weatherSnow: '❄ Snow',
     },
@@ -106,7 +106,6 @@
     document.documentElement.lang = lang === 'ua' ? 'uk' : 'en';
     document.getElementById('pauseTitle').textContent = L.pause;
     document.getElementById('pauseBody').textContent = L.pauseBody;
-    document.getElementById('glassHint').textContent = L.glassWipe;
     if (!running) {
       document.getElementById('oTitle').textContent = dead ? L.overTitle : L.overlayTitle;
       document.getElementById('oBody').textContent = dead ? L.overBody(distance, score) : L.overlayBody;
@@ -141,19 +140,16 @@
   let blackout = false, blackoutTimer = 0, nextBlackoutIn = 55;
   let time = 0;
   let paused = false;
-  // Weather: rain/snow particles + accumulating glass smear (swipe to wipe)
+  // Weather: ambient particles + discrete lens splats (swipe each like alerts)
   let weather = null; // 'rain' | 'snow' | null
-  let weatherTimer = 0, nextWeatherIn = 38;
-  let glassDirt = 0; // 0..1 progressive blur / drops on glass
+  let weatherTimer = 0, nextWeatherIn = 38, splatAcc = 0;
   let particles = [];
-  let glassShown = false;
+  let crossings = []; // decorative side-street intersections {z, half}
+  let skyFx = []; // air-defense lasers / boom puffs while alerts active
 
   const notifRoot = document.getElementById('notifs');
   let notifs = [];
-  const glassPane = document.getElementById('glassPane');
-  const glassSheet = glassPane.querySelector('.sheet');
-  const glassCanvas = document.getElementById('glassCanvas');
-  const gctx = glassCanvas.getContext('2d');
+  let lensSplats = [];
   const pauseOverlay = document.getElementById('pauseOverlay');
   const pauseBtn = document.getElementById('pauseBtn');
 
@@ -165,17 +161,22 @@
     blackout = false; blackoutTimer = 0; nextBlackoutIn = 50 + Math.random() * 20;
     paused = false; hidePauseUI();
     weather = null; weatherTimer = 0; nextWeatherIn = 32 + Math.random() * 18;
-    glassDirt = 0; particles = []; hideGlassPane(true);
-    canvas.style.filter = 'none';
+    splatAcc = 0; particles = []; skyFx = [];
     update._catAcc = 0; update._nDrain = 0;
     seedScenery();
     clearNotifs();
+    clearLensSplats();
     syncPauseBtn();
   }
 
   function clearNotifs() {
     notifs.forEach((n) => n.el.remove());
     notifs = [];
+  }
+
+  function clearLensSplats() {
+    lensSplats.forEach((s) => s.el.remove());
+    lensSplats = [];
   }
 
   function syncPauseBtn() {
@@ -192,20 +193,13 @@
     paused = !!v;
     if (paused) {
       pauseOverlay.classList.add('show');
-      // Hide swipe-glass UI under pause (dirt kept); restore after resume
-      if (glassShown) {
-        glassPane.classList.remove('show');
-        glassPane.setAttribute('aria-hidden', 'true');
-      }
+      // Keep lens splats but don't interact under pause overlay
+      lensSplats.forEach((s) => { s.el.style.pointerEvents = 'none'; });
       applyLang();
     } else {
       hidePauseUI();
-      last = performance.now(); // avoid huge dt after unpause
-      if (glassDirt >= 0.28 && weather) {
-        glassShown = false; // force re-show
-        ensureGlassPane();
-        applyGlassVisuals();
-      }
+      last = performance.now();
+      lensSplats.forEach((s) => { s.el.style.pointerEvents = 'auto'; });
     }
   }
 
@@ -214,90 +208,19 @@
     setPaused(!paused);
   }
 
-  function hideGlassPane(instant) {
-    glassShown = false;
-    glassPane.classList.remove('show', 'swiping');
-    glassPane.style.transform = '';
-    glassPane.setAttribute('aria-hidden', 'true');
-    if (instant) {
-      gctx.clearRect(0, 0, W, H);
-      glassSheet.style.backdropFilter = 'blur(0px)';
-      glassSheet.style.webkitBackdropFilter = 'blur(0px)';
-    }
-  }
-
-  function wipeGlass() {
-    glassDirt = 0;
-    canvas.style.filter = 'none';
-    hideGlassPane(true);
-  }
-
-  function ensureGlassPane() {
-    if (glassShown || glassDirt < 0.28 || !running || paused || dead) return;
-    glassShown = true;
-    glassPane.classList.add('show');
-    glassPane.setAttribute('aria-hidden', 'false');
-    glassPane.style.transform = 'translateX(0)';
-    document.getElementById('glassHint').textContent = t().glassWipe;
-    paintGlassDrops(true);
-  }
-
-  function paintGlassDrops(force) {
-    if (!glassShown && !force) return;
-    gctx.clearRect(0, 0, W, H);
-    const n = 18 + Math.floor(glassDirt * 55);
-    const kind = weather || 'rain';
-    for (let i = 0; i < n; i++) {
-      // Stable-ish positions from dirt + index so they don't jump every frame wildly
-      const seed = (i * 7919 + Math.floor(glassDirt * 7) * 104729) >>> 0;
-      const x = (seed % W);
-      const y = ((seed * 13) % H);
-      if (kind === 'snow') {
-        const r = 2 + (seed % 5) * 0.7 * (0.5 + glassDirt);
-        gctx.fillStyle = `rgba(241,245,249,${0.25 + glassDirt * 0.45})`;
-        gctx.beginPath(); gctx.arc(x, y, r, 0, Math.PI * 2); gctx.fill();
-      } else {
-        const len = 6 + (seed % 10);
-        gctx.strokeStyle = `rgba(186,230,253,${0.2 + glassDirt * 0.5})`;
-        gctx.lineWidth = 1.2 + glassDirt;
-        gctx.beginPath();
-        gctx.moveTo(x, y);
-        gctx.lineTo(x - 1.2, y + len);
-        gctx.stroke();
-        // bead
-        gctx.fillStyle = `rgba(224,242,254,${0.25 + glassDirt * 0.4})`;
-        gctx.beginPath(); gctx.ellipse(x - 0.5, y + len + 2, 2.2, 3.2, 0, 0, Math.PI * 2); gctx.fill();
-      }
-    }
-    // Smear streaks when very dirty
-    if (glassDirt > 0.55) {
-      gctx.fillStyle = `rgba(148,163,184,${(glassDirt - 0.55) * 0.25})`;
-      gctx.fillRect(0, 0, W, H);
-    }
-  }
-
-  function applyGlassVisuals() {
-    const blurPx = Math.min(5.5, glassDirt * 5.2);
-    canvas.style.filter = blurPx > 0.15 ? `blur(${blurPx.toFixed(2)}px)` : 'none';
-    const sheetBlur = Math.min(7, glassDirt * 6.5);
-    glassSheet.style.backdropFilter = `blur(${sheetBlur.toFixed(2)}px)`;
-    glassSheet.style.webkitBackdropFilter = `blur(${sheetBlur.toFixed(2)}px)`;
-    glassSheet.style.background = `rgba(148,163,184,${(0.04 + glassDirt * 0.12).toFixed(3)})`;
-    if (glassShown) paintGlassDrops(true);
-  }
-
   function spawnWeather(kind) {
     weather = kind === 'snow' ? 'snow' : 'rain';
-    weatherTimer = 10 + Math.random() * 6; // 10–16s — fair window
+    weatherTimer = 12 + Math.random() * 8; // 12–20s
+    splatAcc = 1.2 + Math.random(); // first splat after a beat
     particles = [];
-    const count = weather === 'snow' ? 55 : 70;
+    const count = weather === 'snow' ? 48 : 64;
     for (let i = 0; i < count; i++) {
       particles.push({
         x: Math.random() * W,
         y: Math.random() * H,
-        sp: weather === 'snow' ? (28 + Math.random() * 40) : (220 + Math.random() * 260),
-        drift: (Math.random() - 0.5) * (weather === 'snow' ? 28 : 40),
-        size: weather === 'snow' ? (1.5 + Math.random() * 2.5) : (1 + Math.random() * 1.4),
+        sp: weather === 'snow' ? (24 + Math.random() * 36) : (200 + Math.random() * 240),
+        drift: (Math.random() - 0.5) * (weather === 'snow' ? 26 : 36),
+        size: weather === 'snow' ? (1.4 + Math.random() * 2.2) : (1 + Math.random() * 1.3),
         phase: Math.random() * Math.PI * 2,
       });
     }
@@ -308,16 +231,66 @@
     weatherTimer = 0;
     particles = [];
     nextWeatherIn = 26 + Math.random() * 18;
-    // glass stays until wiped — still accumulates only while precip falls
+    // Lens splats stay until player swipes each — they do not auto-vanish
+  }
+
+  function spawnLensSplat(forceKind) {
+    if (!running || dead || paused) return;
+    if (lensSplats.length >= 4) return; // fair cap
+    const kind = forceKind || weather || 'rain';
+    const el = document.createElement('div');
+    el.className = 'lens-splat ' + (kind === 'snow' ? 'snow' : 'rain');
+    const wrap = document.getElementById('wrap').getBoundingClientRect();
+    const size = 64 + Math.random() * 36;
+    el.style.width = size + 'px';
+    el.style.height = size + 'px';
+    // Prefer mid/upper lens area — "on glasses"
+    const left = 8 + Math.random() * Math.max(40, wrap.width - size - 16);
+    const top = 70 + Math.random() * Math.max(80, wrap.height * 0.55);
+    el.style.left = left + 'px';
+    el.style.top = top + 'px';
+    el.innerHTML = `<div class="cap">${t().lensWipe}</div>`;
+    notifRoot.appendChild(el);
+    const state = { el, startX: 0, dx: 0, dragging: false, kind };
+    lensSplats.push(state);
+    const dismiss = () => {
+      el.style.transform = `translateX(${state.dx >= 0 ? 140 : -140}%) scale(0.85)`;
+      el.style.opacity = '0';
+      setTimeout(() => {
+        el.remove();
+        lensSplats = lensSplats.filter((s) => s !== state);
+        score += 8;
+      }, 150);
+    };
+    const onDown = (e) => {
+      if (paused) return;
+      e.preventDefault(); e.stopPropagation();
+      const p = e.touches ? e.touches[0] : e;
+      state.dragging = true; state.startX = p.clientX; state.dx = 0;
+      el.classList.add('swiping'); el.setPointerCapture?.(e.pointerId);
+    };
+    const onMove = (e) => {
+      if (!state.dragging) return;
+      const p = e.touches ? e.touches[0] : e;
+      state.dx = p.clientX - state.startX;
+      el.style.transform = `translateX(${state.dx}px)`;
+    };
+    const onUp = () => {
+      if (!state.dragging) return;
+      state.dragging = false; el.classList.remove('swiping');
+      if (Math.abs(state.dx) > 48) dismiss();
+      else el.style.transform = 'translateX(0)';
+    };
+    el.addEventListener('click', (e) => { e.stopPropagation(); if (Math.abs(state.dx) < 8) dismiss(); });
+    el.addEventListener('pointerdown', onDown);
+    el.addEventListener('pointermove', onMove);
+    el.addEventListener('pointerup', onUp);
+    el.addEventListener('pointercancel', onUp);
   }
 
   function updateWeather(dt) {
     if (weather) {
       weatherTimer -= dt;
-      // Accumulate glass slowly; wipe resets; re-accumulates while precip continues
-      glassDirt = Math.min(1, glassDirt + dt * 0.075);
-      applyGlassVisuals();
-      ensureGlassPane();
       for (const p of particles) {
         p.y += p.sp * dt;
         p.x += (p.drift + Math.sin(time * 2 + p.phase) * (weather === 'snow' ? 12 : 6)) * dt;
@@ -325,18 +298,18 @@
         if (p.x < -10) p.x = W + 10;
         if (p.x > W + 10) p.x = -10;
       }
+      // Discrete lens hits — slow, capped, never auto-clear
+      splatAcc += dt;
+      const every = 2.6 + lensSplats.length * 0.7; // slower when already messy
+      if (splatAcc >= every) {
+        splatAcc = 0;
+        if (Math.random() < 0.85) spawnLensSplat();
+      }
       if (weatherTimer <= 0) stopWeather();
     } else {
       nextWeatherIn -= dt;
-      // First weather after ~35s; never stacks with opening chaos
       if (nextWeatherIn <= 0 && time > 32) {
         spawnWeather(Math.random() < 0.45 ? 'snow' : 'rain');
-      }
-      // Dirt slowly dries when precip stops (fair)
-      if (glassDirt > 0 && !glassShown) {
-        glassDirt = Math.max(0, glassDirt - dt * 0.04);
-        applyGlassVisuals();
-        if (glassDirt <= 0.02) wipeGlass();
       }
     }
   }
@@ -344,17 +317,17 @@
   function drawWeatherParticles() {
     if (!weather) return;
     if (weather === 'rain') {
-      ctx.strokeStyle = 'rgba(186,230,253,0.55)';
-      ctx.lineWidth = 1.25;
+      ctx.strokeStyle = 'rgba(186,230,253,0.45)';
+      ctx.lineWidth = 1.2;
       for (const p of particles) {
         ctx.beginPath();
         ctx.moveTo(p.x, p.y);
-        ctx.lineTo(p.x - 1.4, p.y + 10 + p.size * 4);
+        ctx.lineTo(p.x - 1.3, p.y + 9 + p.size * 3.5);
         ctx.stroke();
       }
     } else {
       for (const p of particles) {
-        ctx.fillStyle = 'rgba(241,245,249,0.85)';
+        ctx.fillStyle = 'rgba(241,245,249,0.8)';
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
         ctx.fill();
@@ -362,43 +335,148 @@
     }
   }
 
-  function bindGlassSwipe() {
-    let startX = 0, dx = 0, dragging = false;
-    const dismiss = () => {
-      glassPane.style.transform = 'translateX(120%)';
-      setTimeout(() => { wipeGlass(); }, 160);
-    };
-    const onDown = (e) => {
-      if (paused) return;
-      e.preventDefault();
-      const p = e.touches ? e.touches[0] : e;
-      dragging = true; startX = p.clientX; dx = 0;
-      glassPane.classList.add('swiping');
-      glassPane.setPointerCapture?.(e.pointerId);
-    };
-    const onMove = (e) => {
-      if (!dragging) return;
-      const p = e.touches ? e.touches[0] : e;
-      dx = p.clientX - startX;
-      glassPane.style.transform = `translateX(${dx}px)`;
-    };
-    const onUp = () => {
-      if (!dragging) return;
-      dragging = false; glassPane.classList.remove('swiping');
-      if (Math.abs(dx) > 64) dismiss();
-      else { glassPane.style.transform = 'translateX(0)'; }
-    };
-    glassPane.addEventListener('click', () => { if (Math.abs(dx) < 8) dismiss(); });
-    glassPane.addEventListener('pointerdown', onDown);
-    glassPane.addEventListener('pointermove', onMove);
-    glassPane.addEventListener('pointerup', onUp);
-    glassPane.addEventListener('pointercancel', onUp);
+  function crossingAt(z) {
+    for (const c of crossings) {
+      if (Math.abs(c.z - z) < c.half) return c;
+    }
+    return null;
   }
-  bindGlassSwipe();
+
+  function updateSkyFx(dt) {
+    // Air defense only while at least one alert push is on screen
+    const alertOn = notifs.length > 0;
+    if (!alertOn) {
+      skyFx = skyFx.filter((fx) => {
+        fx.life -= dt;
+        return fx.life > 0;
+      });
+      return;
+    }
+    // Occasional dashed laser tracers over far skyline
+    if (Math.random() < dt * 0.55) {
+      const x0 = 20 + Math.random() * (W - 40);
+      const y0 = HORIZON - 8 - Math.random() * 36;
+      const x1 = x0 + (Math.random() - 0.5) * 80;
+      const y1 = Math.max(8, y0 - (30 + Math.random() * 50));
+      skyFx.push({
+        kind: 'laser', x0, y0, x1, y1,
+        life: 0.18 + Math.random() * 0.28,
+        phase: Math.random() * 10,
+      });
+    }
+    // Rare interception puff
+    if (Math.random() < dt * 0.09) {
+      skyFx.push({
+        kind: 'boom',
+        x: 40 + Math.random() * (W - 80),
+        y: 20 + Math.random() * (HORIZON - 28),
+        life: 0.7 + Math.random() * 0.5,
+        r0: 4 + Math.random() * 4,
+      });
+    }
+    for (const fx of skyFx) fx.life -= dt;
+    skyFx = skyFx.filter((fx) => fx.life > 0);
+  }
+
+  function drawSkyFx() {
+    for (const fx of skyFx) {
+      if (fx.kind === 'laser') {
+        const a = Math.max(0, Math.min(1, fx.life * 3));
+        ctx.strokeStyle = `rgba(134, 239, 172, ${0.85 * a})`;
+        ctx.lineWidth = 2.2;
+        ctx.setLineDash([4, 5]);
+        ctx.lineDashOffset = -time * 40 - fx.phase;
+        ctx.beginPath();
+        ctx.moveTo(fx.x0, fx.y0);
+        ctx.lineTo(fx.x1, fx.y1);
+        ctx.stroke();
+        // hot tip
+        ctx.setLineDash([]);
+        ctx.fillStyle = `rgba(187, 247, 208, ${0.9 * a})`;
+        ctx.beginPath(); ctx.arc(fx.x1, fx.y1, 1.6, 0, Math.PI * 2); ctx.fill();
+      } else if (fx.kind === 'boom') {
+        const t = 1 - Math.max(0, Math.min(1, fx.life / 1.1));
+        const r = fx.r0 + t * 16;
+        const a = (1 - t) * 0.7;
+        ctx.fillStyle = `rgba(251, 146, 60, ${a * 0.55})`;
+        ctx.beginPath(); ctx.arc(fx.x, fx.y, r, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = `rgba(254, 243, 199, ${a * 0.7})`;
+        ctx.beginPath(); ctx.arc(fx.x - r * 0.15, fx.y - r * 0.2, r * 0.45, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = `rgba(120, 113, 108, ${a * 0.45})`;
+        ctx.beginPath(); ctx.arc(fx.x + r * 0.2, fx.y - r * 0.1, r * 0.7, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    ctx.setLineDash([]);
+  }
+
+  function drawSideBuildingFills() {
+    // Layered silhouettes packing the shoulders so no empty black remains
+    for (let i = 0; i < 16; i++) {
+      const z = 7 + i * 4.2;
+      if (z < Z_NEAR || z > Z_FAR) continue;
+      const left = pathEdgeX(-1, z);
+      const right = pathEdgeX(1, z);
+      const pL = project(-(PATH_HALF + 1.2), z);
+      const pR = project(PATH_HALF + 1.2, z);
+      const sc = pL.s;
+      const stories = 3 + (i % 5);
+      const bh = sc * (0.5 * stories + 0.4);
+      const mask = (i * 104729 + 7919) | 0;
+      // LEFT pack: fill from 0 → path edge with 2 staggered blocks
+      for (let b = 0; b < 2; b++) {
+        const x1 = b === 0 ? 0 : left * 0.45;
+        const x2 = b === 0 ? Math.max(x1 + 8, left * 0.55) : left;
+        if (x2 <= x1 + 2) continue;
+        const baseY = pL.y;
+        const h = bh * (0.75 + (b + i) % 3 * 0.12);
+        ctx.fillStyle = blackout ? '#030308' : (b ? '#080712' : '#0c0a14');
+        ctx.fillRect(x1, baseY - h, x2 - x1, h + 4);
+        if (!blackout) {
+          const cols = 2 + (i + b) % 3;
+          const rows = Math.max(2, stories - 1);
+          for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+            const col = windowColor(mask + b * 17, r, c, (r + c + i) % 8 === 0);
+            if (!col) continue;
+            const ww = (x2 - x1) * 0.12;
+            ctx.fillStyle = col;
+            ctx.fillRect(
+              x1 + (x2 - x1) * (0.1 + c * (0.8 / cols)),
+              baseY - h + h * (0.1 + r * (0.8 / rows)),
+              Math.max(2, ww), Math.max(2, h * 0.07)
+            );
+          }
+        }
+      }
+      // RIGHT pack
+      for (let b = 0; b < 2; b++) {
+        const x1 = b === 0 ? right : right + (W - right) * 0.45;
+        const x2 = b === 0 ? right + (W - right) * 0.55 : W;
+        if (x2 <= x1 + 2) continue;
+        const baseY = pR.y;
+        const h = bh * (0.7 + (b + i * 2) % 3 * 0.14);
+        ctx.fillStyle = blackout ? '#030308' : (b ? '#0a0912' : '#070610');
+        ctx.fillRect(x1, baseY - h, x2 - x1, h + 4);
+        if (!blackout) {
+          const cols = 2 + (i + b) % 3;
+          const rows = Math.max(2, stories - 1);
+          for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+            const col = windowColor(mask + 99 + b, r, c, (r + c + i) % 7 === 0);
+            if (!col) continue;
+            ctx.fillStyle = col;
+            ctx.fillRect(
+              x1 + (x2 - x1) * (0.1 + c * (0.8 / cols)),
+              baseY - h + h * (0.1 + r * (0.8 / rows)),
+              Math.max(2, (x2 - x1) * 0.12), Math.max(2, h * 0.07)
+            );
+          }
+        }
+      }
+    }
+  }
 
   function gameOver() {
     running = false; dead = true; paused = false; hidePauseUI();
-    wipeGlass(); stopWeather(); syncPauseBtn(); applyLang();
+    stopWeather(); clearLensSplats(); skyFx = []; syncPauseBtn(); applyLang();
     document.getElementById('overlay').classList.remove('hidden');
   }
 
@@ -461,15 +539,23 @@
         }
       }
     }
-    // Far building silhouettes (deeper / farther out)
-    for (let i = 0; i < 28; i++) {
+    // Far building silhouettes (deeper / farther out) — denser pack
+    for (let i = 0; i < 40; i++) {
       scenery.push({
         kind: 'building',
         side: i % 2 === 0 ? -1 : 1,
-        z: 16 + i * 2.4 + Math.random() * 1.2,
+        z: 12 + i * 1.85 + Math.random() * 1.0,
         variant: (Math.random() * 4) | 0,
         winMask: (Math.random() * 0xffffff) | 0,
         stories: 4 + ((Math.random() * 6) | 0),
+      });
+    }
+    // Occasional decorative crossroads (no gameplay challenges)
+    crossings = [];
+    for (let i = 0; i < 6; i++) {
+      crossings.push({
+        z: 18 + i * 11 + Math.random() * 3,
+        half: 1.15 + Math.random() * 0.35,
       });
     }
   }
@@ -708,22 +794,54 @@
       const row = y - HORIZON + 1;
       const z = (CAM_H * FOCAL) / row;
       if (z < Z_NEAR - 0.6 || z > Z_FAR + 10) continue;
-      const left = pathEdgeX(-1, z);
-      const right = pathEdgeX(1, z);
-      // Beyond road: night fog / void (no grey yard field)
-      ctx.fillStyle = blackout ? '#000000' : '#05040a';
-      ctx.fillRect(0, y, Math.max(0, left), 1);
-      ctx.fillRect(right, y, Math.max(0, W - right), 1);
+      let left = pathEdgeX(-1, z);
+      let right = pathEdgeX(1, z);
+      const cross = crossingAt(z);
+      // At a crossroads the pavement spans full width (side street)
+      if (cross) {
+        left = 0;
+        right = W;
+      }
       // Dark evening pavement
       const tile = (((z * 1.6 + pathPhase * 0.4) | 0) % 3);
       if (blackout) ctx.fillStyle = tile === 0 ? '#0c0a0f' : '#09080c';
+      else if (cross) ctx.fillStyle = tile === 0 ? '#322a3a' : tile === 1 ? '#2a2233' : '#1f1828';
       else ctx.fillStyle = tile === 0 ? '#2a2433' : tile === 1 ? '#211c29' : '#18141f';
       ctx.fillRect(left, y, Math.max(1, right - left), 1);
-      // soft curb
-      const edge = Math.max(1.2, (right - left) * 0.012);
-      ctx.fillStyle = blackout ? '#1a1520' : '#3f3a4a';
-      ctx.fillRect(left, y, edge, 1);
-      ctx.fillRect(right - edge, y, edge, 1);
+      if (!cross) {
+        const edge = Math.max(1.2, (right - left) * 0.012);
+        ctx.fillStyle = blackout ? '#1a1520' : '#3f3a4a';
+        ctx.fillRect(left, y, edge, 1);
+        ctx.fillRect(right - edge, y, edge, 1);
+      }
+    }
+  }
+
+  function drawCrossingMarks() {
+    // Subtle side-street perspective lines at each crossroads (decorative only)
+    for (const c of crossings) {
+      if (c.z < Z_NEAR + 0.5 || c.z > Z_FAR - 4) continue;
+      const y = project(0, c.z).y;
+      const y2 = project(0, Math.max(Z_NEAR, c.z - c.half)).y;
+      const y3 = project(0, c.z + c.half).y;
+      // horizontal band edges
+      ctx.strokeStyle = blackout ? '#1f1a24' : '#4b4458';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(0, y2); ctx.lineTo(W, y2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, y3); ctx.lineTo(W, y3); ctx.stroke();
+      // dashed center of side street
+      ctx.strokeStyle = blackout ? '#29252488' : '#a8a29e66';
+      ctx.setLineDash([6, 8]);
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+      ctx.setLineDash([]);
+      // little sign posts at mouth of side street
+      if (!blackout) {
+        const left = pathEdgeX(-1, c.z);
+        const right = pathEdgeX(1, c.z);
+        ctx.fillStyle = '#fbbf24';
+        ctx.fillRect(left - 3, y - 14, 3, 10);
+        ctx.fillRect(right, y - 14, 3, 10);
+      }
     }
   }
 
@@ -1164,11 +1282,14 @@
     ctx.setTransform(1, 0, 0, 1, ox, oy);
 
     drawSky();
-    // Night void beyond the road (replaces the old grey yard field)
+    // Base fill — side building packs cover most of the black
     ctx.fillStyle = blackout ? '#000000' : '#05040a';
     ctx.fillRect(0, HORIZON, W, H - HORIZON);
     drawCityBackdrop();
+    drawSkyFx();
+    drawSideBuildingFills();
     drawPath();
+    drawCrossingMarks();
     drawLampPools();
 
     const deco = scenery.map((s) => ({ z: s.z, draw: () => drawSceneryItem(s) }));
@@ -1240,6 +1361,10 @@
       s.z -= dz;
       if (s.z < Z_NEAR - 1) s.z += (Z_FAR - Z_NEAR) + Math.random() * 4;
     }
+    for (const c of crossings) {
+      c.z -= dz;
+      if (c.z < Z_NEAR - 2) c.z += (Z_FAR - Z_NEAR) + 8 + Math.random() * 6;
+    }
     obstacles = obstacles.filter((o) => {
       if (o.kind === 'cat') {
         if (Math.abs(o.x) > PATH_HALF + 1.6) return false;
@@ -1306,6 +1431,7 @@
     }
 
     updateWeather(dt);
+    updateSkyFx(dt);
 
     notifAcc += dt;
     // Slow pushes at start; still pressure later
@@ -1333,17 +1459,30 @@
     setWeather: (kind) => {
       if (!kind || kind === 'none') { stopWeather(); return; }
       spawnWeather(kind === 'snow' ? 'snow' : 'rain');
-      glassDirt = Math.max(glassDirt, 0.45);
-      applyGlassVisuals();
-      ensureGlassPane();
     },
-    setGlassDirt: (v) => {
-      glassDirt = Math.max(0, Math.min(1, +v || 0));
-      applyGlassVisuals();
-      if (glassDirt >= 0.28) ensureGlassPane();
-      else wipeGlass();
+    spawnLensSplat: (kind) => spawnLensSplat(kind),
+    clearLensSplats: () => clearLensSplats(),
+    forceAlert: () => { spawnNotif(); },
+    placeCrossingAt: (z) => {
+      crossings.push({ z: z || 14, half: 1.4 });
     },
-    wipeGlass: () => wipeGlass(),
+    burstSkyFx: () => {
+      for (let i = 0; i < 6; i++) {
+        const x0 = 30 + Math.random() * (W - 60);
+        const y0 = HORIZON - 6 - Math.random() * 30;
+        skyFx.push({
+          kind: 'laser', x0, y0,
+          x1: x0 + (Math.random() - 0.5) * 90,
+          y1: Math.max(6, y0 - (35 + Math.random() * 45)),
+          life: 0.55 + Math.random() * 0.35,
+          phase: Math.random() * 10,
+        });
+      }
+      skyFx.push({
+        kind: 'boom', x: W * 0.35 + Math.random() * W * 0.3,
+        y: 28 + Math.random() * 40, life: 0.95, r0: 6,
+      });
+    },
     setPaused: (v) => setPaused(!!v),
     togglePause: () => togglePause(),
     spawnDogAt: (lane, z) => {
@@ -1365,7 +1504,9 @@
     },
     getState: () => ({
       distance, score, lives, running, dead, paused, notifs: notifs.length,
-      obstacles: obstacles.length, blackout, weather, glassDirt, glassShown,
+      obstacles: obstacles.length, blackout, weather,
+      lensSplats: lensSplats.length, crossings: crossings.length, skyFx: skyFx.length,
+      notifsActive: notifs.length,
       speed, time, perspective: true, dogOnly: true,
       lane, dogLaneF,
       dogs: obstacles.filter(o=>o.kind==='dog').map(o=>({lane:o.lane,z:o.z,rush:o.rush})),
