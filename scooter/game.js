@@ -1,4 +1,4 @@
-/* One Day in Kyiv — scooter side-scroller v2 (portrait + terrain) */
+/* One Day in Kyiv — scooter side-scroller v3 (lamps forever + blackout + hill boost) */
 (function () {
   'use strict';
 
@@ -26,6 +26,8 @@
   const BRAKE = 560;
   const DRAG = 60;
   const V_MAX = 300;
+  const V_BOOST_MAX = 420;
+  const LAMP_SPACING = 160;
   const V_MIN = 36;
   const COYOTE = 0.14;
   const START_LIVES = 5;
@@ -41,10 +43,11 @@
       score: (d, s) => `${d | 0} м · ${s | 0}`,
       lives: (n) => `❤ ${n}`,
       overlayTitle: 'Самокат',
-      overlayBody: 'Катись Лівобережжям: газ, стрибок, гальмо. Рельєф — схили й бордюри; клумби, генератори; на дахи автів можна застрибнути.',
+      overlayBody: 'Катись Лівобережжям: газ, стрибок, гальмо. Схили гальмують і розганяють; бордюри; клумби, генератори, дахи автів. Інколи світло гасне — лише фара самоката.',
       start: 'Старт', again: 'Ще раз', overTitle: 'Упав',
       overBody: (d, s) => `Дистанція ${d | 0} м · рахунок ${s | 0}`,
       pause: 'Пауза', pauseBody: 'Торкніться, щоб продовжити',
+      blackout: '💡 Світла нема',
     },
     en: {
       title: 'Scooter home',
@@ -52,10 +55,11 @@
       score: (d, s) => `${d | 0} m · ${s | 0}`,
       lives: (n) => `❤ ${n}`,
       overlayTitle: 'Scooter',
-      overlayBody: 'Ride left→right: accel, jump, brake. Terrain slopes & curb steps; flower beds, generators; jump onto car roofs.',
+      overlayBody: 'Ride left→right: accel, jump, brake. Hills slow/boost you; curb steps; flower beds, generators, car roofs. Lights may cut out — only the scooter headlight remains.',
       start: 'Start', again: 'Again', overTitle: 'Wiped out',
       overBody: (d, s) => `Distance ${d | 0} m · score ${s | 0}`,
       pause: 'Paused', pauseBody: 'Tap to resume',
+      blackout: '💡 Blackout',
     },
   };
 
@@ -69,6 +73,9 @@
 
   let px = 60, py = BASE_Y - PLAYER_H, vx = 90, vy = 0;
   let onGround = true, wheelPhase = 0, groundSlope = 0;
+  let hillBoost = 0; // lingering downhill speed boost (decays)
+  let blackout = false, blackoutTimer = 0, nextBlackoutIn = 28;
+  let blackoutAnnounce = 0;
 
   /** Terrain keypoints: sorted by x. y = surface height (smaller y = higher up screen / raised road). */
   let terrain = [];
@@ -295,6 +302,9 @@
     time = 0; distance = 0; score = 0; lives = START_LIVES;
     invuln = 0; shake = 0; coyote = 0;
     px = 60; vx = 100; vy = 0; onGround = true; wheelPhase = 0; groundSlope = 0;
+    hillBoost = 0;
+    blackout = false; blackoutTimer = 0; nextBlackoutIn = 22 + Math.random() * 12;
+    blackoutAnnounce = 0;
     seedCourse();
     py = groundY(px) - PLAYER_H;
     syncPauseBtn(); applyLang();
@@ -353,13 +363,33 @@
     if (input.accel) vx += ACCEL * dt;
     if (input.brake) vx -= BRAKE * dt;
     if (!input.accel && !input.brake) vx -= Math.sign(vx || 1) * DRAG * dt;
-    // downhill accelerates, uphill slows — clamp so curb faces don't explode physics
+
+    // Slope feel: uphill (s < 0, ground rises) slows hard; downhill (s > 0) surges + lingering boost
     if (onGround) {
       const s = Math.max(-0.55, Math.min(0.55, groundSlope));
-      vx += (-s) * 380 * dt;
+      if (s < -0.04) {
+        // climbing — noticeable drag
+        vx += s * 920 * dt; // s negative → slows
+        hillBoost = Math.max(0, hillBoost - dt * 1.6);
+      } else if (s > 0.05) {
+        // descending — strong accel + charge boost
+        vx += s * 1100 * dt;
+        hillBoost = Math.min(1.35, hillBoost + s * 4.5 * dt);
+      } else {
+        hillBoost = Math.max(0, hillBoost - dt * 0.55);
+      }
+    } else {
+      hillBoost = Math.max(0, hillBoost - dt * 0.35);
     }
+    // lingering downhill boost after the slope
+    if (hillBoost > 0.02) {
+      vx += hillBoost * 220 * dt;
+      if (!input.brake) vx += hillBoost * 40 * dt;
+    }
+
     if (!input.brake && vx < V_MIN && onGround) vx = V_MIN;
-    if (vx > V_MAX) vx = V_MAX;
+    const vmax = V_MAX + hillBoost * (V_BOOST_MAX - V_MAX);
+    if (vx > vmax) vx = vmax;
     if (vx < -30) vx = -30;
 
     // step-up: tall faces need jump (or crash if slamming); small faces bump/climb
@@ -426,6 +456,23 @@
     // prune old terrain points but keep one behind camera
     while (terrain.length > 3 && terrain[1].x < cam - 200) terrain.shift();
 
+    // periodic blackouts (like dogwalk)
+    if (blackout) {
+      blackoutTimer -= dt;
+      if (blackoutTimer <= 0) {
+        blackout = false;
+        nextBlackoutIn = 16 + Math.random() * 14;
+      }
+    } else {
+      nextBlackoutIn -= dt;
+      if (nextBlackoutIn <= 0 && time > 18) {
+        blackout = true;
+        blackoutTimer = 4.2 + Math.random() * 2.8;
+        blackoutAnnounce = 2.4;
+      }
+    }
+    if (blackoutAnnounce > 0) blackoutAnnounce -= dt;
+
     document.getElementById('scoreLine').textContent = t().score(distance, score);
     document.getElementById('livesLine').textContent = t().lives(lives);
   }
@@ -437,14 +484,22 @@
   // ---- draw ----
   function drawSky() {
     const g = ctx.createLinearGradient(0, 0, 0, H * 0.45);
-    g.addColorStop(0, '#020617');
-    g.addColorStop(0.5, '#0f172a');
-    g.addColorStop(1, '#1e1b2e');
+    if (blackout) {
+      g.addColorStop(0, '#000000');
+      g.addColorStop(0.6, '#020208');
+      g.addColorStop(1, '#05050c');
+    } else {
+      g.addColorStop(0, '#020617');
+      g.addColorStop(0.5, '#0f172a');
+      g.addColorStop(1, '#1e1b2e');
+    }
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = '#e2e8f044';
-    for (let i = 0; i < 28; i++) {
-      ctx.fillRect((i * 97) % (W - 4) + 2, 10 + (i * 41) % 120, 1.5, 1.5);
+    if (!blackout) {
+      ctx.fillStyle = '#e2e8f044';
+      for (let i = 0; i < 28; i++) {
+        ctx.fillRect((i * 97) % (W - 4) + 2, 10 + (i * 41) % 120, 1.5, 1.5);
+      }
     }
   }
 
@@ -452,8 +507,8 @@
     const base = BASE_Y - 180;
     for (let layer = 0; layer < 2; layer++) {
       const par = layer === 0 ? 0.12 : 0.22;
-      const fill = layer === 0 ? '#15131f' : '#1c1930';
-      const stroke = layer === 0 ? '#5c5678' : '#7c7598';
+      const fill = blackout ? (layer === 0 ? '#030308' : '#06060e') : (layer === 0 ? '#15131f' : '#1c1930');
+      const stroke = blackout ? '#1a1830' : (layer === 0 ? '#5c5678' : '#7c7598');
       let x = -((cam * par) % 64) - 30;
       let i = 0;
       while (x < W + 40) {
@@ -465,11 +520,13 @@
         ctx.strokeStyle = stroke;
         ctx.lineWidth = 1.2;
         ctx.strokeRect(x + 0.5, base - bh + layer * 10 + 0.5, bw - 1, bh + 39);
-        const cols = 2 + (h0 % 3), rows = 3 + (h0 % 4);
-        for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
-          if (((h0 >> (r + c)) & 1) === 0) continue;
-          ctx.fillStyle = (h0 + r + c) % 5 === 0 ? '#93c5fd99' : '#fbbf24cc';
-          ctx.fillRect(x + 3 + c * ((bw - 6) / cols), base - bh + layer * 10 + 5 + r * ((bh - 10) / rows), Math.max(2, bw * 0.12), Math.max(2, bh * 0.07));
+        if (!blackout) {
+          const cols = 2 + (h0 % 3), rows = 3 + (h0 % 4);
+          for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+            if (((h0 >> (r + c)) & 1) === 0) continue;
+            ctx.fillStyle = (h0 + r + c) % 5 === 0 ? '#93c5fd99' : '#fbbf24cc';
+            ctx.fillRect(x + 3 + c * ((bw - 6) / cols), base - bh + layer * 10 + 5 + r * ((bh - 10) / rows), Math.max(2, bw * 0.12), Math.max(2, bh * 0.07));
+          }
         }
         x += bw + 2 + (h0 % 6);
         i++;
@@ -523,20 +580,34 @@
   }
 
   function drawLamps(cam) {
-    for (let i = 0; i < 10; i++) {
-      const wx = i * 200 + 30;
-      const sx = wx - cam * 0.95;
-      if (sx < -30 || sx > W + 30) continue;
+    // Regular spacing forever — poles always drawn; pools/glow only when power is on
+    const start = Math.floor((cam - 40) / LAMP_SPACING) * LAMP_SPACING + 30;
+    for (let wx = start; wx < cam + W + 80; wx += LAMP_SPACING) {
+      const sx = wx - cam;
+      if (sx < -40 || sx > W + 40) continue;
       const gy = groundY(wx);
-      ctx.fillStyle = '#1e293b';
+      ctx.fillStyle = blackout ? '#111827' : '#1e293b';
       ctx.fillRect(sx, gy - 100, 4, 100);
+      if (blackout) {
+        // dead lamp head
+        ctx.fillStyle = '#1f2937';
+        ctx.beginPath(); ctx.arc(sx + 2, gy - 102, 5, 0, Math.PI * 2); ctx.fill();
+        continue;
+      }
       ctx.fillStyle = '#fef3c7';
       ctx.beginPath(); ctx.arc(sx + 2, gy - 102, 6, 0, Math.PI * 2); ctx.fill();
-      const pool = ctx.createRadialGradient(sx + 2, gy, 0, sx + 2, gy, 60);
-      pool.addColorStop(0, 'rgba(253,230,138,0.26)');
+      const pool = ctx.createRadialGradient(sx + 2, gy, 0, sx + 2, gy, 70);
+      pool.addColorStop(0, 'rgba(253,230,138,0.30)');
+      pool.addColorStop(0.55, 'rgba(253,230,138,0.10)');
       pool.addColorStop(1, 'rgba(253,230,138,0)');
       ctx.fillStyle = pool;
-      ctx.beginPath(); ctx.ellipse(sx + 2, gy + 2, 60, 12, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(sx + 2, gy + 2, 70, 14, 0, 0, Math.PI * 2); ctx.fill();
+      // soft cone from head
+      const cone = ctx.createRadialGradient(sx + 2, gy - 102, 0, sx + 2, gy - 40, 50);
+      cone.addColorStop(0, 'rgba(254,243,199,0.18)');
+      cone.addColorStop(1, 'rgba(254,243,199,0)');
+      ctx.fillStyle = cone;
+      ctx.beginPath(); ctx.arc(sx + 2, gy - 70, 48, 0, Math.PI * 2); ctx.fill();
     }
   }
 
@@ -656,6 +727,18 @@
     ctx.fill();
     ctx.fillStyle = '#ef4444';
     ctx.fillRect(sx + 4, sy - 26, 7, 8);
+    // blackout: faint reflector glow so cars stay readable at beam edge
+    if (blackout) {
+      ctx.fillStyle = '#fef08a99';
+      ctx.fillRect(sx + w - 11, sy - 28, 9, 10);
+      ctx.fillStyle = '#fb718599';
+      ctx.fillRect(sx + 3, sy - 28, 9, 10);
+      const rg = ctx.createRadialGradient(sx + w - 6, sy - 22, 0, sx + w - 6, sy - 22, 22);
+      rg.addColorStop(0, 'rgba(254,240,138,0.35)');
+      rg.addColorStop(1, 'rgba(254,240,138,0)');
+      ctx.fillStyle = rg;
+      ctx.beginPath(); ctx.arc(sx + w - 6, sy - 22, 22, 0, Math.PI * 2); ctx.fill();
+    }
 
     // door crease
     ctx.strokeStyle = '#00000044';
@@ -717,12 +800,100 @@
     ctx.lineTo(sx + PLAYER_W - 4, sy + 8);
     ctx.lineTo(sx + PLAYER_W + 5, sy + 6);
     ctx.stroke();
+    // scooter headlight bulb (always on — used as beam source in blackout)
+    ctx.fillStyle = blackout ? '#fff7ed' : '#fef3c7';
+    ctx.beginPath(); ctx.arc(sx + PLAYER_W + 4, sy + 10, blackout ? 3.5 : 2.5, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#b45309';
     ctx.fillRect(sx + 8, sy + 12, 15, 16);
     ctx.fillStyle = '#fde68a';
     ctx.beginPath(); ctx.arc(sx + 15, sy + 10, 6.5, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#dc2626';
     ctx.fillRect(sx + 10, sy + 14, 12, 3);
+  }
+
+  function drawSpeedLines(cam) {
+    if (hillBoost < 0.25 && vx < V_MAX + 20) return;
+    const strength = Math.max(hillBoost, (vx - V_MAX) / (V_BOOST_MAX - V_MAX + 1e-6));
+    const sx = px - cam;
+    const sy = py + PLAYER_H * 0.45;
+    ctx.strokeStyle = `rgba(226,232,240,${0.15 + strength * 0.35})`;
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < 7; i++) {
+      const y = sy - 18 + i * 7 + (Math.sin(time * 40 + i) * 1.5);
+      const len = 18 + strength * 36 + (i % 3) * 6;
+      const x0 = sx - 8 - strength * 10 - (i * 3);
+      ctx.beginPath();
+      ctx.moveTo(x0, y);
+      ctx.lineTo(x0 - len, y + (i % 2 ? 1 : -1));
+      ctx.stroke();
+    }
+  }
+
+  function drawHeadlightOverlay(cam) {
+    if (!blackout) return;
+    const sx = px - cam + PLAYER_W + 4;
+    const sy = py + 10;
+
+    // Build an offscreen-like veil: dark everywhere, soft alpha inside the forward cone.
+    // Approach: clip inverted cone is hard; instead paint dark in three bands around the cone.
+    ctx.save();
+    // Soft radial darkness centered ahead of the scooter — low alpha near beam focus
+    const focusX = sx + 90;
+    const focusY = sy + 8;
+    const g = ctx.createRadialGradient(focusX, focusY, 18, focusX, focusY, 280);
+    g.addColorStop(0, 'rgba(2,6,23,0.08)');
+    g.addColorStop(0.22, 'rgba(2,6,23,0.28)');
+    g.addColorStop(0.48, 'rgba(2,6,23,0.78)');
+    g.addColorStop(0.72, 'rgba(2,6,23,0.92)');
+    g.addColorStop(1, 'rgba(2,6,23,0.97)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+
+    // Extra dark behind / above rider (outside forward cone)
+    ctx.fillStyle = 'rgba(2,6,23,0.55)';
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(sx - 10, 0);
+    ctx.lineTo(sx - 10, H);
+    ctx.lineTo(0, H);
+    ctx.closePath();
+    ctx.fill();
+
+    // Warm cone wash
+    const warm = ctx.createRadialGradient(sx + 50, sy + 4, 0, sx + 140, sy + 10, 160);
+    warm.addColorStop(0, 'rgba(253,230,138,0.22)');
+    warm.addColorStop(0.4, 'rgba(253,230,138,0.08)');
+    warm.addColorStop(1, 'rgba(253,230,138,0)');
+    ctx.fillStyle = warm;
+    ctx.beginPath();
+    ctx.moveTo(sx - 2, sy);
+    ctx.lineTo(sx + 220, sy - 80);
+    ctx.lineTo(sx + 245, sy + 95);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawBlackoutAnnounce() {
+    if (blackoutAnnounce <= 0 && !(running && blackout)) return;
+    if (blackoutAnnounce > 0) {
+      const a = Math.min(1, blackoutAnnounce / 0.4);
+      ctx.fillStyle = `rgba(17,24,39,${0.85 * a})`;
+      const tw = 168;
+      ctx.fillRect((W - tw) / 2, 72, tw, 28);
+      ctx.fillStyle = `rgba(254,243,199,${a})`;
+      ctx.font = 'bold 14px system-ui,sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(t().blackout, W / 2, 91);
+      ctx.textAlign = 'left';
+    } else if (blackout) {
+      // persistent chip like dogwalk
+      ctx.fillStyle = '#111827cc';
+      ctx.fillRect(10, H - 36, 130, 24);
+      ctx.fillStyle = '#fde68a';
+      ctx.font = 'bold 12px system-ui,sans-serif';
+      ctx.fillText(t().blackout, 18, H - 19);
+    }
   }
 
   function draw() {
@@ -737,7 +908,25 @@
     drawTerrain(cam);
     drawLamps(cam);
     for (const o of objs) drawObj(o, cam);
+    drawSpeedLines(cam);
     drawPlayer(cam);
+    drawHeadlightOverlay(cam);
+    // reflectors / player drawn under overlay are dimmed; redraw cars' reflector glints after beam cut
+    if (blackout) {
+      for (const o of objs) {
+        if (o.kind !== 'car') continue;
+        const sx = o.x - cam;
+        if (sx + o.w < -20 || sx > W + 20) continue;
+        const sy = o.y;
+        ctx.fillStyle = '#fef08acc';
+        ctx.fillRect(sx + o.w - 11, sy - 28, 9, 10);
+        ctx.fillStyle = '#fb7185aa';
+        ctx.fillRect(sx + 3, sy - 28, 9, 10);
+      }
+      // keep rider faintly visible
+      drawPlayer(cam);
+    }
+    drawBlackoutAnnounce();
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
@@ -788,19 +977,27 @@
     getState: () => ({
       distance, score, lives, running, dead, paused, vx, vy, px, py, onGround,
       objs: objs.length, terrain: terrain.length, time, W, H,
+      blackout, blackoutTimer, hillBoost, nextBlackoutIn,
     }),
     press: (name, on) => {
       if (name === 'accel') input.accel = !!on;
       if (name === 'brake') input.brake = !!on;
       if (name === 'jump') { input.jump = !!on; if (on) input.jumpBuffered = 0.18; }
     },
+    forceBlackout: (secs) => {
+      blackout = true;
+      blackoutTimer = secs == null ? 8 : secs;
+      blackoutAnnounce = 2.2;
+    },
+    clearBlackout: () => { blackout = false; blackoutTimer = 0; blackoutAnnounce = 0; },
+    forceBoost: (v) => { hillBoost = v == null ? 1.2 : v; },
     peekHazards: () => objs.filter((o) => o.x > px - 20 && o.x < px + 280).map((o) => ({
       kind: o.kind, type: o.type, x: o.x, w: o.w, h: o.h, dx: o.x - px, roof: o.kind === 'car' ? roofY(o) : null,
       gy: o.y,
     })),
     peekTerrain: () => {
       const fx = feetX();
-      return { gy: groundY(fx), slope: groundSlopeAt(fx), face: stepFaceAhead(fx, 40) };
+      return { gy: groundY(fx), slope: groundSlopeAt(fx), face: stepFaceAhead(fx, 40), boost: hillBoost };
     },
   };
 
