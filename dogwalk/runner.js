@@ -57,6 +57,7 @@
       ],
       swipeHint: 'змахни / клік',
       blackout: '💡 Світла нема',
+      growl: 'ГРРР!',
     },
     en: {
       title: 'Walking the dog',
@@ -78,6 +79,7 @@
       ],
       swipeHint: 'swipe / click',
       blackout: '💡 Blackout',
+      growl: 'GRRR!',
     },
   };
 
@@ -165,8 +167,8 @@
   function spawnObstacle() {
     const r = Math.random();
     let kind = 'puddle';
-    if (r < 0.34) kind = 'puddle';
-    else if (r < 0.62) kind = 'dog';
+    if (r < 0.30) kind = 'puddle';
+    else if (r < 0.68) kind = 'dog';
     else kind = 'generator';
     let l = (Math.random() * LANES) | 0;
     const near = obstacles.filter((o) => o.z > Z_FAR - 14);
@@ -175,6 +177,9 @@
       kind, lane: l, z: Z_FAR + Math.random() * 5, hit: false,
       phase: Math.random() * Math.PI * 2,
       bob: 0,
+      // angry dogs charge toward camera faster than world scroll
+      rush: kind === 'dog' ? (1.55 + Math.random() * 0.55) : 1,
+      growlT: 0,
     });
   }
 
@@ -356,19 +361,110 @@
     }
   }
 
-  function drawAngryDog(laneIdx, z) {
-    const p = project(LANE_X[laneIdx], z);
-    const s = p.s * 0.58;
-    ctx.fillStyle = '#00000055';
-    ctx.beginPath(); ctx.ellipse(p.x, p.y + s * 0.12, s * 0.45, s * 0.1, 0, 0, Math.PI * 2); ctx.fill();
+  function drawAngryDog(o) {
+    const p = project(LANE_X[o.lane], o.z);
+    const run = Math.sin(time * 16 + o.phase);
+    const s = p.s * (0.62 + Math.max(0, (28 - o.z) * 0.004));
+    const y = p.y + Math.abs(run) * s * 0.08; // gallop bob
+    const lean = run * s * 0.05;
+
+    // ground shadow
+    ctx.fillStyle = '#00000066';
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y + s * 0.14, s * 0.55, s * 0.12, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // body (charging toward camera)
+    ctx.fillStyle = blackout ? '#2a0a0a' : '#450a0a';
+    ctx.fillRect(p.x - s * 0.5 + lean, y - s * 0.75, s * 1.0, s * 0.6);
+    // shoulders / head
     ctx.fillStyle = blackout ? '#3f1010' : '#7f1d1d';
-    ctx.fillRect(p.x - s * 0.45, p.y - s * 0.7, s * 0.9, s * 0.55);
-    ctx.fillRect(p.x - s * 0.35, p.y - s * 1.05, s * 0.7, s * 0.4);
-    ctx.fillStyle = '#fef2f2';
-    ctx.fillRect(p.x - s * 0.18, p.y - s * 0.95, s * 0.12, s * 0.12);
-    ctx.fillRect(p.x + s * 0.06, p.y - s * 0.95, s * 0.12, s * 0.12);
-    ctx.fillStyle = '#fbbf24';
-    ctx.fillRect(p.x - s * 0.2, p.y - s * 0.72, s * 0.4, s * 0.1);
+    ctx.fillRect(p.x - s * 0.42 + lean, y - s * 1.2, s * 0.84, s * 0.55);
+    // ears pinned back
+    ctx.fillStyle = '#1c0505';
+    ctx.fillRect(p.x - s * 0.48 + lean, y - s * 1.4, s * 0.22, s * 0.28);
+    ctx.fillRect(p.x + s * 0.26 + lean, y - s * 1.4, s * 0.22, s * 0.28);
+    // running legs
+    const leg = run * s * 0.18;
+    ctx.fillStyle = blackout ? '#1a0505' : '#3f0a0a';
+    ctx.fillRect(p.x - s * 0.4 + lean - leg, y - s * 0.2, s * 0.18, s * 0.4);
+    ctx.fillRect(p.x - s * 0.1 + lean + leg, y - s * 0.2, s * 0.18, s * 0.4);
+    ctx.fillRect(p.x + s * 0.15 + lean - leg * 0.7, y - s * 0.15, s * 0.18, s * 0.38);
+    ctx.fillRect(p.x + s * 0.38 + lean + leg * 0.7, y - s * 0.15, s * 0.18, s * 0.38);
+
+    // snout + bared teeth
+    ctx.fillStyle = blackout ? '#4a1515' : '#9f1239';
+    ctx.fillRect(p.x - s * 0.28 + lean, y - s * 0.85, s * 0.56, s * 0.28);
+    ctx.fillStyle = '#fff7ed';
+    const teethY = y - s * 0.72;
+    for (let i = 0; i < 5; i++) {
+      const tx = p.x - s * 0.2 + i * s * 0.1 + lean;
+      ctx.fillRect(tx, teethY, s * 0.06, s * 0.12);
+    }
+    // drool / snarl line
+    ctx.fillStyle = '#fecaca';
+    ctx.fillRect(p.x - s * 0.06 + lean, y - s * 0.58, s * 0.08, s * 0.1);
+
+    // glowing eyes (also redrawn after blackout overlay)
+    drawDogEyes(p.x + lean, y - s * 1.02, s);
+
+    // growl burst when close
+    if (o.z < 22) {
+      const pulse = 0.75 + 0.25 * Math.sin(time * 20 + o.phase);
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, (22 - o.z) / 10) * pulse;
+      ctx.fillStyle = '#fef2f2';
+      ctx.font = `bold ${Math.max(10, s * 0.55)}px system-ui,sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.fillText(t().growl, p.x + lean, y - s * 1.55);
+      ctx.restore();
+      // local screen rattle when very close
+      if (o.z < 12 && shake < 6) shake = Math.max(shake, 4 + (12 - o.z) * 0.35);
+    }
+
+    // stash eye screen pos for post-blackout pass
+    o._eye = { x: p.x + lean, y: y - s * 1.02, s };
+  }
+
+  function drawDogEyes(x, y, s) {
+    const eyeR = Math.max(1.5, s * 0.11);
+    const gap = s * 0.18;
+    const flicker = 0.85 + 0.15 * Math.sin(time * 22);
+    // bloom
+    for (const side of [-1, 1]) {
+      const ex = x + side * gap;
+      const bloom = ctx.createRadialGradient(ex, y, 0, ex, y, eyeR * 3.2);
+      bloom.addColorStop(0, `rgba(250, 204, 21, ${0.95 * flicker})`);
+      bloom.addColorStop(0.35, `rgba(239, 68, 68, ${0.55 * flicker})`);
+      bloom.addColorStop(1, 'rgba(127, 29, 29, 0)');
+      ctx.fillStyle = bloom;
+      ctx.beginPath();
+      ctx.arc(ex, y, eyeR * 3.2, 0, Math.PI * 2);
+      ctx.fill();
+      // hot core
+      ctx.fillStyle = '#fef08a';
+      ctx.beginPath();
+      ctx.arc(ex, y, eyeR * 0.7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ef4444';
+      ctx.beginPath();
+      ctx.arc(ex, y, eyeR * 0.35, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function drawAngryDogEyesAboveDark() {
+    // Eyes pierce the blackout — drawn AFTER flashlight overlay
+    for (const o of obstacles) {
+      if (o.kind !== 'dog' || !o._eye) continue;
+      const { x, y, s } = o._eye;
+      drawDogEyes(x, y, s);
+      // far-away: even a tiny twin ember when body is almost invisible
+      if (blackout && o.z > 30) {
+        const p = project(LANE_X[o.lane], o.z);
+        drawDogEyes(p.x, p.y - p.s * 0.55, Math.max(p.s * 0.35, 4));
+      }
+    }
   }
 
   function drawGenerator(o) {
@@ -489,7 +585,7 @@
     const deco = scenery.map((s) => ({ z: s.z, draw: () => drawSceneryItem(s) }));
     for (const o of obstacles) {
       if (o.kind === 'puddle') deco.push({ z: o.z, draw: () => drawPuddle(o.lane, o.z) });
-      else if (o.kind === 'dog') deco.push({ z: o.z, draw: () => drawAngryDog(o.lane, o.z) });
+      else if (o.kind === 'dog') deco.push({ z: o.z, draw: () => drawAngryDog(o) });
       else deco.push({ z: o.z, draw: () => drawGenerator(o) });
     }
     deco.sort((a, b) => b.z - a.z);
@@ -497,6 +593,7 @@
 
     drawDogAndLeash();
     drawFlashlightOverlay();
+    drawAngryDogEyesAboveDark();
 
     if (notifs.length >= 4) {
       ctx.fillStyle = 'rgba(127,29,29,0.14)';
@@ -530,7 +627,7 @@
     distance += dz * 1.05;
     score += dz * 0.55;
 
-    for (const o of obstacles) o.z -= dz;
+    for (const o of obstacles) o.z -= dz * (o.rush || 1);
     for (const s of scenery) {
       s.z -= dz;
       if (s.z < Z_NEAR - 1) s.z += (Z_FAR - Z_NEAR) + Math.random() * 4;
@@ -591,9 +688,13 @@
     getFpsSamples: () => fpsSamples.slice(),
     start: () => document.getElementById('oBtn').click(),
     setBlackout: (v) => { blackout = !!v; blackoutTimer = v ? 99 : 0; nextBlackoutIn = v ? 99 : 12; },
+    spawnDogAt: (lane, z) => {
+      obstacles.push({ kind: 'dog', lane: lane|0, z: z, hit: false, phase: Math.random()*6, bob: 0, rush: 1.8, growlT: 0 });
+    },
     getState: () => ({
       distance, score, lives, running, dead, notifs: notifs.length,
       obstacles: obstacles.length, blackout, speed, perspective: true, dogOnly: true,
+      dogs: obstacles.filter(o=>o.kind==='dog').map(o=>({lane:o.lane,z:o.z,rush:o.rush})),
     }),
   };
 
