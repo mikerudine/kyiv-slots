@@ -91,11 +91,11 @@
 
 | | |
 |---|---|
-| **Жанр** | Pixel Wolfenstein-like raycaster + автомат условий |
-| **Фантазия** | Двор хрущёвки; перед выходом — «однорукий бандит» условий |
-| **Детали** | См. отдельный док [`gdd-dogwalk.md`](./gdd-dogwalk.md); прототип: [/dogwalk/](https://mikerudine.github.io/kyiv-slots/dogwalk/) |
-| **Win / Lose** | По автомату условий (пакеты / не потерять пса / уложиться во время) |
-| **Длительность** | 3–5 мин |
+| **Жанр** | 3-lane runner (Minions-style) + пуши воздушной тревоги |
+| **Фантазия** | Прогулка: калюжи, злые псы навстречу, телефон забит тревожными уведомлениями |
+| **Детали** | См. [`gdd-dogwalk.md`](./gdd-dogwalk.md); прототип: [/dogwalk/](https://mikerudine.github.io/kyiv-slots/dogwalk/). Рейкастер сохранён в [/raycaster/](https://mikerudine.github.io/kyiv-slots/raycaster/) |
+| **Win / Lose** | Дистанция/скор; 0 жизней = конец; пуши не смахивать — проигрыш внимания |
+| **Длительность** | 2–4 мин |
 
 ### 4.4 Последний процент *(Last percent)*
 
