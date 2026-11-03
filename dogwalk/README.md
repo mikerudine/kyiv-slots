@@ -14,7 +14,9 @@ Current mini-game for *One Day in Kyiv* «Прогулянка з собакою
 
 **Air-raid notifications** (the signature bit): fake phone pushes in Ukrainian (EN toggle) slide in, **do not auto-dismiss**, stack and obscure the view until swiped/clicked away. Spawn rate rises with distance; too many on screen eventually drain lives.
 
-Score = distance + dismissed alerts. 3 lives. Speed ramps up.
+Score = distance + dismissed alerts. 3 lives. Slow walk speed with gentle ramp.
+
+**v4:** flatter camera; dog-only (leash from bottom of screen); courtyard path without car lane paint; periodic blackouts with flashlight halo; rattling bouncing generators as obstacles.
 
 ## Tech
 

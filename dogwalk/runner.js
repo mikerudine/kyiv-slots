@@ -1,4 +1,4 @@
-/* One Day in Kyiv — dog walk 3-lane runner, Minion Rush-style pseudo-3D */
+/* One Day in Kyiv — dog walk pseudo-3D courtyard runner (v4) */
 (function () {
   'use strict';
 
@@ -7,20 +7,19 @@
   const ctx = canvas.getContext('2d', { alpha: false });
   ctx.imageSmoothingEnabled = false;
 
-  // --- perspective camera ---
+  // Flatter / more obtuse camera: higher vantage, less sky, softer foreshortening
   const CX = W / 2;
-  const HORIZON = Math.floor(H * 0.36);
-  const FOCAL = 260;       // projection strength
-  const CAM_H = 6.4;       // camera height — tunes near-plane to bottom of screen
-  const Z_PLAYER = 6.5;    // player depth (near)
-  const Z_DOG = 5.4;
-  const Z_NEAR = 4.0;      // clip / collision plane
-  const Z_FAR = 72;
-  const LANE_X = [-1.35, 0, 1.35]; // world X per lane
-  const ROAD_HALF = 2.15;  // half-width of road at world scale
+  const HORIZON = Math.floor(H * 0.22);
+  const FOCAL = 300;
+  const CAM_H = 9.2;
+  const Z_DOG = 5.8;       // only visible character
+  const Z_NEAR = 4.2;
+  const Z_FAR = 78;
+  const LANE_X = [-1.25, 0, 1.25];
+  const PATH_HALF = 2.05;  // courtyard path half-width (no car lanes)
 
   function project(wx, z) {
-    const zz = Math.max(0.65, z);
+    const zz = Math.max(0.7, z);
     const scale = FOCAL / zz;
     return {
       x: CX + wx * scale,
@@ -28,13 +27,15 @@
       s: scale,
     };
   }
-
-  function roadEdgeX(side, z) {
-    // side: -1 left, +1 right
-    return project(side * ROAD_HALF, z).x;
+  function pathEdgeX(side, z) {
+    return project(side * PATH_HALF, z).x;
+  }
+  function lerpLane(f) {
+    const a = Math.max(0, Math.min(1, Math.floor(f)));
+    const b = Math.min(2, a + 1);
+    return LANE_X[a] + (LANE_X[b] - LANE_X[a]) * (f - a);
   }
 
-  // --- i18n (same as before) ---
   const I18N = {
     ua: {
       title: 'Прогулянка з собакою',
@@ -42,7 +43,7 @@
       score: (d, s) => `${d | 0} м · ${s | 0}`,
       lives: (n) => `❤ ${n}`,
       overlayTitle: 'Прогулянка',
-      overlayBody: 'Ухиляйся від калюж і злих псів. Сповіщення про тривогу самі не зникають — змахни їх, інакше забʼють екран.',
+      overlayBody: 'Веди пса двором: калюжі, злі пси, генератори. Світло може зникнути — лишається ореол ліхтарика. Пуші тривоги змахуй, інакше забʼють екран.',
       start: 'Старт',
       again: 'Ще раз',
       overTitle: 'Кінець прогулянки',
@@ -55,6 +56,7 @@
         'Повітряна тривога. Не ігноруйте сигнал.',
       ],
       swipeHint: 'змахни / клік',
+      blackout: '💡 Світла нема',
     },
     en: {
       title: 'Walking the dog',
@@ -62,7 +64,7 @@
       score: (d, s) => `${d | 0} m · ${s | 0}`,
       lives: (n) => `❤ ${n}`,
       overlayTitle: 'Dog walk',
-      overlayBody: 'Dodge puddles and angry dogs. Air-raid alerts do not auto-dismiss — swipe them away or they fill the screen.',
+      overlayBody: 'Guide the dog through the yard: puddles, angry dogs, rattling generators. Lights may cut out — only a flashlight halo remains. Swipe alert pushes away.',
       start: 'Start',
       again: 'Again',
       overTitle: 'Walk over',
@@ -75,6 +77,7 @@
         'Air-raid alert. Do not ignore the signal.',
       ],
       swipeHint: 'swipe / click',
+      blackout: '💡 Blackout',
     },
   };
 
@@ -106,19 +109,17 @@
     applyLang();
   });
 
-  // --- state ---
   const LANES = 3;
-  let lane = 1;
-  let laneF = 1; // smoothed
-  let dogLaneF = 1;
-  let speed = 26; // world z units / sec
-  const SPEED0 = 26, SPEED_MAX = 58;
+  let lane = 1, laneF = 1, dogLaneF = 1;
+  // Much slower walk pace
+  let speed = 9;
+  const SPEED0 = 9, SPEED_MAX = 20;
   let distance = 0, score = 0, lives = 3;
   let running = false, dead = false, invuln = 0, shake = 0;
-  let spawnAcc = 0, notifAcc = 0, notifRate = 3.2;
-  let obstacles = [];
-  let scenery = [];
-  let roadPhase = 0; // scroll of lane dashes / asphalt bands
+  let spawnAcc = 0, notifAcc = 0, notifRate = 3.4;
+  let obstacles = [], scenery = [], pathPhase = 0;
+  let blackout = false, blackoutTimer = 0, nextBlackoutIn = 14;
+  let time = 0;
 
   const notifRoot = document.getElementById('notifs');
   let notifs = [];
@@ -126,8 +127,9 @@
   function resetGame() {
     lane = 1; laneF = 1; dogLaneF = 1;
     speed = SPEED0; distance = 0; score = 0; lives = 3;
-    invuln = 0; spawnAcc = 0; notifAcc = 0; notifRate = 3.2;
-    obstacles = []; roadPhase = 0; shake = 0; dead = false;
+    invuln = 0; spawnAcc = 0; notifAcc = 0; notifRate = 3.4;
+    obstacles = []; pathPhase = 0; shake = 0; dead = false; time = 0;
+    blackout = false; blackoutTimer = 0; nextBlackoutIn = 10 + Math.random() * 8;
     seedScenery();
     clearNotifs();
   }
@@ -138,54 +140,44 @@
   }
 
   function gameOver() {
-    running = false;
-    dead = true;
-    applyLang();
+    running = false; dead = true; applyLang();
     document.getElementById('overlay').classList.remove('hidden');
   }
 
   function hit() {
     if (invuln > 0) return;
-    lives -= 1;
-    invuln = 1.15;
-    shake = 12;
+    lives -= 1; invuln = 1.2; shake = 12;
     if (lives <= 0) gameOver();
   }
 
-  // --- scenery strips along Z (recycled) ---
   function seedScenery() {
     scenery = [];
     const kinds = ['khrush', 'garage', 'tree', 'lamp', 'hedge'];
-    for (let i = 0; i < 28; i++) {
-      const z = 8 + i * 2.6 + Math.random() * 1.2;
-      scenery.push({
-        kind: kinds[i % kinds.length],
-        side: i % 2 === 0 ? -1 : 1,
-        z,
-        variant: (Math.random() * 3) | 0,
-      });
-      if (Math.random() < 0.35) {
-        scenery.push({
-          kind: kinds[(i + 2) % kinds.length],
-          side: i % 2 === 0 ? 1 : -1,
-          z: z + 0.8,
-          variant: (Math.random() * 3) | 0,
-        });
+    for (let i = 0; i < 30; i++) {
+      const z = 9 + i * 2.5 + Math.random();
+      scenery.push({ kind: kinds[i % kinds.length], side: i % 2 === 0 ? -1 : 1, z, variant: (Math.random() * 3) | 0 });
+      if (Math.random() < 0.4) {
+        scenery.push({ kind: kinds[(i + 2) % kinds.length], side: i % 2 === 0 ? 1 : -1, z: z + 0.9, variant: (Math.random() * 3) | 0 });
       }
     }
   }
 
   function spawnObstacle() {
-    const kind = Math.random() < 0.55 ? 'puddle' : 'dog';
+    const r = Math.random();
+    let kind = 'puddle';
+    if (r < 0.34) kind = 'puddle';
+    else if (r < 0.62) kind = 'dog';
+    else kind = 'generator';
     let l = (Math.random() * LANES) | 0;
-    const near = obstacles.filter((o) => o.z > Z_FAR - 12);
-    if (near.some((o) => o.lane === l && Math.abs(o.z - Z_FAR) < 6)) {
-      l = (l + 1 + ((Math.random() * 2) | 0)) % LANES;
-    }
-    obstacles.push({ kind, lane: l, z: Z_FAR + Math.random() * 4, hit: false });
+    const near = obstacles.filter((o) => o.z > Z_FAR - 14);
+    if (near.some((o) => o.lane === l && Math.abs(o.z - Z_FAR) < 7)) l = (l + 1) % LANES;
+    obstacles.push({
+      kind, lane: l, z: Z_FAR + Math.random() * 5, hit: false,
+      phase: Math.random() * Math.PI * 2,
+      bob: 0,
+    });
   }
 
-  // --- notifications (unchanged behaviour) ---
   function spawnNotif() {
     if (notifs.length >= 8) return;
     const L = t();
@@ -197,34 +189,25 @@
     el.querySelector('.app').textContent = L.notifApp;
     el.querySelector('.msg').textContent = L.notifMsg[msgIndex];
     el.querySelector('.swipe').textContent = L.swipeHint;
-
     const wrap = document.getElementById('wrap').getBoundingClientRect();
     let top = 56 + Math.random() * Math.max(40, wrap.height * 0.55);
     const overlap = notifs.filter((n) => Math.abs(parseFloat(n.el.style.top) - top) < 54);
     if (overlap.length) top += overlap.length * 18;
     el.style.top = top + 'px';
     el.style.left = (4 + Math.random() * 4) + '%';
-
     notifRoot.appendChild(el);
     requestAnimationFrame(() => el.classList.add('show'));
-
     const state = { el, startX: 0, dx: 0, dragging: false };
     notifs.push(state);
-
     const dismiss = () => {
       el.style.transform = 'translateX(120%)';
-      setTimeout(() => {
-        el.remove();
-        notifs = notifs.filter((n) => n !== state);
-        score += 25;
-      }, 160);
+      setTimeout(() => { el.remove(); notifs = notifs.filter((n) => n !== state); score += 25; }, 160);
     };
     const onDown = (e) => {
       e.preventDefault();
       const p = e.touches ? e.touches[0] : e;
       state.dragging = true; state.startX = p.clientX; state.dx = 0;
-      el.classList.add('swiping');
-      el.setPointerCapture?.(e.pointerId);
+      el.classList.add('swiping'); el.setPointerCapture?.(e.pointerId);
     };
     const onMove = (e) => {
       if (!state.dragging) return;
@@ -234,8 +217,7 @@
     };
     const onUp = () => {
       if (!state.dragging) return;
-      state.dragging = false;
-      el.classList.remove('swiping');
+      state.dragging = false; el.classList.remove('swiping');
       if (Math.abs(state.dx) > 64) dismiss();
       else { el.style.transform = 'translateX(0)'; el.classList.add('show'); }
     };
@@ -272,215 +254,226 @@
   canvas.addEventListener('pointercancel', () => { swipeArmed = false; });
 
   document.getElementById('oBtn').addEventListener('click', () => {
-    resetGame();
-    running = true;
+    resetGame(); running = true;
     document.getElementById('overlay').classList.add('hidden');
     applyLang();
   });
 
-  // --- drawing primitives ---
   function drawSky() {
-    const g = ctx.createLinearGradient(0, 0, 0, HORIZON + 30);
+    if (blackout) {
+      ctx.fillStyle = '#030712';
+      ctx.fillRect(0, 0, W, HORIZON + 20);
+      return;
+    }
+    const g = ctx.createLinearGradient(0, 0, 0, HORIZON + 24);
     g.addColorStop(0, '#0b1224');
-    g.addColorStop(0.55, '#1e293b');
-    g.addColorStop(1, '#64748b');
+    g.addColorStop(0.6, '#334155');
+    g.addColorStop(1, '#94a3b8');
     ctx.fillStyle = g;
-    ctx.fillRect(0, 0, W, HORIZON + 40);
-    // faint evening wash
-    ctx.fillStyle = '#f59e0b18';
-    ctx.fillRect(0, HORIZON - 40, W, 50);
+    ctx.fillRect(0, 0, W, HORIZON + 30);
   }
 
-  function drawRoad() {
-    // scanline road from far (horizon) to near (bottom)
-    const yBottom = H + 8;
-    for (let y = HORIZON; y < yBottom; y++) {
+  function drawPath() {
+    // Courtyard path / sidewalk — no painted car lanes
+    for (let y = HORIZON; y < H + 4; y++) {
       const row = y - HORIZON + 1;
-      // invert project: y = Hzn + CAM_H*FOCAL/z  => z = CAM_H*FOCAL/(y-Hzn)
       const z = (CAM_H * FOCAL) / row;
-      if (z < Z_NEAR - 0.5 || z > Z_FAR + 8) continue;
-
-      const left = roadEdgeX(-1, z);
-      const right = roadEdgeX(1, z);
-      // courtyard dirt shoulders
-      ctx.fillStyle = '#44403c';
+      if (z < Z_NEAR - 0.6 || z > Z_FAR + 10) continue;
+      const left = pathEdgeX(-1, z);
+      const right = pathEdgeX(1, z);
+      // dirt yard shoulders
+      ctx.fillStyle = blackout ? '#0a0a0a' : '#3f3a36';
       ctx.fillRect(0, y, Math.max(0, left), 1);
       ctx.fillRect(right, y, Math.max(0, W - right), 1);
-      // asphalt banding for scroll feel
-      const band = (((z * 3 + roadPhase) | 0) % 2) === 0;
-      ctx.fillStyle = band ? '#3f3f46' : '#52525b';
+      // soft tile / packed earth path
+      const tile = (((z * 1.6 + pathPhase * 0.4) | 0) % 3);
+      if (blackout) ctx.fillStyle = tile === 0 ? '#1c1917' : '#171412';
+      else ctx.fillStyle = tile === 0 ? '#a8a29e' : tile === 1 ? '#78716c' : '#57534e';
       ctx.fillRect(left, y, Math.max(1, right - left), 1);
-
-      // curb / hazard edges
-      const curb = Math.max(2, (right - left) * 0.03);
-      ctx.fillStyle = ((z * 4 + roadPhase * 2) | 0) % 2 ? '#eab308' : '#111';
-      ctx.fillRect(left, y, curb, 1);
-      ctx.fillRect(right - curb, y, curb, 1);
-
-      // lane dividers
-      const x0 = project(LANE_X[0] * 0.5 + LANE_X[1] * 0.5, z).x; // between 0-1 ≈ mid of left divider
-      // better: dividers at midpoints between lanes
-      const d1 = project((-1.35 + 0) / 2, z).x;
-      const d2 = project((0 + 1.35) / 2, z).x;
-      const dashOn = ((z * 2.2 + roadPhase) % 2.4) < 1.3;
-      if (dashOn) {
-        ctx.fillStyle = '#e2e8f0';
-        const tw = Math.max(1.2, (right - left) * 0.012);
-        ctx.fillRect(d1 - tw / 2, y, tw, 1);
-        ctx.fillRect(d2 - tw / 2, y, tw, 1);
-      }
+      // subtle path edge (curb stone, not hazard stripes)
+      const edge = Math.max(1.5, (right - left) * 0.018);
+      ctx.fillStyle = blackout ? '#292524' : '#d6d3d1';
+      ctx.fillRect(left, y, edge, 1);
+      ctx.fillRect(right - edge, y, edge, 1);
     }
   }
 
   function drawSceneryItem(s) {
     if (s.z < Z_NEAR || s.z > Z_FAR) return;
-    const wx = s.side * (ROAD_HALF + 0.55 + (s.kind === 'tree' ? 0.25 : 0.1));
+    const wx = s.side * (PATH_HALF + 0.6 + (s.kind === 'tree' ? 0.2 : 0));
     const p = project(wx, s.z);
-    const sc = p.s;
-    const baseY = p.y;
-
+    const sc = p.s, baseY = p.y;
+    const dim = blackout ? 0.25 : 1;
+    const mul = (c) => {
+      // crude darken hex-ish via alpha overlay later; use darker fills in blackout
+      return c;
+    };
     if (s.kind === 'khrush') {
-      const bw = sc * 1.1, bh = sc * 1.8;
-      ctx.fillStyle = s.variant === 0 ? '#b45309' : s.variant === 1 ? '#a8a29e' : '#ca8a04';
+      const bw = sc * 1.15, bh = sc * 1.7;
+      ctx.fillStyle = blackout ? '#1c1410' : (s.variant === 0 ? '#b45309' : s.variant === 1 ? '#a8a29e' : '#ca8a04');
       ctx.fillRect(p.x - bw / 2, baseY - bh, bw, bh);
-      // windows
-      ctx.fillStyle = '#1e3a5f';
-      const cols = 3, rows = 4;
-      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
-        ctx.fillRect(p.x - bw / 2 + bw * (0.12 + c * 0.28), baseY - bh + bh * (0.12 + r * 0.2), bw * 0.14, bh * 0.1);
+      ctx.fillStyle = blackout ? '#0f172a' : '#1e3a5f';
+      for (let r = 0; r < 4; r++) for (let c = 0; c < 3; c++) {
+        const lit = blackout && Math.random() > 0.92; // rare window glow — avoid flicker: use variant
+        const on = blackout ? ((s.variant + r + c) % 5 === 0) : true;
+        if (!blackout || on) {
+          ctx.fillStyle = blackout ? '#fbbf2444' : '#1e3a5f';
+          if (!blackout) ctx.fillStyle = '#1e3a5f';
+          ctx.fillRect(p.x - bw / 2 + bw * (0.12 + c * 0.28), baseY - bh + bh * (0.12 + r * 0.2), bw * 0.14, bh * 0.1);
+        }
       }
     } else if (s.kind === 'garage') {
-      const bw = sc * 0.95, bh = sc * 0.7;
-      ctx.fillStyle = '#3f6212';
+      const bw = sc * 0.95, bh = sc * 0.65;
+      ctx.fillStyle = blackout ? '#142014' : '#3f6212';
       ctx.fillRect(p.x - bw / 2, baseY - bh, bw, bh);
-      ctx.fillStyle = '#14532d';
+      ctx.fillStyle = blackout ? '#0a120a' : '#14532d';
       ctx.fillRect(p.x - bw * 0.35, baseY - bh * 0.75, bw * 0.7, bh * 0.55);
     } else if (s.kind === 'tree') {
-      const th = sc * 1.4;
-      ctx.fillStyle = '#78350f';
-      ctx.fillRect(p.x - sc * 0.08, baseY - th * 0.45, sc * 0.16, th * 0.45);
-      ctx.fillStyle = '#166534';
-      ctx.beginPath();
-      ctx.arc(p.x, baseY - th * 0.55, sc * 0.42, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.fillStyle = blackout ? '#2a1810' : '#78350f';
+      ctx.fillRect(p.x - sc * 0.08, baseY - sc * 0.65, sc * 0.16, sc * 0.65);
+      ctx.fillStyle = blackout ? '#0f2a14' : '#166534';
+      ctx.beginPath(); ctx.arc(p.x, baseY - sc * 0.8, sc * 0.45, 0, Math.PI * 2); ctx.fill();
     } else if (s.kind === 'lamp') {
-      ctx.fillStyle = '#475569';
-      ctx.fillRect(p.x - sc * 0.05, baseY - sc * 1.5, sc * 0.1, sc * 1.5);
-      ctx.fillStyle = '#fde68a';
-      ctx.beginPath();
-      ctx.arc(p.x, baseY - sc * 1.55, sc * 0.18, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.fillStyle = blackout ? '#1e293b' : '#475569';
+      ctx.fillRect(p.x - sc * 0.05, baseY - sc * 1.45, sc * 0.1, sc * 1.45);
+      // lamps dead in blackout (flashlight is player)
+      ctx.fillStyle = blackout ? '#334155' : '#fde68a';
+      ctx.beginPath(); ctx.arc(p.x, baseY - sc * 1.5, sc * 0.16, 0, Math.PI * 2); ctx.fill();
     } else if (s.kind === 'hedge') {
-      ctx.fillStyle = '#14532d';
-      ctx.fillRect(p.x - sc * 0.55, baseY - sc * 0.45, sc * 1.1, sc * 0.45);
+      ctx.fillStyle = blackout ? '#0c1f12' : '#14532d';
+      ctx.fillRect(p.x - sc * 0.55, baseY - sc * 0.42, sc * 1.1, sc * 0.42);
     }
   }
 
   function drawPuddle(laneIdx, z) {
     const p = project(LANE_X[laneIdx], z);
-    const w = p.s * 0.85, h = p.s * 0.28;
-    ctx.fillStyle = '#1e3a5f';
-    ctx.beginPath();
-    ctx.ellipse(p.x, p.y, w, h, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#93c5fd88';
-    ctx.beginPath();
-    ctx.ellipse(p.x - w * 0.2, p.y - h * 0.2, w * 0.25, h * 0.25, 0, 0, Math.PI * 2);
-    ctx.fill();
+    const w = p.s * 0.9, h = p.s * 0.28;
+    ctx.fillStyle = blackout ? '#0c1a2a' : '#1e3a5f';
+    ctx.beginPath(); ctx.ellipse(p.x, p.y, w, h, 0, 0, Math.PI * 2); ctx.fill();
+    if (!blackout) {
+      ctx.fillStyle = '#93c5fd66';
+      ctx.beginPath(); ctx.ellipse(p.x - w * 0.2, p.y - h * 0.2, w * 0.22, h * 0.22, 0, 0, Math.PI * 2); ctx.fill();
+    }
   }
 
   function drawAngryDog(laneIdx, z) {
     const p = project(LANE_X[laneIdx], z);
-    const s = p.s * 0.55;
-    // seen roughly from front/above as they run toward camera
+    const s = p.s * 0.58;
     ctx.fillStyle = '#00000055';
-    ctx.beginPath();
-    ctx.ellipse(p.x, p.y + s * 0.15, s * 0.45, s * 0.12, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#7f1d1d';
+    ctx.beginPath(); ctx.ellipse(p.x, p.y + s * 0.12, s * 0.45, s * 0.1, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = blackout ? '#3f1010' : '#7f1d1d';
     ctx.fillRect(p.x - s * 0.45, p.y - s * 0.7, s * 0.9, s * 0.55);
-    ctx.fillRect(p.x - s * 0.35, p.y - s * 1.05, s * 0.7, s * 0.4); // head
+    ctx.fillRect(p.x - s * 0.35, p.y - s * 1.05, s * 0.7, s * 0.4);
     ctx.fillStyle = '#fef2f2';
     ctx.fillRect(p.x - s * 0.18, p.y - s * 0.95, s * 0.12, s * 0.12);
     ctx.fillRect(p.x + s * 0.06, p.y - s * 0.95, s * 0.12, s * 0.12);
     ctx.fillStyle = '#fbbf24';
     ctx.fillRect(p.x - s * 0.2, p.y - s * 0.72, s * 0.4, s * 0.1);
-    // ears
-    ctx.fillStyle = '#450a0a';
-    ctx.fillRect(p.x - s * 0.4, p.y - s * 1.2, s * 0.2, s * 0.25);
-    ctx.fillRect(p.x + s * 0.2, p.y - s * 1.2, s * 0.2, s * 0.25);
   }
 
-  function drawPlayerAndDog() {
-    const playerWX = lerpLane(laneF);
-    const dogWX = lerpLane(dogLaneF);
-
-    const pp = project(playerWX, Z_PLAYER);
-    const dp = project(dogWX, Z_DOG);
-
-    // leash
-    ctx.strokeStyle = '#e7e5e4';
-    ctx.lineWidth = Math.max(1.5, pp.s * 0.04);
+  function drawGenerator(o) {
+    const p = project(LANE_X[o.lane], o.z);
+    const s = p.s * 0.55;
+    const bob = Math.sin(time * 18 + o.phase) * s * 0.12;
+    const rattle = Math.sin(time * 40 + o.phase * 2) * s * 0.04;
+    const x = p.x + rattle, y = p.y - bob;
+    // shadow
+    ctx.fillStyle = '#00000066';
+    ctx.beginPath(); ctx.ellipse(p.x, p.y + s * 0.05, s * 0.5, s * 0.12, 0, 0, Math.PI * 2); ctx.fill();
+    // body
+    ctx.fillStyle = blackout ? '#3f3f12' : '#a3e635';
+    ctx.fillRect(x - s * 0.55, y - s * 0.85, s * 1.1, s * 0.75);
+    ctx.fillStyle = blackout ? '#27270a' : '#65a30d';
+    ctx.fillRect(x - s * 0.45, y - s * 0.55, s * 0.9, s * 0.35);
+    // frame
+    ctx.strokeStyle = blackout ? '#52525b' : '#1c1917';
+    ctx.lineWidth = Math.max(1, s * 0.06);
+    ctx.strokeRect(x - s * 0.55, y - s * 0.85, s * 1.1, s * 0.75);
+    // exhaust puffs
+    const puff = (Math.sin(time * 6 + o.phase) + 1) * 0.5;
+    ctx.fillStyle = blackout ? '#64748b88' : '#94a3b888';
     ctx.beginPath();
-    ctx.moveTo(pp.x, pp.y - pp.s * 0.35);
-    ctx.quadraticCurveTo((pp.x + dp.x) / 2, (pp.y + dp.y) / 2 + pp.s * 0.1, dp.x, dp.y - dp.s * 0.25);
+    ctx.arc(x + s * 0.35, y - s * (1.0 + puff * 0.35), s * (0.12 + puff * 0.1), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x + s * 0.5, y - s * (1.25 + puff * 0.5), s * (0.08 + puff * 0.08), 0, Math.PI * 2);
+    ctx.fill();
+    // status LED
+    ctx.fillStyle = (Math.floor(time * 8 + o.phase) % 2) ? '#ef4444' : '#fbbf24';
+    ctx.fillRect(x + s * 0.25, y - s * 0.75, s * 0.14, s * 0.1);
+  }
+
+  function drawDogAndLeash() {
+    const dogWX = lerpLane(dogLaneF);
+    const dp = project(dogWX, Z_DOG);
+    const s = dp.s * 0.95; // much bigger dog
+
+    // leash from bottom of screen (we are the walker) to dog collar
+    ctx.strokeStyle = blackout ? '#d6d3d1' : '#e7e5e4';
+    ctx.lineWidth = Math.max(2.5, s * 0.07);
+    ctx.beginPath();
+    const handX = CX + (dogWX * 8); // slight bias with lane
+    ctx.moveTo(handX, H + 4);
+    ctx.quadraticCurveTo(
+      (handX + dp.x) * 0.5,
+      (H + dp.y) * 0.55,
+      dp.x,
+      dp.y - s * 0.35
+    );
     ctx.stroke();
 
-    // dog from behind
-    drawFriendlyDog(dp.x, dp.y, dp.s * 0.5);
+    if (invuln > 0 && ((invuln * 18) | 0) % 2 === 0) return;
 
-    // player from behind (blink if invuln)
-    if (!(invuln > 0 && ((invuln * 18) | 0) % 2 === 0)) {
-      drawPlayerBack(pp.x, pp.y, pp.s * 0.55);
-    }
-  }
-
-  function lerpLane(f) {
-    const a = Math.floor(f);
-    const b = Math.min(2, a + 1);
-    const t = f - a;
-    return LANE_X[a] + (LANE_X[b] - LANE_X[a]) * t;
-  }
-
-  function drawPlayerBack(x, y, s) {
+    // big dog from behind
     ctx.fillStyle = '#00000055';
-    ctx.beginPath();
-    ctx.ellipse(x, y + s * 0.1, s * 0.4, s * 0.1, 0, 0, Math.PI * 2);
-    ctx.fill();
-    // legs
-    ctx.fillStyle = '#334155';
-    ctx.fillRect(x - s * 0.28, y - s * 0.15, s * 0.2, s * 0.35);
-    ctx.fillRect(x + s * 0.08, y - s * 0.15, s * 0.2, s * 0.35);
-    // coat back
-    ctx.fillStyle = '#1d4ed8';
-    ctx.fillRect(x - s * 0.35, y - s * 0.85, s * 0.7, s * 0.7);
+    ctx.beginPath(); ctx.ellipse(dp.x, dp.y + s * 0.1, s * 0.55, s * 0.14, 0, 0, Math.PI * 2); ctx.fill();
+
+    ctx.fillStyle = blackout ? '#6b3f12' : '#b45309';
+    ctx.fillRect(dp.x - s * 0.5, dp.y - s * 0.7, s * 1.0, s * 0.6);
     // head
-    ctx.fillStyle = '#fcd34d';
-    ctx.fillRect(x - s * 0.28, y - s * 1.25, s * 0.56, s * 0.42);
-    // beanie
-    ctx.fillStyle = '#0f172a';
-    ctx.fillRect(x - s * 0.3, y - s * 1.4, s * 0.6, s * 0.22);
+    ctx.fillRect(dp.x - s * 0.32, dp.y - s * 1.15, s * 0.7, s * 0.5);
+    // ears
+    ctx.fillStyle = blackout ? '#4a2c0a' : '#78350f';
+    ctx.fillRect(dp.x - s * 0.35, dp.y - s * 1.35, s * 0.22, s * 0.28);
+    ctx.fillRect(dp.x + s * 0.2, dp.y - s * 1.35, s * 0.22, s * 0.28);
+    // legs
+    ctx.fillStyle = blackout ? '#5a3510' : '#92400e';
+    ctx.fillRect(dp.x - s * 0.42, dp.y - s * 0.15, s * 0.22, s * 0.35);
+    ctx.fillRect(dp.x + s * 0.18, dp.y - s * 0.15, s * 0.22, s * 0.35);
+    // tail
+    ctx.fillStyle = blackout ? '#6b3f12' : '#b45309';
+    ctx.fillRect(dp.x - s * 0.7, dp.y - s * 0.55, s * 0.28, s * 0.16);
+    // collar
+    ctx.fillStyle = '#dc2626';
+    ctx.fillRect(dp.x - s * 0.28, dp.y - s * 0.78, s * 0.56, s * 0.1);
   }
 
-  function drawFriendlyDog(x, y, s) {
-    ctx.fillStyle = '#00000055';
+  function drawFlashlightOverlay() {
+    if (!blackout) return;
+    const dogWX = lerpLane(dogLaneF);
+    const dp = project(dogWX, Z_DOG);
+    const ahead = project(dogWX, Z_DOG + 3.8);
+    const hx = dp.x * 0.3 + ahead.x * 0.7;
+    const hy = dp.y * 0.4 + ahead.y * 0.6;
+    const radius = Math.max(100, dp.s * 3.1);
+
+    // Darken whole frame; keep a warm clear halo around dog / ahead
+    const g = ctx.createRadialGradient(hx, hy, radius * 0.08, hx, hy, radius * 1.35);
+    g.addColorStop(0, 'rgba(2, 6, 23, 0.05)');
+    g.addColorStop(0.28, 'rgba(2, 6, 23, 0.25)');
+    g.addColorStop(0.55, 'rgba(2, 6, 23, 0.72)');
+    g.addColorStop(0.78, 'rgba(2, 6, 23, 0.9)');
+    g.addColorStop(1, 'rgba(2, 6, 23, 0.96)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+
+    const warm = ctx.createRadialGradient(hx, hy, 0, hx, hy, radius * 0.55);
+    warm.addColorStop(0, 'rgba(253, 230, 138, 0.16)');
+    warm.addColorStop(1, 'rgba(253, 230, 138, 0)');
+    ctx.fillStyle = warm;
     ctx.beginPath();
-    ctx.ellipse(x, y + s * 0.08, s * 0.4, s * 0.1, 0, 0, Math.PI * 2);
+    ctx.arc(hx, hy, radius * 0.55, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = '#b45309';
-    ctx.fillRect(x - s * 0.35, y - s * 0.55, s * 0.7, s * 0.45);
-    // head (back of head / slight turn)
-    ctx.fillRect(x - s * 0.22, y - s * 0.85, s * 0.5, s * 0.35);
-    ctx.fillStyle = '#92400e';
-    ctx.fillRect(x - s * 0.28, y - s * 0.15, s * 0.18, s * 0.28);
-    ctx.fillRect(x + s * 0.1, y - s * 0.15, s * 0.18, s * 0.28);
-    // ears
-    ctx.fillStyle = '#78350f';
-    ctx.fillRect(x - s * 0.25, y - s * 1.0, s * 0.16, s * 0.22);
-    ctx.fillRect(x + s * 0.12, y - s * 1.0, s * 0.16, s * 0.22);
-    // tail
-    ctx.fillStyle = '#b45309';
-    ctx.fillRect(x - s * 0.5, y - s * 0.45, s * 0.18, s * 0.12);
   }
 
   function draw() {
@@ -489,48 +482,54 @@
     ctx.setTransform(1, 0, 0, 1, ox, oy);
 
     drawSky();
-    // dirt / courtyard ground under road (shoulders filled inside drawRoad)
-    ctx.fillStyle = '#292524';
+    ctx.fillStyle = blackout ? '#050505' : '#292524';
     ctx.fillRect(0, HORIZON, W, H - HORIZON);
+    drawPath();
 
-    drawRoad();
-
-    // depth-sort scenery + obstacles (far → near)
     const deco = scenery.map((s) => ({ z: s.z, draw: () => drawSceneryItem(s) }));
     for (const o of obstacles) {
       if (o.kind === 'puddle') deco.push({ z: o.z, draw: () => drawPuddle(o.lane, o.z) });
-      else deco.push({ z: o.z, draw: () => drawAngryDog(o.lane, o.z) });
+      else if (o.kind === 'dog') deco.push({ z: o.z, draw: () => drawAngryDog(o.lane, o.z) });
+      else deco.push({ z: o.z, draw: () => drawGenerator(o) });
     }
     deco.sort((a, b) => b.z - a.z);
     for (const d of deco) d.draw();
 
-    drawPlayerAndDog();
+    drawDogAndLeash();
+    drawFlashlightOverlay();
 
-    // vignette when many notifs
     if (notifs.length >= 4) {
-      ctx.fillStyle = 'rgba(127,29,29,0.16)';
+      ctx.fillStyle = 'rgba(127,29,29,0.14)';
       ctx.fillRect(0, 0, W, H);
     }
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+    // blackout HUD chip
+    if (running && blackout) {
+      ctx.fillStyle = '#111827cc';
+      ctx.fillRect(10, H - 36, 130, 24);
+      ctx.fillStyle = '#fde68a';
+      ctx.font = 'bold 12px system-ui,sans-serif';
+      ctx.fillText(t().blackout, 18, H - 19);
+    }
   }
 
   function update(dt) {
     if (!running) return;
+    time += dt;
     if (invuln > 0) invuln -= dt;
     if (shake > 0) shake = Math.max(0, shake - dt * 28);
 
-    // smooth lane
-    laneF += (lane - laneF) * Math.min(1, 12 * dt);
-    dogLaneF += (laneF - dogLaneF) * Math.min(1, 7 * dt);
+    laneF += (lane - laneF) * Math.min(1, 10 * dt);
+    dogLaneF += (laneF - dogLaneF) * Math.min(1, 6 * dt);
 
-    speed = Math.min(SPEED_MAX, SPEED0 + distance * 0.04);
+    speed = Math.min(SPEED_MAX, SPEED0 + distance * 0.012);
     const dz = speed * dt;
-    roadPhase += dz * 0.85;
-    distance += dz * 1.15;
-    score += dz * 0.7;
+    pathPhase += dz * 0.7;
+    distance += dz * 1.05;
+    score += dz * 0.55;
 
-    // move world toward camera
     for (const o of obstacles) o.z -= dz;
     for (const s of scenery) {
       s.z -= dz;
@@ -538,33 +537,42 @@
     }
     obstacles = obstacles.filter((o) => o.z > Z_NEAR - 1.2);
 
-    // spawn
     spawnAcc += dt;
-    const every = Math.max(0.4, 1.05 - distance / 500);
+    const every = Math.max(0.7, 1.6 - distance / 700);
     if (spawnAcc >= every) {
       spawnAcc = 0;
       spawnObstacle();
-      if (Math.random() < 0.28) spawnObstacle();
+      if (Math.random() < 0.2) spawnObstacle();
     }
 
-    // collisions near player plane
     for (const o of obstacles) {
       if (o.hit) continue;
-      if (o.z < Z_PLAYER + 1.1 && o.z > Z_PLAYER - 1.4) {
-        if (Math.abs(o.lane - laneF) < 0.55) {
+      if (o.z < Z_DOG + 1.2 && o.z > Z_DOG - 1.5) {
+        if (Math.abs(o.lane - dogLaneF) < 0.55) {
           o.hit = true;
           hit();
         }
       }
     }
 
-    // notifications
-    notifAcc += dt;
-    notifRate = Math.max(0.85, 3.2 - distance / 220);
-    if (notifAcc >= notifRate) {
-      notifAcc = 0;
-      spawnNotif();
+    // blackout cycle
+    if (blackout) {
+      blackoutTimer -= dt;
+      if (blackoutTimer <= 0) {
+        blackout = false;
+        nextBlackoutIn = 12 + Math.random() * 10;
+      }
+    } else {
+      nextBlackoutIn -= dt;
+      if (nextBlackoutIn <= 0) {
+        blackout = true;
+        blackoutTimer = 5.5 + Math.random() * 3.5;
+      }
     }
+
+    notifAcc += dt;
+    notifRate = Math.max(1.0, 3.5 - distance / 260);
+    if (notifAcc >= notifRate) { notifAcc = 0; spawnNotif(); }
     if (notifs.length >= 6) {
       if (!update._nDrain) update._nDrain = 0;
       update._nDrain += dt;
@@ -575,7 +583,6 @@
     document.getElementById('livesLine').textContent = t().lives(lives);
   }
 
-  // --- loop ---
   let last = performance.now();
   let frames = 0, fpsT = 0, fps = 0;
   const fpsSamples = [];
@@ -583,7 +590,11 @@
     getFps: () => fps,
     getFpsSamples: () => fpsSamples.slice(),
     start: () => document.getElementById('oBtn').click(),
-    getState: () => ({ distance, score, lives, running, dead, notifs: notifs.length, obstacles: obstacles.length, perspective: true }),
+    setBlackout: (v) => { blackout = !!v; blackoutTimer = v ? 99 : 0; nextBlackoutIn = v ? 99 : 12; },
+    getState: () => ({
+      distance, score, lives, running, dead, notifs: notifs.length,
+      obstacles: obstacles.length, blackout, speed, perspective: true, dogOnly: true,
+    }),
   };
 
   function frame(now) {
@@ -592,8 +603,7 @@
     if (dt > 0.05) dt = 0.05;
     update(dt);
     draw();
-    frames++;
-    fpsT += dt;
+    frames++; fpsT += dt;
     if (fpsT >= 0.5) {
       fps = Math.round(frames / fpsT);
       fpsSamples.push(fps);
