@@ -1,4 +1,4 @@
-/* One Day in Kyiv — dog walk pseudo-3D courtyard runner (v11 outlines + lamp pools) */
+/* One Day in Kyiv — dog walk pseudo-3D courtyard runner (v12 smooth road, no stripes) */
 (function () {
   'use strict';
 
@@ -136,7 +136,7 @@
   let distance = 0, score = 0, lives = START_LIVES;
   let running = false, dead = false, invuln = 0, shake = 0;
   let spawnAcc = 0, notifAcc = 0, notifRate = 6.5;
-  let obstacles = [], scenery = [], pathPhase = 0;
+  let obstacles = [], scenery = [];
   let blackout = false, blackoutTimer = 0, nextBlackoutIn = 55;
   let time = 0;
   let paused = false;
@@ -157,7 +157,7 @@
     lane = 1; laneF = 1; dogLaneF = 1;
     speed = SPEED0; distance = 0; score = 0; lives = START_LIVES;
     invuln = 0; spawnAcc = 0; notifAcc = 0; notifRate = 6.5;
-    obstacles = []; pathPhase = 0; shake = 0; dead = false; time = 0;
+    obstacles = []; shake = 0; dead = false; time = 0;
     blackout = false; blackoutTimer = 0; nextBlackoutIn = 50 + Math.random() * 20;
     paused = false; hidePauseUI();
     weather = null; weatherTimer = 0; nextWeatherIn = 32 + Math.random() * 18;
@@ -910,7 +910,8 @@
   }
 
   function drawPath() {
-    // Evening asphalt path — fills screen edge-to-edge at the near plane
+    // Smooth evening asphalt — no scrolling stripes/bands (motion-sickness fix).
+    // Subtle static depth gradient only; lane edges stay soft and non-moving.
     for (let y = HORIZON; y < H + 4; y++) {
       const row = y - HORIZON + 1;
       const z = (CAM_H * FOCAL) / row;
@@ -918,20 +919,33 @@
       let left = pathEdgeX(-1, z);
       let right = pathEdgeX(1, z);
       const cross = crossingAt(z);
-      // At a crossroads the pavement spans full width (side street)
       if (cross) {
         left = 0;
         right = W;
       }
-      // Dark evening pavement
-      const tile = (((z * 1.6 + pathPhase * 0.4) | 0) % 3);
-      if (blackout) ctx.fillStyle = tile === 0 ? '#0c0a0f' : '#09080c';
-      else if (cross) ctx.fillStyle = tile === 0 ? '#322a3a' : tile === 1 ? '#2a2233' : '#1f1828';
-      else ctx.fillStyle = tile === 0 ? '#2a2433' : tile === 1 ? '#211c29' : '#18141f';
+      // Distance shade 0 (near/darker) → 1 (far/slightly lighter) — static, no phase
+      const nearZ = Z_NEAR, farZ = Z_FAR;
+      const tDist = Math.max(0, Math.min(1, (z - nearZ) / (farZ - nearZ)));
+      let r, g, b;
+      if (blackout) {
+        r = 9 + tDist * 3;
+        g = 8 + tDist * 2;
+        b = 12 + tDist * 3;
+      } else if (cross) {
+        r = 34 + tDist * 10;
+        g = 28 + tDist * 8;
+        b = 42 + tDist * 10;
+      } else {
+        r = 24 + tDist * 14;
+        g = 20 + tDist * 12;
+        b = 31 + tDist * 14;
+      }
+      ctx.fillStyle = `rgb(${r | 0},${g | 0},${b | 0})`;
       ctx.fillRect(left, y, Math.max(1, right - left), 1);
       if (!cross) {
+        // Very subtle static edge shading for lane/path readability (does not scroll)
         const edge = Math.max(1.2, (right - left) * 0.012);
-        ctx.fillStyle = blackout ? '#1a1520' : '#3f3a4a';
+        ctx.fillStyle = blackout ? '#14121a' : '#353040';
         ctx.fillRect(left, y, edge, 1);
         ctx.fillRect(right - edge, y, edge, 1);
       }
@@ -1444,7 +1458,6 @@
     const rampT = Math.min(1, time / RAMP_SECS);
     speed = SPEED0 + (SPEED_MAX - SPEED0) * rampT;
     const dz = speed * dt;
-    pathPhase += dz * 0.7;
     distance += dz * 1.05;
     score += dz * 0.55;
 
