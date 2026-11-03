@@ -6,7 +6,7 @@ Current mini-game for *One Day in Kyiv* «Прогулянка з собакою
 
 ## Mechanic
 
-Minions-style **3-lane runner**: swipe / ←→ to change lane. Player walks a dog on a leash.
+**Minion Rush-style** 3-lane runner with **pseudo-3D** camera behind/above the player: road converges to a vanishing point, scenery and obstacles scale with depth. Swipe / ←→ to change lane. Player + dog on a leash, seen from behind.
 
 **Obstacles**
 - Puddles
