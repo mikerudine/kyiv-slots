@@ -1,4 +1,4 @@
-/* One Day in Kyiv — dog walk pseudo-3D courtyard runner (v9 rare crosses, busy sky) */
+/* One Day in Kyiv — dog walk pseudo-3D courtyard runner (v10 textured skyline) */
 (function () {
   'use strict';
 
@@ -753,39 +753,139 @@
     }
   }
 
-  function drawCityBackdrop() {
-    // Far silhouettes just under the horizon — darkness & glowing windows
-    const baseY = HORIZON + 6;
-    for (let i = 0; i < 14; i++) {
-      const x = -20 + i * 30 + ((i * 17) % 11);
-      const bw = 22 + (i % 5) * 6;
-      const bh = 18 + (i % 4) * 10 + ((i * 3) % 7);
-      ctx.fillStyle = blackout ? '#030308' : '#07060e';
-      ctx.fillRect(x, baseY - bh, bw, bh + 8);
-      if (blackout) continue;
-      const mask = (i * 7919 + 104729) | 0;
-      const cols = 2 + (i % 3);
-      const rows = 2 + (i % 4);
-      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
-        const col = windowColor(mask, r, c, (i + r + c) % 5 === 0);
-        if (!col) continue;
-        ctx.fillStyle = col;
-        ctx.fillRect(x + 3 + c * ((bw - 6) / cols), baseY - bh + 3 + r * ((bh - 6) / rows), Math.max(2, bw * 0.12), Math.max(2, bh * 0.1));
+  // Prebuilt asymmetric skyline — same visual language as side house silhouettes
+  // (varied massing, window grids, roof ledges). No mirror / marching repeats.
+  const SKYLINE_LAYERS = (function buildSkyline() {
+    function hash(n) {
+      n = (n ^ 0x9e3779b9) >>> 0;
+      n = Math.imul(n ^ (n >>> 16), 0x85ebca6b) >>> 0;
+      n = Math.imul(n ^ (n >>> 13), 0xc2b2ae35) >>> 0;
+      return (n ^ (n >>> 16)) >>> 0;
+    }
+    function packLayer(seed, yLift, scale, fillA, fillB) {
+      const blocks = [];
+      let x = -28;
+      let i = 0;
+      while (x < W + 40) {
+        const h0 = hash(seed + i * 97 + 13);
+        const h1 = hash(seed + i * 193 + 71);
+        const gap = 1 + (h0 % 5); // irregular gaps, not a grid
+        const bw = Math.floor(14 + (h0 % 29) + ((h1 >> 3) % 17)); // 14–59
+        // Break left/right rhythm: occasionally shove block
+        const nudge = ((h1 >> 8) % 9) - 4;
+        const stories = 2 + (h0 % 7) + ((h1 >> 12) % 3); // 2–10, non-cycling with x
+        const bh = Math.floor((16 + stories * 7 + (h1 % 11)) * scale);
+        const cols = 2 + (h0 % 4);
+        const rows = Math.max(2, stories - (h1 % 2));
+        const style = h0 % 5; // roof / tower accents
+        blocks.push({
+          x: x + nudge,
+          bw,
+          bh,
+          yLift,
+          fill: (i + seed) & 1 ? fillA : fillB,
+          mask: h0 ^ h1,
+          cols,
+          rows,
+          style,
+          seed: h0,
+        });
+        x += bw + gap;
+        i++;
+      }
+      return blocks;
+    }
+    return [
+      // farthest / softest
+      packLayer(1103, 2, 0.72, '#05040c', '#060510'),
+      // mid depth
+      packLayer(44021, 5, 0.92, '#07060f', '#0a0914'),
+      // nearest skyline ridge (still behind road)
+      packLayer(91711, 8, 1.12, '#0b0a16', '#0e0c1a'),
+    ];
+  })();
+
+  function drawSkylineBlock(b, baseY) {
+    const x = b.x;
+    const bw = b.bw;
+    const bh = b.bh;
+    const y0 = baseY + b.yLift;
+    ctx.fillStyle = blackout ? '#030308' : b.fill;
+    ctx.fillRect(x, y0 - bh, bw, bh + 10);
+    // Roof ledge / parapet (like side khrush/building)
+    ctx.fillStyle = blackout ? '#020208' : '#04030a';
+    ctx.fillRect(x - 1, y0 - bh - 2, bw + 2, 3);
+    // Occasional roof accents — chimneys, water tower, step-back (asymmetric)
+    if (!blackout) {
+      const st = b.style;
+      if (st === 1) {
+        // chimney
+        ctx.fillStyle = '#0a0914';
+        ctx.fillRect(x + bw * 0.2, y0 - bh - 8, Math.max(2, bw * 0.08), 8);
+        ctx.fillRect(x + bw * 0.65, y0 - bh - 6, Math.max(2, bw * 0.07), 6);
+      } else if (st === 2) {
+        // pitched / triangle roof hint
+        ctx.fillStyle = '#080712';
+        ctx.beginPath();
+        ctx.moveTo(x - 1, y0 - bh);
+        ctx.lineTo(x + bw / 2, y0 - bh - 7 - (b.seed % 5));
+        ctx.lineTo(x + bw + 1, y0 - bh);
+        ctx.closePath();
+        ctx.fill();
+      } else if (st === 3) {
+        // water-tower blob
+        ctx.fillStyle = '#0c0a14';
+        ctx.fillRect(x + bw * 0.55, y0 - bh - 10, Math.max(4, bw * 0.22), 10);
+        ctx.beginPath();
+        ctx.arc(x + bw * 0.66, y0 - bh - 10, Math.max(3, bw * 0.1), 0, Math.PI * 2);
+        ctx.fill();
+      } else if (st === 4) {
+        // step-back upper floor
+        ctx.fillStyle = blackout ? '#030308' : '#090814';
+        ctx.fillRect(x + bw * 0.15, y0 - bh - 6, bw * 0.55, 6);
       }
     }
-    // Fog veil over far city / path vanishing point
-    const fog = ctx.createLinearGradient(0, HORIZON - 10, 0, HORIZON + 90);
+    if (blackout) return;
+    // Window grid — lit / dark via windowColor mask (same as side houses)
+    const padX = Math.max(2, bw * 0.08);
+    const padY = Math.max(2, bh * 0.08);
+    const cellW = (bw - padX * 2) / b.cols;
+    const cellH = (bh - padY * 2) / b.rows;
+    const ww = Math.max(1.5, cellW * 0.45);
+    const wh = Math.max(1.5, cellH * 0.4);
+    for (let r = 0; r < b.rows; r++) {
+      for (let c = 0; c < b.cols; c++) {
+        const col = windowColor(b.mask, r, c, ((b.seed >> (r + c)) & 1) && ((r * 3 + c + b.seed) % 9 === 0));
+        if (!col) continue;
+        ctx.fillStyle = col;
+        ctx.fillRect(
+          x + padX + c * cellW + (cellW - ww) * 0.5,
+          y0 - bh + padY + r * cellH + (cellH - wh) * 0.35,
+          ww, wh
+        );
+      }
+    }
+  }
+
+  function drawCityBackdrop() {
+    // Layered textured skyline matching side-building silhouette language
+    const baseY = HORIZON + 4;
+    for (const layer of SKYLINE_LAYERS) {
+      for (const b of layer) drawSkylineBlock(b, baseY);
+    }
+    // Soft fog / depth veil over far city (keep lasers readable above via draw order)
+    const fog = ctx.createLinearGradient(0, HORIZON - 14, 0, HORIZON + 95);
     if (blackout) {
-      fog.addColorStop(0, 'rgba(2,2,8,0.55)');
-      fog.addColorStop(0.55, 'rgba(2,2,8,0.35)');
+      fog.addColorStop(0, 'rgba(2,2,8,0.6)');
+      fog.addColorStop(0.5, 'rgba(2,2,8,0.32)');
       fog.addColorStop(1, 'rgba(2,2,8,0)');
     } else {
-      fog.addColorStop(0, 'rgba(12,10,24,0.75)');
-      fog.addColorStop(0.4, 'rgba(20,14,36,0.45)');
-      fog.addColorStop(1, 'rgba(20,14,36,0)');
+      fog.addColorStop(0, 'rgba(10,8,20,0.55)');
+      fog.addColorStop(0.4, 'rgba(16,12,28,0.32)');
+      fog.addColorStop(1, 'rgba(16,12,28,0)');
     }
     ctx.fillStyle = fog;
-    ctx.fillRect(0, HORIZON - 12, W, 110);
+    ctx.fillRect(0, HORIZON - 14, W, 115);
   }
 
   function drawPath() {
