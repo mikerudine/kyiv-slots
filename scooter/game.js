@@ -1,24 +1,38 @@
-/* One Day in Kyiv — scooter side-scroller v1 */
+/* One Day in Kyiv — scooter side-scroller v2 (portrait + terrain) */
 (function () {
   'use strict';
 
-  const W = 640, H = 360;
+  // Logical portrait canvas (9:16-ish). Physical pixels via devicePixelRatio — no CSS squash.
+  const W = 360, H = 640;
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d', { alpha: false });
-  ctx.imageSmoothingEnabled = false;
 
-  const GROUND = H - 52;
-  const GRAV = 1650;
-  const JUMP_V = -520;
-  const ACCEL = 380;
-  const BRAKE = 520;
-  const DRAG = 55;
-  const V_MAX = 320;
-  const V_MIN = 40; // idle roll when not braking hard
-  const COYOTE = 0.12;
+  function resizeCanvas() {
+    const dpr = Math.min(3, window.devicePixelRatio || 1);
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+  }
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
+
+  const BASE_Y = H - 120; // baseline asphalt level (world y of flat road surface)
+  const GRAV = 1850;
+  const JUMP_V = -560;
+  const ACCEL = 400;
+  const BRAKE = 560;
+  const DRAG = 60;
+  const V_MAX = 300;
+  const V_MIN = 36;
+  const COYOTE = 0.14;
   const START_LIVES = 5;
   const INVULN = 2.0;
-  const PLAYER_W = 28, PLAYER_H = 36;
+  const PLAYER_W = 30, PLAYER_H = 40;
+  const STEP_CLIMB = 16; // small curb climb without jump if slow
+  const STEP_CRASH = 22; // taller face needs jump
 
   const I18N = {
     ua: {
@@ -27,13 +41,10 @@
       score: (d, s) => `${d | 0} м · ${s | 0}`,
       lives: (n) => `❤ ${n}`,
       overlayTitle: 'Самокат',
-      overlayBody: 'Катись Лівобережжям додому: газ, стрибок, гальмо. Порожки, горки, генератори, клумби й припарковані авта — на дахи можна застрибнути й їхати по них.',
-      start: 'Старт',
-      again: 'Ще раз',
-      overTitle: 'Упав',
+      overlayBody: 'Катись Лівобережжям: газ, стрибок, гальмо. Рельєф — схили й бордюри; клумби, генератори; на дахи автів можна застрибнути.',
+      start: 'Старт', again: 'Ще раз', overTitle: 'Упав',
       overBody: (d, s) => `Дистанція ${d | 0} м · рахунок ${s | 0}`,
-      pause: 'Пауза',
-      pauseBody: 'Торкніться, щоб продовжити',
+      pause: 'Пауза', pauseBody: 'Торкніться, щоб продовжити',
     },
     en: {
       title: 'Scooter home',
@@ -41,13 +52,10 @@
       score: (d, s) => `${d | 0} m · ${s | 0}`,
       lives: (n) => `❤ ${n}`,
       overlayTitle: 'Scooter',
-      overlayBody: 'Ride left→right: accelerate, jump, brake. Curbs, ramps, generators, flower beds, parked cars — jump onto roofs and ride along them.',
-      start: 'Start',
-      again: 'Again',
-      overTitle: 'Wiped out',
+      overlayBody: 'Ride left→right: accel, jump, brake. Terrain slopes & curb steps; flower beds, generators; jump onto car roofs.',
+      start: 'Start', again: 'Again', overTitle: 'Wiped out',
       overBody: (d, s) => `Distance ${d | 0} m · score ${s | 0}`,
-      pause: 'Paused',
-      pauseBody: 'Tap to resume',
+      pause: 'Paused', pauseBody: 'Tap to resume',
     },
   };
 
@@ -59,15 +67,14 @@
   let invuln = 0, shake = 0, coyote = 0;
   let input = { accel: false, brake: false, jump: false, jumpBuffered: 0 };
 
-  // Player in world space; camera follows
-  let px = 80, py = GROUND - PLAYER_H, vx = 90, vy = 0;
-  let onGround = true, facing = 1;
-  let wheelPhase = 0;
+  let px = 60, py = BASE_Y - PLAYER_H, vx = 90, vy = 0;
+  let onGround = true, wheelPhase = 0, groundSlope = 0;
 
-  /** @type {Array<{kind:string,x:number,w:number,h:number,y?:number,slope?:number,phase?:number,hit?:boolean}>} */
+  /** Terrain keypoints: sorted by x. y = surface height (smaller y = higher up screen / raised road). */
+  let terrain = [];
+  /** Props sitting on terrain: flower, generator, car */
   let objs = [];
-  let spawnX = 420;
-  let bgPhase = 0;
+  let spawnX = 300;
 
   const pauseBtn = document.getElementById('pauseBtn');
   const pauseOverlay = document.getElementById('pauseOverlay');
@@ -86,7 +93,6 @@
       document.getElementById('oBtn').textContent = dead ? L.again : L.start;
     }
   }
-
   document.getElementById('lang').addEventListener('click', () => {
     lang = lang === 'ua' ? 'en' : 'ua';
     localStorage.setItem('scooter-lang', lang);
@@ -97,222 +103,243 @@
     if (running && !dead) pauseBtn.classList.remove('hidden');
     else pauseBtn.classList.add('hidden');
   }
-
   function setPaused(v) {
     if (!running || dead) return;
     paused = !!v;
-    if (paused) {
-      pauseOverlay.classList.add('show');
-      applyLang();
+    if (paused) { pauseOverlay.classList.add('show'); applyLang(); }
+    else { pauseOverlay.classList.remove('show'); last = performance.now(); }
+  }
+  function togglePause() { if (!running || dead) return; setPaused(!paused); }
+  pauseBtn.addEventListener('click', (e) => { e.stopPropagation(); togglePause(); });
+  pauseOverlay.addEventListener('click', () => { if (paused) setPaused(false); });
+
+  function groundY(wx) {
+    // interpolate terrain polyline
+    if (!terrain.length) return BASE_Y;
+    if (wx <= terrain[0].x) return terrain[0].y;
+    for (let i = 1; i < terrain.length; i++) {
+      const a = terrain[i - 1], b = terrain[i];
+      if (wx <= b.x) {
+        const t = (wx - a.x) / Math.max(1e-6, b.x - a.x);
+        return a.y + (b.y - a.y) * t;
+      }
+    }
+    return terrain[terrain.length - 1].y;
+  }
+
+  function groundSlopeAt(wx) {
+    const d = 10;
+    const raw = (groundY(wx + d) - groundY(wx - d)) / (2 * d);
+    // ignore near-vertical curb faces for speed assist
+    if (Math.abs(raw) > 0.8) return 0;
+    return raw;
+  }
+
+  /** Face height of an upcoming step (positive = must climb). */
+  function stepFaceAhead(wx, look) {
+    let maxUp = 0;
+    for (let i = 1; i < terrain.length; i++) {
+      const a = terrain[i - 1], b = terrain[i];
+      if (b.x < wx || a.x > wx + look) continue;
+      // abrupt rise in world y-up terms means smaller screen-y
+      const dy = a.y - b.y; // positive if going up a curb
+      const span = b.x - a.x;
+      if (span < 18 && dy > maxUp) maxUp = dy;
+    }
+    return maxUp;
+  }
+
+  function pushTerrain(x, y, kind) {
+    terrain.push({ x, y, kind: kind || 'flat' });
+  }
+
+  function seedCourse() {
+    terrain = [];
+    objs = [];
+    spawnX = 0;
+    // long flat intro
+    pushTerrain(0, BASE_Y, 'flat');
+    pushTerrain(380, BASE_Y, 'flat');
+    spawnX = 380;
+    // early showcase cars (side silhouettes) — close so they appear soon
+    {
+      const ox = spawnX + 20;
+      const gy = BASE_Y;
+      objs.push({ kind: 'car', type: 'sedan', x: ox, w: 100, h: 48, y: gy, hit: false });
+      objs.push({ kind: 'car', type: 'hatch', x: ox + 118, w: 82, h: 44, y: gy, hit: false });
+      objs.push({ kind: 'car', type: 'van', x: ox + 230, w: 112, h: 60, y: gy, hit: false });
+      spawnX = ox + 380;
+      pushTerrain(spawnX, BASE_Y, 'flat');
+    }
+    // early curb: sidewalk → roadway (down) → sidewalk (up), then a smooth hill
+    {
+      const y0 = BASE_Y, step = 28;
+      const x1 = spawnX + 20;
+      const x2 = x1 + 160; // long lowered roadway so the step is obvious
+      const x3 = x2 + 10;
+      pushTerrain(x1, y0, 'step');
+      pushTerrain(x1 + 3, y0 + step, 'step');
+      pushTerrain(x2, y0 + step, 'flat');
+      pushTerrain(x2 + 3, y0, 'step');
+      pushTerrain(x3, y0, 'flat');
+      spawnX = x3 + 50;
+      pushTerrain(spawnX, y0, 'flat');
+      const mid = spawnX + 100, end = mid + 110, rise = 48;
+      pushTerrain(spawnX + 15, y0, 'slope');
+      pushTerrain(mid, y0 - rise, 'slope');
+      pushTerrain(end, y0, 'slope');
+      spawnX = end + 50;
+      pushTerrain(spawnX, y0, 'flat');
+    }
+    for (let i = 0; i < 8; i++) spawnChunk(true);
+  }
+
+  function spawnChunk(easy) {
+    const gap = easy ? (140 + Math.random() * 100) : (100 + Math.random() * 90);
+    const x0 = spawnX;
+    const y0 = terrain[terrain.length - 1].y;
+    spawnX = x0 + gap;
+    pushTerrain(spawnX, y0, 'flat');
+
+    const r = Math.random();
+    // Terrain features ~40%, props ~60%
+    if (r < 0.22) {
+      // smooth hill (rise then fall) — slope
+      const rise = 28 + Math.random() * 36;
+      const mid = spawnX + 70 + Math.random() * 40;
+      const end = mid + 80 + Math.random() * 50;
+      pushTerrain(spawnX + 20, y0, 'slope');
+      pushTerrain(mid, y0 - rise, 'slope');
+      pushTerrain(end, y0, 'slope');
+      spawnX = end + 40;
+      pushTerrain(spawnX, y0, 'flat');
+    } else if (r < 0.40) {
+      // curb / roadway step: down then up (or up then down)
+      const step = 18 + Math.random() * 16;
+      const down = Math.random() < 0.55;
+      const y1 = down ? y0 + step : y0 - step;
+      const x1 = spawnX + 8;
+      const x2 = x1 + 90 + Math.random() * 70;
+      const x3 = x2 + 8;
+      pushTerrain(x1, y0, 'step');
+      pushTerrain(x1 + 2, y1, 'step'); // sharp face
+      pushTerrain(x2, y1, 'flat');
+      pushTerrain(x2 + 2, y0, 'step'); // return face
+      pushTerrain(x3, y0, 'flat');
+      spawnX = x3 + 50;
+      pushTerrain(spawnX, y0, 'flat');
     } else {
-      pauseOverlay.classList.remove('show');
-      last = performance.now();
+      // prop on current flat
+      const kind = easy
+        ? (Math.random() < 0.45 ? 'car' : Math.random() < 0.5 ? 'flower' : 'generator')
+        : (Math.random() < 0.4 ? 'car' : Math.random() < 0.45 ? 'flower' : 'generator');
+      const ox = spawnX + 30;
+      const gy = groundY(ox);
+      if (kind === 'car') {
+        const type = ['sedan', 'hatch', 'van'][(Math.random() * 3) | 0];
+        const w = type === 'van' ? 110 : type === 'hatch' ? 78 : 96;
+        const h = type === 'van' ? 58 : type === 'hatch' ? 42 : 46;
+        objs.push({ kind: 'car', type, x: ox, w, h, y: gy, hit: false });
+        if (Math.random() < 0.5) {
+          const t2 = ['sedan', 'hatch', 'van'][(Math.random() * 3) | 0];
+          const w2 = t2 === 'van' ? 108 : t2 === 'hatch' ? 76 : 94;
+          const h2 = t2 === 'van' ? 56 : 44;
+          objs.push({ kind: 'car', type: t2, x: ox + w + 22, w: w2, h: h2, y: gy, hit: false });
+          spawnX = ox + w + w2 + 80;
+        } else spawnX = ox + w + 60;
+      } else if (kind === 'flower') {
+        objs.push({ kind: 'flower', x: ox, w: 50, h: 24, y: gy, hit: false });
+        spawnX = ox + 80;
+      } else {
+        objs.push({ kind: 'generator', x: ox, w: 36, h: 40, y: gy, phase: Math.random() * 6, hit: false });
+        spawnX = ox + 70;
+      }
+      pushTerrain(spawnX, y0, 'flat');
     }
   }
 
-  function togglePause() {
-    if (!running || dead) return;
-    setPaused(!paused);
+  function roofY(o) { return o.y - o.h; }
+
+  function solidTopAt(wx) {
+    let best = groundY(wx);
+    for (const o of objs) {
+      if (o.kind !== 'car') continue;
+      if (wx >= o.x + 4 && wx <= o.x + o.w - 4) {
+        const top = roofY(o);
+        if (top < best) best = top;
+      }
+    }
+    return best;
   }
 
-  pauseBtn.addEventListener('click', (e) => { e.stopPropagation(); togglePause(); });
-  pauseOverlay.addEventListener('click', () => { if (paused) setPaused(false); });
+  function feetX() { return px + PLAYER_W * 0.55; }
+  function feetY() { return py + PLAYER_H; }
+
+  function hit() {
+    if (invuln > 0) return;
+    lives -= 1; invuln = INVULN; shake = 10;
+    vx *= 0.4; vy = Math.min(vy, -140);
+    if (lives <= 0) gameOver();
+  }
+
+  function gameOver() {
+    running = false; dead = true; paused = false;
+    pauseOverlay.classList.remove('show');
+    syncPauseBtn(); applyLang();
+    document.getElementById('overlay').classList.remove('hidden');
+  }
 
   function resetGame() {
     running = false; dead = false; paused = false;
     pauseOverlay.classList.remove('show');
     time = 0; distance = 0; score = 0; lives = START_LIVES;
     invuln = 0; shake = 0; coyote = 0;
-    px = 80; py = GROUND - PLAYER_H; vx = 100; vy = 0;
-    onGround = true; wheelPhase = 0;
-    objs = []; spawnX = 380; bgPhase = 0;
+    px = 60; vx = 100; vy = 0; onGround = true; wheelPhase = 0; groundSlope = 0;
     seedCourse();
-    syncPauseBtn();
-    applyLang();
-  }
-
-  function gameOver() {
-    running = false; dead = true; paused = false;
-    pauseOverlay.classList.remove('show');
-    syncPauseBtn();
-    applyLang();
-    document.getElementById('overlay').classList.remove('hidden');
-  }
-
-  function hit() {
-    if (invuln > 0) return;
-    lives -= 1;
-    invuln = INVULN;
-    shake = 10;
-    vx *= 0.35;
-    vy = Math.min(vy, -120);
-    if (lives <= 0) gameOver();
-  }
-
-  // ---- course generation (forgiving spacing) ----
-  function seedCourse() {
-    objs = [];
-    spawnX = 420;
-    // gentle intro
-    for (let i = 0; i < 3; i++) spawnChunk(true);
-  }
-
-  function spawnChunk(easy) {
-    const gap = easy ? (220 + Math.random() * 120) : (160 + Math.random() * 100);
-    spawnX += gap;
-    const r = Math.random();
-    let kind;
-    if (easy) {
-      if (r < 0.28) kind = 'curb';
-      else if (r < 0.48) kind = 'ramp';
-      else if (r < 0.68) kind = 'flower';
-      else if (r < 0.88) kind = 'car';
-      else kind = 'generator';
-    } else {
-      if (r < 0.18) kind = 'curb';
-      else if (r < 0.38) kind = 'ramp';
-      else if (r < 0.52) kind = 'flower';
-      else if (r < 0.78) kind = 'car';
-      else kind = 'generator';
-    }
-
-    if (kind === 'curb') {
-      objs.push({ kind: 'curb', x: spawnX, w: 36 + Math.random() * 20, h: 14 + Math.random() * 6, y: GROUND });
-    } else if (kind === 'ramp') {
-      const w = 90 + Math.random() * 50;
-      const h = 28 + Math.random() * 22;
-      objs.push({ kind: 'ramp', x: spawnX, w, h, y: GROUND, slope: h / w });
-      spawnX += w * 0.2;
-    } else if (kind === 'flower') {
-      objs.push({ kind: 'flower', x: spawnX, w: 48 + Math.random() * 24, h: 22, y: GROUND });
-    } else if (kind === 'generator') {
-      objs.push({ kind: 'generator', x: spawnX, w: 34, h: 38, y: GROUND, phase: Math.random() * 6 });
-    } else if (kind === 'car') {
-      // car body + rideable roof; sometimes a second car for roof hopping
-      const w = 88 + Math.random() * 36;
-      const h = 42 + Math.random() * 10;
-      objs.push({ kind: 'car', x: spawnX, w, h, y: GROUND });
-      if (Math.random() < 0.55) {
-        const w2 = 80 + Math.random() * 30;
-        const h2 = 40 + Math.random() * 12;
-        objs.push({ kind: 'car', x: spawnX + w + 18 + Math.random() * 28, w: w2, h: h2, y: GROUND });
-        spawnX += w + w2 + 40;
-        return;
-      }
-      spawnX += w;
-      return;
-    }
-    spawnX += (kind === 'ramp' ? 40 : 20);
-  }
-
-  // ---- surfaces / collision helpers ----
-  function roofY(o) {
-    if (o.kind === 'car') return o.y - o.h;
-    if (o.kind === 'curb') return o.y - o.h;
-    if (o.kind === 'ramp') return null; // handled specially
-    return null;
-  }
-
-  function rampHeightAt(o, wx) {
-    const t = (wx - o.x) / o.w;
-    if (t < 0 || t > 1) return null;
-    return o.y - o.h * t; // rises to the right
-  }
-
-  function feetX() { return px + PLAYER_W * 0.55; }
-  function feetY() { return py + PLAYER_H; }
-
-  function solidTopAt(wx, ignoreKinds) {
-    // Returns highest (smallest y) solid surface under feet at wx, or GROUND
-    let best = GROUND;
-    for (const o of objs) {
-      if (ignoreKinds && ignoreKinds.has(o.kind)) continue;
-      if (o.kind === 'ramp') {
-        const hy = rampHeightAt(o, wx);
-        if (hy != null && hy < best) best = hy;
-        continue;
-      }
-      if (o.kind === 'car' || o.kind === 'curb') {
-        if (wx >= o.x + 2 && wx <= o.x + o.w - 2) {
-          const top = roofY(o);
-          if (top < best) best = top;
-        }
-      }
-    }
-    return best;
-  }
-
-  function tryLand(dt) {
-    const fx = feetX();
-    const fy = feetY();
-    const top = solidTopAt(fx);
-    // land if falling onto surface
-    if (vy >= 0 && fy >= top && fy <= top + Math.max(14, Math.abs(vy) * dt + 8) && py + PLAYER_H - top < 22) {
-      py = top - PLAYER_H;
-      vy = 0;
-      onGround = true;
-      coyote = COYOTE;
-      // ramp launch when near crest while moving fast
-      for (const o of objs) {
-        if (o.kind !== 'ramp') continue;
-        const t = (fx - o.x) / o.w;
-        if (t > 0.82 && t < 1.05 && vx > 140) {
-          vy = -Math.min(620, 180 + vx * o.slope * 1.35);
-          onGround = false;
-          py = rampHeightAt(o, Math.min(fx, o.x + o.w)) - PLAYER_H - 2;
-        }
-      }
-      return true;
-    }
-    return false;
-  }
-
-  function hazardHits() {
-    const pb = { x: px + 6, y: py + 4, w: PLAYER_W - 10, h: PLAYER_H - 6 };
-    for (const o of objs) {
-      if (o.hit) continue;
-      if (o.kind === 'flower' || o.kind === 'generator') {
-        let oy = o.y - o.h;
-        let oh = o.h;
-        if (o.kind === 'generator') {
-          const bob = Math.abs(Math.sin(time * 10 + o.phase)) * 10;
-          oy = o.y - o.h - bob;
-          oh = o.h + 4;
-        }
-        // if clearly above, skip (jumped over / on something else)
-        if (pb.y + pb.h <= oy + 6) continue;
-        if (aabb(pb, { x: o.x, y: oy, w: o.w, h: oh })) {
-          o.hit = true;
-          hit();
-        }
-      } else if (o.kind === 'curb') {
-        // front bumper smash if not clearing the top
-        const top = o.y - o.h;
-        if (pb.y + pb.h > top + 8 && pb.x + pb.w > o.x && pb.x < o.x + 10 && vx > 60) {
-          // only punish if approaching from front without enough height
-          if (pb.y + pb.h > top + 12) {
-            o.hit = true;
-            hit();
-          }
-        }
-      } else if (o.kind === 'car') {
-        // hitting the rear bumper / body from the front without being on roof
-        const top = o.y - o.h;
-        const onRoof = pb.y + pb.h <= top + 10;
-        if (onRoof) continue;
-        if (pb.x + pb.w > o.x && pb.x < o.x + 16 && pb.y + pb.h > top + 14 && vx > 50) {
-          o.hit = true;
-          hit();
-        }
-      }
-    }
+    py = groundY(px) - PLAYER_H;
+    syncPauseBtn(); applyLang();
   }
 
   function aabb(a, b) {
     return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
   }
 
-  // ---- update ----
+  function tryLand(dt) {
+    const fx = feetX();
+    const fy = feetY();
+    const top = solidTopAt(fx);
+    if (vy >= -20 && fy >= top && fy <= top + Math.max(16, Math.abs(vy) * dt + 10)) {
+      py = top - PLAYER_H;
+      vy = 0;
+      onGround = true;
+      coyote = COYOTE;
+      return true;
+    }
+    return false;
+  }
+
+  function hazardHits() {
+    const pb = { x: px + 6, y: py + 4, w: PLAYER_W - 10, h: PLAYER_H - 8 };
+    for (const o of objs) {
+      if (o.hit) continue;
+      if (o.kind === 'flower' || o.kind === 'generator') {
+        let oy = o.y - o.h, oh = o.h;
+        if (o.kind === 'generator') {
+          const bob = Math.abs(Math.sin(time * 10 + o.phase)) * 10;
+          oy = o.y - o.h - bob; oh = o.h + 4;
+        }
+        if (pb.y + pb.h <= oy + 6) continue;
+        if (aabb(pb, { x: o.x, y: oy, w: o.w, h: oh })) { o.hit = true; hit(); }
+      } else if (o.kind === 'car') {
+        const top = roofY(o);
+        if (pb.y + pb.h <= top + 10) continue; // on roof
+        if (pb.x + pb.w > o.x && pb.x < o.x + 14 && pb.y + pb.h > top + 12 && vx > 40) {
+          o.hit = true; hit();
+        }
+      }
+    }
+  }
+
   function update(dt) {
     if (!running || paused) return;
     time += dt;
@@ -320,188 +347,330 @@
     if (shake > 0) shake = Math.max(0, shake - dt * 28);
     if (input.jumpBuffered > 0) input.jumpBuffered -= dt;
 
-    // horizontal
+    groundSlope = groundSlopeAt(feetX());
+
+    // accel / brake / slope assist
     if (input.accel) vx += ACCEL * dt;
     if (input.brake) vx -= BRAKE * dt;
-    if (!input.accel && !input.brake) vx -= Math.sign(vx) * DRAG * dt;
-    if (!input.brake && vx < V_MIN && onGround) vx = V_MIN; // gentle idle roll
+    if (!input.accel && !input.brake) vx -= Math.sign(vx || 1) * DRAG * dt;
+    // downhill accelerates, uphill slows — clamp so curb faces don't explode physics
+    if (onGround) {
+      const s = Math.max(-0.55, Math.min(0.55, groundSlope));
+      vx += (-s) * 380 * dt;
+    }
+    if (!input.brake && vx < V_MIN && onGround) vx = V_MIN;
     if (vx > V_MAX) vx = V_MAX;
-    if (vx < -40) vx = -40; // barely reverse
-    facing = vx >= 0 ? 1 : -1;
+    if (vx < -30) vx = -30;
 
-    px += vx * dt;
-    distance = Math.max(distance, (px - 80) * 0.08);
-    score += Math.max(0, vx) * dt * 0.12;
-    bgPhase += vx * dt * 0.02;
-
-    // jump
-    if (onGround) coyote = COYOTE;
-    else coyote -= dt;
-    if (input.jumpBuffered > 0 && coyote > 0) {
-      vy = JUMP_V;
-      onGround = false;
-      coyote = 0;
-      input.jumpBuffered = 0;
-      input.jump = false;
+    // step-up: tall faces need jump (or crash if slamming); small faces bump/climb
+    if (onGround && vx > 20) {
+      const face = stepFaceAhead(feetX(), Math.max(16, vx * dt + 12));
+      if (face >= STEP_CRASH) {
+        // approaching a tall curb face — if not already jumping clear, bump hard
+        if (vx > 100) { hit(); vx *= 0.3; }
+        else { vx *= 0.45; py = groundY(feetX()) - PLAYER_H; }
+      } else if (face >= STEP_CLIMB) {
+        // forgiving small curb climb
+        py = Math.min(py, groundY(feetX() + 10) - PLAYER_H);
+      }
     }
 
-    // gravity + vertical
+    px += vx * dt;
+    distance = Math.max(distance, (px - 60) * 0.085);
+    score += Math.max(0, vx) * dt * 0.12;
+
+    if (onGround) coyote = COYOTE; else coyote -= dt;
+    if (input.jumpBuffered > 0 && coyote > 0) {
+      vy = JUMP_V;
+      onGround = false; coyote = 0; input.jumpBuffered = 0;
+    }
+
     vy += GRAV * dt;
-    if (vy > 900) vy = 900;
+    if (vy > 980) vy = 980;
     py += vy * dt;
 
     onGround = false;
-    if (!tryLand(dt)) {
-      // fell below ground
-      if (feetY() > GROUND) {
-        py = GROUND - PLAYER_H;
+    // swept land against terrain + car roofs (prevents tunneling on curb drops)
+    {
+      const fx = feetX();
+      const top = solidTopAt(fx);
+      const fy = feetY();
+      const pad = Math.max(18, Math.abs(vy) * dt + 12);
+      if (vy >= -40 && fy >= top - 2 && fy <= top + pad) {
+        py = top - PLAYER_H;
+        vy = 0;
+        onGround = true;
+        coyote = COYOTE;
+      } else if (fy > top + 6 && vy >= 0) {
+        // below surface (tunneled) — snap onto it
+        py = top - PLAYER_H;
         vy = 0;
         onGround = true;
         coyote = COYOTE;
       }
     }
 
-    // stick to ramp while riding up
-    if (onGround || vy >= 0) {
-      const fx = feetX();
-      for (const o of objs) {
-        if (o.kind !== 'ramp') continue;
-        const hy = rampHeightAt(o, fx);
-        if (hy == null) continue;
-        if (feetY() >= hy - 4 && feetY() <= hy + 16 && px + PLAYER_W > o.x && px < o.x + o.w) {
-          py = hy - PLAYER_H;
-          if (vy > 0) vy = 0;
-          onGround = true;
-          coyote = COYOTE;
-        }
-      }
-    }
-
     hazardHits();
     wheelPhase += Math.abs(vx) * dt * 0.08;
 
-    // spawn ahead of camera
+    // keep props' y synced to terrain under them (for steps that move relative)
+    for (const o of objs) {
+      if (o.kind === 'car' || o.kind === 'flower' || o.kind === 'generator') {
+        // freeze y at spawn terrain — cars sit on the roadway they were spawned on
+      }
+    }
+
     const cam = cameraX();
-    while (spawnX < cam + W + 500) spawnChunk(distance < 80);
-    objs = objs.filter((o) => o.x + o.w > cam - 80);
+    while (spawnX < cam + W + 700) spawnChunk(distance < 90);
+    objs = objs.filter((o) => o.x + o.w > cam - 100);
+    // prune old terrain points but keep one behind camera
+    while (terrain.length > 3 && terrain[1].x < cam - 200) terrain.shift();
 
     document.getElementById('scoreLine').textContent = t().score(distance, score);
     document.getElementById('livesLine').textContent = t().lives(lives);
   }
 
   function cameraX() {
-    return Math.max(0, px - W * 0.28);
+    return Math.max(0, px - W * 0.28); // player in left third
   }
 
   // ---- draw ----
-  function drawSky(cam) {
-    const g = ctx.createLinearGradient(0, 0, 0, H * 0.55);
+  function drawSky() {
+    const g = ctx.createLinearGradient(0, 0, 0, H * 0.45);
     g.addColorStop(0, '#020617');
-    g.addColorStop(0.55, '#0f172a');
+    g.addColorStop(0.5, '#0f172a');
     g.addColorStop(1, '#1e1b2e');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
-    // stars
     ctx.fillStyle = '#e2e8f044';
-    for (let i = 0; i < 24; i++) {
-      const sx = ((i * 97 + (cam * 0.02)) % (W + 20));
-      const sy = 8 + (i * 37) % 70;
-      ctx.fillRect(sx, sy, 1.5, 1.5);
+    for (let i = 0; i < 28; i++) {
+      ctx.fillRect((i * 97) % (W - 4) + 2, 10 + (i * 41) % 120, 1.5, 1.5);
     }
   }
 
   function drawSkyline(cam) {
-    const base = GROUND - 110;
+    const base = BASE_Y - 180;
     for (let layer = 0; layer < 2; layer++) {
-      const parallax = layer === 0 ? 0.15 : 0.28;
-      const fill = layer === 0 ? '#14121f' : '#1c1930';
+      const par = layer === 0 ? 0.12 : 0.22;
+      const fill = layer === 0 ? '#15131f' : '#1c1930';
       const stroke = layer === 0 ? '#5c5678' : '#7c7598';
-      let x = -((cam * parallax) % 70) - 40;
+      let x = -((cam * par) % 64) - 30;
       let i = 0;
-      while (x < W + 50) {
-        const h0 = ((i * 7919 + layer * 104729) >>> 0);
-        const bw = 22 + (h0 % 38);
-        const bh = 28 + (h0 % 55) + layer * 10;
+      while (x < W + 40) {
+        const h0 = (i * 7919 + layer * 104729) >>> 0;
+        const bw = 20 + (h0 % 34);
+        const bh = 40 + (h0 % 70) + layer * 14;
         ctx.fillStyle = fill;
-        ctx.fillRect(x, base - bh + layer * 8, bw, bh + 20);
+        ctx.fillRect(x, base - bh + layer * 10, bw, bh + 40);
         ctx.strokeStyle = stroke;
         ctx.lineWidth = 1.2;
-        ctx.strokeRect(x + 0.5, base - bh + layer * 8 + 0.5, bw - 1, bh + 19);
-        // windows
-        const cols = 2 + (h0 % 3), rows = 2 + (h0 % 4);
+        ctx.strokeRect(x + 0.5, base - bh + layer * 10 + 0.5, bw - 1, bh + 39);
+        const cols = 2 + (h0 % 3), rows = 3 + (h0 % 4);
         for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
-          if (((h0 >> (r + c + layer)) & 1) === 0) continue;
-          ctx.fillStyle = (h0 + r * 3 + c) % 5 === 0 ? '#93c5fd99' : '#fbbf24cc';
-          ctx.fillRect(x + 4 + c * ((bw - 8) / cols), base - bh + layer * 8 + 6 + r * ((bh - 12) / rows), Math.max(2, bw * 0.12), Math.max(2, bh * 0.08));
+          if (((h0 >> (r + c)) & 1) === 0) continue;
+          ctx.fillStyle = (h0 + r + c) % 5 === 0 ? '#93c5fd99' : '#fbbf24cc';
+          ctx.fillRect(x + 3 + c * ((bw - 6) / cols), base - bh + layer * 10 + 5 + r * ((bh - 10) / rows), Math.max(2, bw * 0.12), Math.max(2, bh * 0.07));
         }
-        x += bw + 3 + (h0 % 7);
+        x += bw + 2 + (h0 % 6);
         i++;
       }
     }
-    // fog
-    const fog = ctx.createLinearGradient(0, base - 40, 0, GROUND);
-    fog.addColorStop(0, 'rgba(8,6,18,0.35)');
-    fog.addColorStop(1, 'rgba(8,6,18,0)');
-    ctx.fillStyle = fog;
-    ctx.fillRect(0, base - 50, W, 120);
   }
 
-  function drawGround(cam) {
-    ctx.fillStyle = '#14101c';
-    ctx.fillRect(0, GROUND, W, H - GROUND);
-    ctx.fillStyle = '#1c1624';
-    ctx.fillRect(0, GROUND, W, 6);
-    // asphalt grain
-    ctx.fillStyle = '#221c2c';
-    for (let i = 0; i < 18; i++) {
-      const gx = ((i * 48 - cam * 0.9) % (W + 48));
-      ctx.fillRect(gx, GROUND + 10 + (i % 3) * 8, 30, 3);
+  function drawTerrain(cam) {
+    // filled asphalt under polyline
+    ctx.beginPath();
+    ctx.moveTo(-10, H + 10);
+    let started = false;
+    const x0 = cam - 20;
+    const x1 = cam + W + 20;
+    // densify samples for smooth slopes
+    for (let x = x0; x <= x1; x += 4) {
+      const y = groundY(x);
+      const sx = x - cam;
+      if (!started) { ctx.lineTo(sx, y); started = true; }
+      else ctx.lineTo(sx, y);
     }
-    // curb line
-    ctx.fillStyle = '#3f3a4a';
-    ctx.fillRect(0, GROUND - 2, W, 2);
+    ctx.lineTo(W + 10, H + 10);
+    ctx.closePath();
+    ctx.fillStyle = '#14101c';
+    ctx.fill();
+    // surface edge
+    ctx.beginPath();
+    started = false;
+    for (let x = x0; x <= x1; x += 3) {
+      const y = groundY(x);
+      const sx = x - cam;
+      if (!started) { ctx.moveTo(sx, y); started = true; }
+      else ctx.lineTo(sx, y);
+    }
+    ctx.strokeStyle = '#3f3a4a';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    // curb highlight on sharp faces
+    for (let i = 1; i < terrain.length; i++) {
+      const a = terrain[i - 1], b = terrain[i];
+      if (b.x < cam - 10 || a.x > cam + W + 10) continue;
+      if (b.x - a.x < 16 && Math.abs(b.y - a.y) > 12) {
+        ctx.strokeStyle = '#a8a29e';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(a.x - cam, a.y);
+        ctx.lineTo(b.x - cam, b.y);
+        ctx.stroke();
+      }
+    }
   }
 
   function drawLamps(cam) {
-    for (let i = 0; i < 8; i++) {
-      const wx = i * 220 + 40;
+    for (let i = 0; i < 10; i++) {
+      const wx = i * 200 + 30;
       const sx = wx - cam * 0.95;
-      if (sx < -40 || sx > W + 40) continue;
+      if (sx < -30 || sx > W + 30) continue;
+      const gy = groundY(wx);
       ctx.fillStyle = '#1e293b';
-      ctx.fillRect(sx, GROUND - 90, 4, 90);
+      ctx.fillRect(sx, gy - 100, 4, 100);
       ctx.fillStyle = '#fef3c7';
-      ctx.beginPath(); ctx.arc(sx + 2, GROUND - 92, 6, 0, Math.PI * 2); ctx.fill();
-      const pool = ctx.createRadialGradient(sx + 2, GROUND, 0, sx + 2, GROUND, 70);
-      pool.addColorStop(0, 'rgba(253,230,138,0.28)');
+      ctx.beginPath(); ctx.arc(sx + 2, gy - 102, 6, 0, Math.PI * 2); ctx.fill();
+      const pool = ctx.createRadialGradient(sx + 2, gy, 0, sx + 2, gy, 60);
+      pool.addColorStop(0, 'rgba(253,230,138,0.26)');
       pool.addColorStop(1, 'rgba(253,230,138,0)');
       ctx.fillStyle = pool;
-      ctx.beginPath(); ctx.ellipse(sx + 2, GROUND + 2, 70, 14, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(sx + 2, gy + 2, 60, 12, 0, 0, Math.PI * 2); ctx.fill();
     }
+  }
+
+  function drawCar(o, cam) {
+    const sx = o.x - cam;
+    const sy = o.y;
+    const w = o.w, h = o.h;
+    const type = o.type || 'sedan';
+    const bodyCol = type === 'van' ? '#3f6212' : type === 'hatch' ? '#9f1239' : '#1d4ed8';
+    const trim = type === 'van' ? '#a3e635' : type === 'hatch' ? '#fda4af' : '#93c5fd';
+
+    // ground shadow
+    ctx.fillStyle = '#00000066';
+    ctx.beginPath();
+    ctx.ellipse(sx + w / 2, sy - 1, w * 0.45, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // wheels first (behind body lip)
+    function wheel(wx) {
+      ctx.fillStyle = '#0a0a0a';
+      ctx.beginPath(); ctx.arc(wx, sy - 9, 9, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#94a3b8';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(wx, sy - 9, 9, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = '#475569';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(wx - 5, sy - 9); ctx.lineTo(wx + 5, sy - 9); ctx.stroke();
+    }
+    wheel(sx + w * 0.22);
+    wheel(sx + w * 0.78);
+
+    // side-view body silhouette
+    ctx.fillStyle = bodyCol;
+    ctx.beginPath();
+    if (type === 'sedan') {
+      // hood → cabin → trunk
+      ctx.moveTo(sx + 4, sy - 12);
+      ctx.lineTo(sx + 8, sy - h * 0.48);
+      ctx.lineTo(sx + w * 0.26, sy - h * 0.5);
+      ctx.lineTo(sx + w * 0.32, sy - h + 2);
+      ctx.lineTo(sx + w * 0.66, sy - h + 2);
+      ctx.lineTo(sx + w * 0.72, sy - h * 0.5);
+      ctx.lineTo(sx + w - 6, sy - h * 0.48);
+      ctx.lineTo(sx + w - 2, sy - 12);
+      ctx.closePath();
+    } else if (type === 'hatch') {
+      ctx.moveTo(sx + 5, sy - 12);
+      ctx.lineTo(sx + 10, sy - h * 0.46);
+      ctx.lineTo(sx + w * 0.28, sy - h * 0.48);
+      ctx.lineTo(sx + w * 0.34, sy - h + 2);
+      ctx.lineTo(sx + w * 0.72, sy - h + 4);
+      ctx.quadraticCurveTo(sx + w - 4, sy - h * 0.55, sx + w - 3, sy - 12);
+      ctx.closePath();
+    } else {
+      // van box
+      ctx.moveTo(sx + 5, sy - 12);
+      ctx.lineTo(sx + 5, sy - h * 0.55);
+      ctx.lineTo(sx + w * 0.18, sy - h * 0.55);
+      ctx.lineTo(sx + w * 0.18, sy - h + 2);
+      ctx.lineTo(sx + w * 0.78, sy - h + 2);
+      ctx.lineTo(sx + w * 0.78, sy - h * 0.55);
+      ctx.lineTo(sx + w - 5, sy - h * 0.55);
+      ctx.lineTo(sx + w - 5, sy - 12);
+      ctx.closePath();
+    }
+    ctx.fill();
+    ctx.strokeStyle = trim;
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+
+    // cabin / windows
+    ctx.fillStyle = '#7dd3fcdd';
+    if (type === 'van') {
+      ctx.fillRect(sx + w * 0.22, sy - h + 6, w * 0.5, h * 0.28);
+      // side panel line
+      ctx.strokeStyle = '#d9f99d88';
+      ctx.beginPath();
+      ctx.moveTo(sx + w * 0.22, sy - h * 0.55);
+      ctx.lineTo(sx + w * 0.75, sy - h * 0.55);
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(sx + w * 0.34, sy - h + 5);
+      ctx.lineTo(sx + w * 0.64, sy - h + 5);
+      ctx.lineTo(sx + w * 0.69, sy - h * 0.5);
+      ctx.lineTo(sx + w * 0.33, sy - h * 0.5);
+      ctx.closePath();
+      ctx.fill();
+      // window divider
+      ctx.strokeStyle = '#0f172a88';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(sx + w * 0.5, sy - h + 5);
+      ctx.lineTo(sx + w * 0.5, sy - h * 0.5);
+      ctx.stroke();
+    }
+
+    // roof ride strip
+    ctx.strokeStyle = '#f8fafccc';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    const roofL = type === 'van' ? w * 0.2 : w * 0.32;
+    const roofR = type === 'van' ? w * 0.76 : w * 0.68;
+    ctx.moveTo(sx + roofL, sy - h + 1);
+    ctx.lineTo(sx + roofR, sy - h + 1);
+    ctx.stroke();
+
+    // headlight (front = right, moving L→R) + taillight
+    ctx.fillStyle = '#fef08a';
+    ctx.fillRect(sx + w - 10, sy - 26, 7, 8);
+    ctx.fillStyle = '#fff7';
+    ctx.beginPath();
+    ctx.moveTo(sx + w - 3, sy - 22);
+    ctx.lineTo(sx + w + 14, sy - 28);
+    ctx.lineTo(sx + w + 14, sy - 16);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#ef4444';
+    ctx.fillRect(sx + 4, sy - 26, 7, 8);
+
+    // door crease
+    ctx.strokeStyle = '#00000044';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(sx + w * 0.48, sy - h * 0.48);
+    ctx.lineTo(sx + w * 0.48, sy - 12);
+    ctx.stroke();
   }
 
   function drawObj(o, cam) {
     const sx = o.x - cam;
-    if (sx + o.w < -20 || sx > W + 20) return;
-    if (o.kind === 'curb') {
-      ctx.fillStyle = '#57534e';
-      ctx.fillRect(sx, o.y - o.h, o.w, o.h);
-      ctx.fillStyle = '#a8a29e';
-      ctx.fillRect(sx, o.y - o.h, o.w, 3);
-    } else if (o.kind === 'ramp') {
-      ctx.fillStyle = '#3f3a4a';
-      ctx.beginPath();
-      ctx.moveTo(sx, o.y);
-      ctx.lineTo(sx + o.w, o.y);
-      ctx.lineTo(sx + o.w, o.y - o.h);
-      ctx.closePath();
-      ctx.fill();
-      ctx.strokeStyle = '#78716c';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(sx, o.y);
-      ctx.lineTo(sx + o.w, o.y - o.h);
-      ctx.stroke();
-    } else if (o.kind === 'flower') {
+    if (sx + o.w < -30 || sx > W + 30) return;
+    if (o.kind === 'car') return drawCar(o, cam);
+    if (o.kind === 'flower') {
       ctx.fillStyle = '#292524';
       ctx.fillRect(sx, o.y - 10, o.w, 10);
       ctx.fillStyle = '#14532d';
@@ -521,29 +690,8 @@
       ctx.fillRect(sx + 4, y + 6, o.w - 8, 10);
       ctx.fillStyle = (Math.floor(time * 8 + o.phase) % 2) ? '#ef4444' : '#fbbf24';
       ctx.fillRect(sx + o.w - 10, y + 4, 6, 5);
-      // exhaust puff
       ctx.fillStyle = '#94a3b866';
-      ctx.beginPath(); ctx.arc(sx + 8, y - 4 - bob * 0.2, 4 + bob * 0.15, 0, Math.PI * 2); ctx.fill();
-    } else if (o.kind === 'car') {
-      const y = o.y - o.h;
-      // body
-      ctx.fillStyle = ['#1e3a5f', '#7f1d1d', '#365314', '#334155'][(o.x | 0) % 4];
-      ctx.fillRect(sx + 4, y + 12, o.w - 8, o.h - 12);
-      // cabin
-      ctx.fillStyle = '#0f172a';
-      ctx.fillRect(sx + o.w * 0.28, y + 2, o.w * 0.42, 14);
-      ctx.fillStyle = '#38bdf866';
-      ctx.fillRect(sx + o.w * 0.3, y + 4, o.w * 0.38, 8);
-      // roof rideable highlight
-      ctx.fillStyle = '#e2e8f022';
-      ctx.fillRect(sx + 6, y, o.w - 12, 3);
-      ctx.strokeStyle = '#94a3b888';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(sx + 4.5, y + 0.5, o.w - 9, o.h - 1);
-      // wheels
-      ctx.fillStyle = '#111';
-      ctx.beginPath(); ctx.arc(sx + 18, o.y - 6, 7, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(sx + o.w - 18, o.y - 6, 7, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(sx + 8, y - 4, 4 + bob * 0.15, 0, Math.PI * 2); ctx.fill();
     }
   }
 
@@ -551,57 +699,52 @@
     if (invuln > 0 && ((invuln * 16) | 0) % 2 === 0) return;
     const sx = px - cam;
     const sy = py;
-    // scooter deck
     ctx.fillStyle = '#cbd5e1';
-    ctx.fillRect(sx + 2, sy + PLAYER_H - 10, PLAYER_W - 2, 5);
-    // wheels
+    ctx.fillRect(sx + 2, sy + PLAYER_H - 11, PLAYER_W - 2, 5);
     ctx.fillStyle = '#111';
-    const wr = 5;
-    ctx.beginPath(); ctx.arc(sx + 8, sy + PLAYER_H - 4, wr, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(sx + PLAYER_W - 4, sy + PLAYER_H - 4, wr, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(sx + 9, sy + PLAYER_H - 5, 5.5, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(sx + PLAYER_W - 4, sy + PLAYER_H - 5, 5.5, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = '#64748b';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.moveTo(sx + 8, sy + PLAYER_H - 4);
-    ctx.lineTo(sx + 8 + Math.cos(wheelPhase) * 4, sy + PLAYER_H - 4 + Math.sin(wheelPhase) * 4);
+    ctx.moveTo(sx + 9, sy + PLAYER_H - 5);
+    ctx.lineTo(sx + 9 + Math.cos(wheelPhase) * 4, sy + PLAYER_H - 5 + Math.sin(wheelPhase) * 4);
     ctx.stroke();
-    // stem / bars
     ctx.strokeStyle = '#94a3b8';
     ctx.lineWidth = 2.5;
     ctx.beginPath();
-    ctx.moveTo(sx + PLAYER_W - 6, sy + PLAYER_H - 10);
+    ctx.moveTo(sx + PLAYER_W - 6, sy + PLAYER_H - 11);
     ctx.lineTo(sx + PLAYER_W - 4, sy + 8);
-    ctx.lineTo(sx + PLAYER_W + 4, sy + 6);
+    ctx.lineTo(sx + PLAYER_W + 5, sy + 6);
     ctx.stroke();
-    // rider
     ctx.fillStyle = '#b45309';
-    ctx.fillRect(sx + 8, sy + 10, 14, 16);
+    ctx.fillRect(sx + 8, sy + 12, 15, 16);
     ctx.fillStyle = '#fde68a';
-    ctx.beginPath(); ctx.arc(sx + 15, sy + 8, 6, 0, Math.PI * 2); ctx.fill();
-    // scarf
+    ctx.beginPath(); ctx.arc(sx + 15, sy + 10, 6.5, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#dc2626';
-    ctx.fillRect(sx + 10, sy + 12, 12, 3);
+    ctx.fillRect(sx + 10, sy + 14, 12, 3);
   }
 
   function draw() {
     const cam = cameraX();
     const ox = shake ? (Math.random() - 0.5) * shake : 0;
     const oy = shake ? (Math.random() - 0.5) * shake : 0;
-    ctx.setTransform(1, 0, 0, 1, ox, oy);
+    const dpr = Math.min(3, window.devicePixelRatio || 1);
+    ctx.setTransform(dpr, 0, 0, dpr, ox * dpr, oy * dpr);
 
-    drawSky(cam);
+    drawSky();
     drawSkyline(cam);
-    drawGround(cam);
+    drawTerrain(cam);
     drawLamps(cam);
     for (const o of objs) drawObj(o, cam);
     drawPlayer(cam);
 
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
   // ---- input ----
   function bindHold(el, key) {
-    const down = (e) => { e.preventDefault(); input[key] = true; if (key === 'jump') input.jumpBuffered = 0.15; el.classList.add('held'); };
+    const down = (e) => { e.preventDefault(); input[key] = true; if (key === 'jump') input.jumpBuffered = 0.16; el.classList.add('held'); };
     const up = (e) => { e.preventDefault(); input[key] = false; el.classList.remove('held'); };
     el.addEventListener('pointerdown', down);
     el.addEventListener('pointerup', up);
@@ -616,10 +759,10 @@
     if (e.code === 'ArrowRight' || e.code === 'KeyD') { input.accel = true; e.preventDefault(); }
     if (e.code === 'ArrowLeft' || e.code === 'KeyA') { input.brake = true; e.preventDefault(); }
     if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
-      input.jump = true; input.jumpBuffered = 0.15; e.preventDefault();
+      input.jump = true; input.jumpBuffered = 0.16; e.preventDefault();
     }
     if (e.code === 'KeyP' || e.code === 'Escape') { togglePause(); e.preventDefault(); }
-    if ((e.code === 'Enter') && !running) document.getElementById('oBtn').click();
+    if (e.code === 'Enter' && !running) document.getElementById('oBtn').click();
   });
   window.addEventListener('keyup', (e) => {
     if (e.code === 'ArrowRight' || e.code === 'KeyD') input.accel = false;
@@ -628,14 +771,11 @@
   });
 
   document.getElementById('oBtn').addEventListener('click', () => {
-    resetGame();
-    running = true;
+    resetGame(); running = true;
     document.getElementById('overlay').classList.add('hidden');
-    syncPauseBtn();
-    applyLang();
+    syncPauseBtn(); applyLang();
   });
 
-  // ---- loop / bot API ----
   let last = performance.now();
   let frames = 0, fpsT = 0, fps = 0;
   const fpsSamples = [];
@@ -647,19 +787,20 @@
     setPaused: (v) => setPaused(!!v),
     getState: () => ({
       distance, score, lives, running, dead, paused, vx, vy, px, py, onGround,
-      objs: objs.length, time,
+      objs: objs.length, terrain: terrain.length, time, W, H,
     }),
-    // simple autopilot helpers for headless bot
     press: (name, on) => {
       if (name === 'accel') input.accel = !!on;
       if (name === 'brake') input.brake = !!on;
       if (name === 'jump') { input.jump = !!on; if (on) input.jumpBuffered = 0.18; }
     },
-    peekHazards: () => {
-      const cam = cameraX();
-      return objs.filter((o) => o.x > px - 20 && o.x < px + 320).map((o) => ({
-        kind: o.kind, x: o.x, w: o.w, h: o.h, dx: o.x - px, roof: roofY(o),
-      }));
+    peekHazards: () => objs.filter((o) => o.x > px - 20 && o.x < px + 280).map((o) => ({
+      kind: o.kind, type: o.type, x: o.x, w: o.w, h: o.h, dx: o.x - px, roof: o.kind === 'car' ? roofY(o) : null,
+      gy: o.y,
+    })),
+    peekTerrain: () => {
+      const fx = feetX();
+      return { gy: groundY(fx), slope: groundSlopeAt(fx), face: stepFaceAhead(fx, 40) };
     },
   };
 

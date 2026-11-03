@@ -1,12 +1,5 @@
-# Scooter — One Day in Kyiv
+# Самокат додому (scooter)
 
-Side-scrolling scooter ride (left → right). Plain HTML5 canvas + JS, GitHub Pages.
+Portrait (9:16) evening side-scroller for *One Day in Kyiv*. Ride left→right on a heightfield track (slopes + curb steps), jump flower beds / generators, ride parked-car roofs.
 
-## Controls
-- **Accelerate:** ▶ button · `D` / `→`
-- **Brake:** ◀ button · `A` / `←`
-- **Jump:** ⬆ button · `Space` / `W` / `↑`
-- **Pause:** ⏸ · `P` / `Esc`
-
-## Hazards
-Curbs, ramps (launch), generators, flower beds, parked cars (ride the roofs).
+Open [index.html](./index.html) or via GitHub Pages `/scooter/`.
