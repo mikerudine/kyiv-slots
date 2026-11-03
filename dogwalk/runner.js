@@ -164,14 +164,51 @@
     }
   }
 
+  const CAT_COLORS = [
+    { body: '#f97316', dark: '#c2410c' }, // ginger
+    { body: '#78716c', dark: '#44403c' }, // grey
+    { body: '#1c1917', dark: '#0a0a0a' }, // black
+    { body: '#e7e5e4', dark: '#a8a29e' }, // white/cream
+    { body: '#b45309', dark: '#78350f' }, // brown tabby
+  ];
+
+  function laneFromX(x) {
+    let best = 0, bestD = 1e9;
+    for (let i = 0; i < LANE_X.length; i++) {
+      const d = Math.abs(LANE_X[i] - x);
+      if (d < bestD) { bestD = d; best = i; }
+    }
+    return best;
+  }
+
+  function spawnCat() {
+    const dir = Math.random() < 0.5 ? 1 : -1; // +1 L→R, -1 R→L
+    const z = 12 + Math.random() * 36;
+    const x = dir > 0 ? -(PATH_HALF + 1.1) : (PATH_HALF + 1.1);
+    const pal = CAT_COLORS[(Math.random() * CAT_COLORS.length) | 0];
+    obstacles.push({
+      kind: 'cat',
+      lane: laneFromX(0),
+      x, z, dir,
+      crossSpeed: 2.4 + Math.random() * 1.8,
+      color: pal.body,
+      colorDark: pal.dark,
+      phase: Math.random() * Math.PI * 2,
+      hit: false,
+      rush: 1,
+    });
+  }
+
   function spawnObstacle() {
     const r = Math.random();
     let kind = 'puddle';
-    if (r < 0.30) kind = 'puddle';
-    else if (r < 0.68) kind = 'dog';
+    if (r < 0.26) kind = 'puddle';
+    else if (r < 0.52) kind = 'dog';
+    else if (r < 0.78) kind = 'cat';
     else kind = 'generator';
+    if (kind === 'cat') { spawnCat(); return; }
     let l = (Math.random() * LANES) | 0;
-    const near = obstacles.filter((o) => o.z > Z_FAR - 14);
+    const near = obstacles.filter((o) => o.z > Z_FAR - 14 && o.kind !== 'cat');
     if (near.some((o) => o.lane === l && Math.abs(o.z - Z_FAR) < 7)) l = (l + 1) % LANES;
     obstacles.push({
       kind, lane: l, z: Z_FAR + Math.random() * 5, hit: false,
@@ -465,6 +502,84 @@
         drawDogEyes(p.x, p.y - p.s * 0.55, Math.max(p.s * 0.35, 4));
       }
     }
+    // cat green glints (smaller)
+    for (const o of obstacles) {
+      if (o.kind !== 'cat' || !o._eye) continue;
+      drawCatEyes(o._eye.x, o._eye.y, o._eye.s, o.dir || 1);
+    }
+  }
+
+  function drawCatEyes(x, y, s, dir) {
+    const eyeR = Math.max(1.2, s * 0.08);
+    const gap = s * 0.12;
+    const flicker = 0.8 + 0.2 * Math.sin(time * 26);
+    // face toward run direction: eyes slightly forward on head
+    const face = x + dir * s * 0.15;
+    for (const side of [-1, 1]) {
+      const ex = face + side * gap;
+      const bloom = ctx.createRadialGradient(ex, y, 0, ex, y, eyeR * 2.6);
+      bloom.addColorStop(0, `rgba(190, 242, 100, ${0.95 * flicker})`);
+      bloom.addColorStop(0.4, `rgba(74, 222, 128, ${0.5 * flicker})`);
+      bloom.addColorStop(1, 'rgba(20, 83, 45, 0)');
+      ctx.fillStyle = bloom;
+      ctx.beginPath(); ctx.arc(ex, y, eyeR * 2.6, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#ecfccb';
+      ctx.beginPath(); ctx.arc(ex, y, eyeR * 0.55, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#166534';
+      ctx.beginPath(); ctx.arc(ex, y, eyeR * 0.25, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  function drawCat(o) {
+    const p = project(o.x, o.z);
+    const run = Math.sin(time * 22 + o.phase);
+    const s = p.s * 0.42;
+    const dir = o.dir || 1;
+    const y = p.y + Math.abs(run) * s * 0.06;
+    const x = p.x;
+
+    // shadow
+    ctx.fillStyle = '#00000055';
+    ctx.beginPath();
+    ctx.ellipse(x, p.y + s * 0.08, s * 0.55, s * 0.1, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(dir, 1); // face run direction
+
+    // body
+    ctx.fillStyle = blackout ? o.colorDark : o.color;
+    ctx.fillRect(-s * 0.55, -s * 0.45, s * 1.0, s * 0.4);
+    // head
+    ctx.fillRect(s * 0.25, -s * 0.75, s * 0.45, s * 0.4);
+    // ears
+    ctx.fillStyle = blackout ? '#292524' : o.colorDark;
+    ctx.fillRect(s * 0.28, -s * 0.95, s * 0.14, s * 0.22);
+    ctx.fillRect(s * 0.5, -s * 0.95, s * 0.14, s * 0.22);
+    // legs (gallop)
+    const leg = run * s * 0.14;
+    ctx.fillStyle = blackout ? o.colorDark : o.color;
+    ctx.fillRect(-s * 0.45, -s * 0.1, s * 0.14, s * 0.28 + leg);
+    ctx.fillRect(-s * 0.15, -s * 0.1, s * 0.14, s * 0.28 - leg);
+    ctx.fillRect(s * 0.1, -s * 0.08, s * 0.14, s * 0.26 - leg * 0.6);
+    ctx.fillRect(s * 0.35, -s * 0.08, s * 0.14, s * 0.26 + leg * 0.6);
+    // tail arc
+    ctx.fillRect(-s * 0.75, -s * 0.55 + run * s * 0.08, s * 0.28, s * 0.1);
+    // white tip / belly hint
+    if (!blackout) {
+      ctx.fillStyle = '#fafaf9aa';
+      ctx.fillRect(-s * 0.2, -s * 0.25, s * 0.35, s * 0.12);
+    }
+
+    ctx.restore();
+
+    // eyes stash in screen space (after restore)
+    o._eye = { x: x + dir * s * 0.4, y: y - s * 0.55, s };
+    // draw eyes in lit scene too (subtle); bloom pass reinforces in blackout
+    if (!blackout) drawCatEyes(o._eye.x, o._eye.y, s, dir);
+
+    o.lane = laneFromX(o.x);
   }
 
   function drawGenerator(o) {
@@ -586,6 +701,7 @@
     for (const o of obstacles) {
       if (o.kind === 'puddle') deco.push({ z: o.z, draw: () => drawPuddle(o.lane, o.z) });
       else if (o.kind === 'dog') deco.push({ z: o.z, draw: () => drawAngryDog(o) });
+      else if (o.kind === 'cat') deco.push({ z: o.z, draw: () => drawCat(o) });
       else deco.push({ z: o.z, draw: () => drawGenerator(o) });
     }
     deco.sort((a, b) => b.z - a.z);
@@ -627,12 +743,25 @@
     distance += dz * 1.05;
     score += dz * 0.55;
 
-    for (const o of obstacles) o.z -= dz * (o.rush || 1);
+    for (const o of obstacles) {
+      o.z -= dz * (o.rush || 1);
+      if (o.kind === 'cat') {
+        o.x += o.dir * o.crossSpeed * dt;
+        o.lane = laneFromX(o.x);
+      }
+    }
     for (const s of scenery) {
       s.z -= dz;
       if (s.z < Z_NEAR - 1) s.z += (Z_FAR - Z_NEAR) + Math.random() * 4;
     }
-    obstacles = obstacles.filter((o) => o.z > Z_NEAR - 1.2);
+    obstacles = obstacles.filter((o) => {
+      if (o.kind === 'cat') {
+        if (Math.abs(o.x) > PATH_HALF + 1.6) return false;
+        if (o.z < Z_NEAR - 1.2) return false;
+        return true;
+      }
+      return o.z > Z_NEAR - 1.2;
+    });
 
     spawnAcc += dt;
     const every = Math.max(0.7, 1.6 - distance / 700);
@@ -641,9 +770,29 @@
       spawnObstacle();
       if (Math.random() < 0.2) spawnObstacle();
     }
+    // occasional extra cat dash
+    if (!update._catAcc) update._catAcc = 0;
+    update._catAcc += dt;
+    if (update._catAcc > 2.8 + Math.random() * 1.5) {
+      update._catAcc = 0;
+      if (Math.random() < 0.7) spawnCat();
+    }
 
     for (const o of obstacles) {
       if (o.hit) continue;
+      if (o.kind === 'cat') {
+        // collision when cat crosses player's depth AND same lane
+        if (o.z < Z_DOG + 1.4 && o.z > Z_DOG - 1.6) {
+          if (Math.abs(o.x - lerpLane(dogLaneF)) < 0.55) {
+            o.hit = true;
+            // dog lunges / leash yank
+            shake = Math.max(shake, 14);
+            dogLaneF += o.dir * 0.35; // tug sideways
+            hit();
+          }
+        }
+        continue;
+      }
       if (o.z < Z_DOG + 1.2 && o.z > Z_DOG - 1.5) {
         if (Math.abs(o.lane - dogLaneF) < 0.55) {
           o.hit = true;
@@ -691,10 +840,20 @@
     spawnDogAt: (lane, z) => {
       obstacles.push({ kind: 'dog', lane: lane|0, z: z, hit: false, phase: Math.random()*6, bob: 0, rush: 1.8, growlT: 0 });
     },
+    spawnCatAt: (z, dir) => {
+      const d = dir === -1 ? -1 : 1;
+      const pal = CAT_COLORS[(Math.random() * CAT_COLORS.length) | 0];
+      obstacles.push({
+        kind: 'cat', lane: 1, z: z, x: d > 0 ? -(PATH_HALF + 1.0) : (PATH_HALF + 1.0),
+        dir: d, crossSpeed: 3.2, color: pal.body, colorDark: pal.dark,
+        phase: Math.random() * 6, hit: false, rush: 1,
+      });
+    },
     getState: () => ({
       distance, score, lives, running, dead, notifs: notifs.length,
       obstacles: obstacles.length, blackout, speed, perspective: true, dogOnly: true,
       dogs: obstacles.filter(o=>o.kind==='dog').map(o=>({lane:o.lane,z:o.z,rush:o.rush})),
+      cats: obstacles.filter(o=>o.kind==='cat').map(o=>({x:o.x,z:o.z,dir:o.dir,lane:o.lane})),
     }),
   };
 
