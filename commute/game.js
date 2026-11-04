@@ -53,11 +53,11 @@
     metro: { e: '🚇', ua: 'метро', en: 'metro', spd: 0.55, cost: 8 }, bus: { e: '🚌', ua: 'автобус', en: 'bus', spd: 1.3, cost: 8 },
     marsh: { e: '🚐', ua: 'маршрутка', en: 'marshrutka', spd: 1.0, cost: 15 }, tram: { e: '🚋', ua: 'трамвай', en: 'tram', spd: 1.2, cost: 8 },
     trolley: { e: '🚎', ua: 'тролейбус', en: 'trolleybus', spd: 1.3, cost: 8 }, stram: { e: '🚊', ua: 'швидкісний трамвай', en: 'speed tram', spd: 0.75, cost: 8 }, train: { e: '🚆', ua: 'електричка', en: 'city train', spd: 0.6, cost: 10 },
-    scooter: { e: '🛴', ua: 'самокат', en: 'e-scooter', spd: 0.9, cost: 35 }, walk: { e: "🚶", ua: "пішки", en: "walk", spd: 1.6, cost: 0 },
+    scooter: { e: '🛴', ua: 'самокат', en: 'e-scooter', spd: 0.9, cost: 35 }, walk: { e: "🚶", ua: "пішки", en: "walk", spd: 1.95, cost: 0 },
     wait: { e: '⏳', ua: 'чекати', en: 'wait', spd: 0, cost: 0 },
     taxi: { e: '🚕', ua: 'таксі', en: 'taxi', spd: 0.7, cost: 0 },
   };
-  const TAXI_K = 12;
+  const TAXI_K = 11;
   const START = 17 * 60, CURFEW = 24 * 60, MONEY0 = 500, GOAL = 'osok', HOME = 'obolon';
   const dist = (a, b) => Math.hypot(N[a][0] - N[b][0], N[a][1] - N[b][1]);
   const other = (e, n) => (e.a === n ? e.b : e.a);
@@ -78,7 +78,7 @@
     for (const k of BR_ORDER) {
       const b = g.bridges[k], was = b.closed;
       if (b.closed) { if (g.rng() < (g.alert ? 0.2 : 0.45)) b.closed = false; }
-      else if (g.rng() < (g.alert ? 0.45 : 0.15)) b.closed = true;
+      else if (g.rng() < (g.alert ? 0.5 : 0.25)) b.closed = true;
       if (k === 'metro' && g.alert) b.closed = true;
       b.allow = BRIDGE_BASE[k].filter(() => true);
       if (g.rng() < 0.35 && b.allow.length > 1) b.allow.splice((g.rng() * b.allow.length) | 0, 1);
@@ -112,7 +112,8 @@
     return c.sort((x, y) => score(x) - score(y))[0];
   }
   const walkTarget = (g) => targetFor(g, 'walk', []);
-  function taxiPrice(g, e) { return Math.round(dist(g.at, other(e, g.at)) * TAXI_K * (1.6 + g.rng() * 2.6)); }
+  // price = distance × rate × surge, clamped to 300–750 UAH (long bridge hops used to cost 2000+)
+  function taxiPrice(g, e) { const s = 1.3 + g.rng() * 1.4; e._surge = s; return Math.max(300, Math.min(750, Math.round(dist(g.at, other(e, g.at)) * TAXI_K * s))); }
   function offer(g) {
     // the city offers exactly two transport options, preferring ones that lead away or are slow
     const here = dist(g.at, GOAL), cands = [];
@@ -123,10 +124,13 @@
         if (!canCross(g, e, m)) continue;
         if (m === 'train' && g.rng() < 0.4) continue; // ring train only runs now and then
         if (m === 'metro' && g.turns < g.nextMetro) continue; // metro shows up every 3-4 turns — maybe you'll get lucky
-        cands.push({ e, m, to, w: Math.exp(-gain / 80) * (MODE[m].spd > 1 ? 1.4 : 1) });
+        cands.push({ e, m, to, w: Math.exp(-gain / 40) * (MODE[m].spd > 1 ? 1.4 : 1) });
       }
     }
     const pick = [];
+    // at a bridge head with the bridge open for something, the city offers a crossing more often than not
+    const cross = cands.filter((c) => c.e.bridge);
+    if (cross.length && g.rng() < 0.6) { const c = cross[(g.rng() * cross.length) | 0]; pick.push(c); cands.splice(cands.indexOf(c), 1); }
     while (pick.length < 2 && cands.length) {
       let s = cands.reduce((a, c) => a + c.w, 0), x = g.rng() * s, i = 0;
       for (; i < cands.length - 1; i++) { x -= cands[i].w; if (x <= 0) break; }
@@ -224,7 +228,7 @@
       case 'taxi':
         if (r < 0.25) { move = false; cost = 0; wait += 12; ev.push(['Таксі скасувало замовлення.', 'The taxi cancelled the ride.']); }
         else if (o.to === GOAL && g.at !== 'pozn' && r < 0.45) { to = 'pozn'; edge = { id: -1, bridge: null }; ride = dist(g.at, 'pozn') * m.spd; ev.push([`Таксист: «Осокорки? Це де взагалі?» Висадив на Позняках за ${o.price} грн.`, `Driver: "Osokorky? Where's that even?" Dropped you at Pozniaky for ${o.price} UAH.`]); }
-        else ev.push([`Таксі, сурдж ×${(o.price / (d * TAXI_K)).toFixed(1)}: ${o.price} грн.`, `Taxi, surge ×${(o.price / (d * TAXI_K)).toFixed(1)}: ${o.price} UAH.`]);
+        else ev.push([`Таксі, сурдж ×${(o.e._surge || 1).toFixed(1)}: ${o.price} грн.`, `Taxi, surge ×${(o.e._surge || 1).toFixed(1)}: ${o.price} UAH.`]);
         break;
     }
     if (move && o.kind === 'marsh' && g.rng() < 0.35) {
@@ -359,7 +363,7 @@
     if (!g.over && started) g.opts.forEach((o, i) => {
       const m = MODE[o.kind], b = document.createElement('button');
       const sub = o.kind === 'wait' ? '20 ' + L.min : o.kind === 'walk' ? L.walkL : o.kind === 'taxi' ? (o.price > g.money ? L.noMoney + ' · ' : '') + L.taxiL(o.price) : m.cost + ' ' + L.money;
-      b.innerHTML = o.kind === 'wait' ? `<b>${m.e} ${m[lang]}</b>` : `<b>${m.e} ${m[lang]}</b> ${L.to} ${nm(o.to)}${o.e && o.e.bridge ? ' 🌉' : ''}<small>${sub}</small>`;
+      b.innerHTML = o.kind === 'wait' ? `<b>${m.e} ${m[lang]}</b>` : `<b>${m.e} ${m[lang]}</b> ${L.to} ${nm(o.to)}${o.e && o.e.bridge ? `<i class="br">🌉 ${lang === 'ua' ? 'через' : 'via'} ${BR[o.e.bridge][lang === 'ua' ? 0 : 1]}</i>` : ''}<small>${sub}</small>`;
       b.className = 'opt' + (o.kind === 'walk' || o.kind === 'taxi' ? ' alw' : '');
       if (o.kind === 'taxi' && o.price > g.money) b.classList.add('poor');
       b.disabled = paused || !!anim;
@@ -414,7 +418,24 @@
     }
     return out;
   }
-  window.__commute = { simulate, checkGraph, getState: () => ({ at: g.at, t: g.t, money: g.money, over: g.over, won: g.won, opts: g.opts.map((o) => o.kind + '>' + o.to), started, anim: !!anim }), act, openFull, logCount: () => g.log.length, start: () => $('oBtn').click() };
+  function checkBridges(rolls) {
+    const out = {};
+    for (const e of E) {
+      if (!e.bridge) continue;
+      const head = LEFT.has(e.a) ? e.b : e.a;
+      let cross = 0, taxiOver = 0, maxPrice = 0;
+      for (let i = 0; i < rolls; i++) {
+        const g = newGame(); g.at = head; g.last = -1; g.turns = (Math.random() * 10) | 0; g.nextMetro = (Math.random() * 8) | 0;
+        g.bridges[e.bridge] = { closed: false, allow: BRIDGE_BASE[e.bridge].slice() };
+        const o = offer(g);
+        if (o.some((x) => x.kind !== 'walk' && x.kind !== 'taxi' && x.e && x.e.bridge === e.bridge)) cross++;
+        const tx = o.find((x) => x.kind === 'taxi'); if (tx) { if (tx.e.bridge) taxiOver++; maxPrice = Math.max(maxPrice, tx.price); }
+      }
+      out[BR[e.bridge][1] + ' @' + head] = { cityOffersCrossingPct: Math.round(cross / rolls * 100), taxiCrossesPct: Math.round(taxiOver / rolls * 100), maxTaxi: maxPrice };
+    }
+    return out;
+  }
+  window.__commute = { simulate, checkGraph, checkBridges, getState: () => ({ at: g.at, t: g.t, money: g.money, over: g.over, won: g.won, opts: g.opts.map((o) => o.kind + '>' + o.to), started, anim: !!anim }), act, openFull, logCount: () => g.log.length, start: () => $('oBtn').click() };
   offer(g); render(); overlay(T[lang].startT, T[lang].startB, T[lang].go);
   requestAnimationFrame(draw);
 })();

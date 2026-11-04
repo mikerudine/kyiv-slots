@@ -39,3 +39,8 @@ Live: https://mikerudine.github.io/kyiv-slots/menu/ → commute
   - The taxi heads for a bridge that's currently open for taxis, or toward the goal on the left bank.
   - Both try not to duplicate the other offers.
 - **Automated check:** `graph-check.mjs` calls `__commute.checkGraph(500)` and flags any stop with fewer than 3 neighbours, or where more than 10% of rolls send every option to the same place. It currently flags 0 stops.
+
+## v6: bridges you can actually cross
+- **Taxi price:** distance × 11 × surge (1.3–2.7), always between 300 and 750 UAH. Before this, a long bridge hop could cost 2000+.
+- **Crossing offers:** at a bridge head with the bridge open, about 60% of turns force one of the city's two offers to cross it. `bridge-check.mjs` measures this: 74–83% per bridge, and about 50–60% for each of the two Vydubychi bridges, which share the same head.
+- **Button label:** an option that crosses a bridge says so, e.g. "🌉 через Північний міст".

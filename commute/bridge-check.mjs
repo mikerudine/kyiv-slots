@@ -1,0 +1,10 @@
+import { chromium } from 'playwright';
+import http from 'http'; import fs from 'fs'; import path from 'path';
+const root='/workspace/kyiv-slots';
+const srv=http.createServer((q,r)=>{let p=decodeURIComponent(q.url.split('?')[0]);if(p.endsWith('/'))p+='index.html';const f=path.join(root,p);fs.readFile(f,(e,d)=>{if(e){r.writeHead(404);r.end();return}r.writeHead(200,{'content-type':f.endsWith('.js')?'text/javascript':'text/html'});r.end(d)})}).listen(8781);
+const b=await chromium.launch({executablePath:'/usr/bin/google-chrome'});const pg=await b.newPage();
+await pg.goto('http://localhost:8781/commute/');
+const r=await pg.evaluate(()=>__commute.checkBridges(1000));
+for(const [k,v] of Object.entries(r))console.log(k.padEnd(28),JSON.stringify(v));
+const bad=Object.entries(r).filter(([k,v])=>v.cityOffersCrossingPct<50||v.maxTaxi>750);console.log('FLAGGED',JSON.stringify(bad));
+await b.close();srv.close();
