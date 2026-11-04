@@ -39,6 +39,7 @@
   const SWAP_MS = 0.14;
   const FALL_MS = 0.18;
   const CLEAR_MS = 0.16;
+  const MAX_WAVES = 25;
 
   const I18N = {
     ua: {
@@ -175,6 +176,7 @@
 
   function findMatches() {
     const marks = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+    const runs = [];
     // rows
     for (let r = 0; r < ROWS; r++) {
       let run = 1;
@@ -184,7 +186,7 @@
           board[r][c].clear === 0 && board[r][c - 1].clear === 0;
         if (same) run++;
         else {
-          if (run >= 3) for (let k = 0; k < run; k++) marks[r][c - 1 - k] = Math.max(marks[r][c - 1 - k], run);
+          if (run >= 3) { const rc = []; for (let k = 0; k < run; k++) { marks[r][c - 1 - k] = Math.max(marks[r][c - 1 - k], run); rc.push({ r, c: c - 1 - k }); } runs.push(rc); }
           run = 1;
         }
       }
@@ -198,7 +200,7 @@
           board[r][c].clear === 0 && board[r - 1][c].clear === 0;
         if (same) run++;
         else {
-          if (run >= 3) for (let k = 0; k < run; k++) marks[r - 1 - k][c] = Math.max(marks[r - 1 - k][c], run);
+          if (run >= 3) { const rc = []; for (let k = 0; k < run; k++) { marks[r - 1 - k][c] = Math.max(marks[r - 1 - k][c], run); rc.push({ r: r - 1 - k, c }); } runs.push(rc); }
           run = 1;
         }
       }
@@ -207,7 +209,7 @@
     for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
       if (marks[r][c] >= 3) cells.push({ r, c, run: marks[r][c] });
     }
-    return { marks, cells };
+    return { marks, cells, runs };
   }
 
   function hasAnyMove() {
@@ -326,8 +328,18 @@
     busy = true;
     spinTarget = spin + Math.PI * 0.35;
 
+    let waves = 0;
     function cascade() {
-      const { cells, marks } = findMatches();
+      waves++;
+      if (waves > MAX_WAVES) {
+        // safety: never loop forever — rebuild a clean board and settle
+        fillBoardNoMatches();
+        let tries = 0;
+        while (!hasAnyMove() && tries++ < 30) shuffleBoard();
+        afterSettle();
+        return;
+      }
+      const { cells, runs } = findMatches();
       // Also expand specials that are in the match set
       const clearSet = new Set(cells.map((p) => p.r + ',' + p.c));
       // Forced special activation (swap special without a 3-match)
@@ -340,12 +352,17 @@
       }
       // create specials for runs of 4/5 before clearing
       const specialSpawns = [];
-      for (const p of cells) {
-        if (p.run >= 5) specialSpawns.push({ r: p.r, c: p.c, special: 2, type: board[p.r][p.c].type });
-        else if (p.run === 4) specialSpawns.push({ r: p.r, c: p.c, special: 1, type: board[p.r][p.c].type });
+      // ONE special per run of 4/5 (at its middle cell), not one per cell —
+      // otherwise the spawned specials re-form the same run and cascade forever.
+      for (const run of runs) {
+        if (run.length < 4) continue;
+        const mid = run[(run.length / 2) | 0];
+        const tile = board[mid.r][mid.c];
+        if (!tile) continue;
+        specialSpawns.push({ r: mid.r, c: mid.c, special: run.length >= 5 ? 2 : 1, type: tile.type });
       }
       // activate any specials in clear set
-      const queue = [...cells];
+      const queue = [...cells, ...[...clearSet].map((k) => { const [r, c] = k.split(',').map(Number); return { r, c }; })];
       const seen = new Set(clearSet);
       while (queue.length) {
         const p = queue.pop();
@@ -463,14 +480,20 @@
     });
   }
 
+  function shuffleClean() {
+    for (let i = 0; i < 40; i++) {
+      shuffleBoard();
+      if (!findMatches().cells.length && hasAnyMove()) return;
+    }
+    fillBoardNoMatches();
+    let tries = 0;
+    while (!hasAnyMove() && tries++ < 30) shuffleBoard();
+  }
   function afterSettle() {
     if (score >= target) { busy = false; endGame(true); return; }
     if (moves <= 0) { busy = false; endGame(false); return; }
-    if (!hasAnyMove()) {
-      shuffleBoard();
-      let tries = 0;
-      while (!hasAnyMove() && tries++ < 20) shuffleBoard();
-    }
+    if (findMatches().cells.length) { resolveBoard(null); return; }
+    if (!hasAnyMove()) shuffleClean();
     busy = false;
   }
 
@@ -918,6 +941,17 @@
       }
       return null;
     },
+    setMoves: (n) => { moves = n; syncHud(); },
+    setTarget: (n) => { target = n; syncHud(); },
+    // engineer a cascade: put a 3-in-col of one type above a gap so it falls into a match; kind 1/2 = include specials
+    injectCascade: (kind) => {
+      if (busy) return false;
+      const c = (Math.random() * COLS) | 0, typ = randType();
+      for (let r = 0; r < 4; r++) board[r][c] = makeTile(typ, r === 1 && kind ? kind : 0);
+      for (let r = 4; r < ROWS; r++) board[r][(c + 1) % COLS] = makeTile(typ, r === 5 && kind === 2 ? 2 : 0);
+      resolveBoard(null); return true;
+    },
+    debug: () => ({ busy, anims: anims.length, score, board: board.map((row) => row.map((t) => t ? t.type + (t.special ? '*' + t.special : '') + (t.clear ? '!' : '') : '.').join(' ')) }),
     playMove: (m) => {
       if (!m) m = window.__laundry.findMove();
       if (!m) return false;
