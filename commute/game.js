@@ -10,6 +10,7 @@
     druzhby: [51, 70, 'Дружби народів', 'Druzhby Narodiv'], holos: [31, 92, 'Голосіїв', 'Holosiiv'], vydub: [55, 85, 'Видубичі', 'Vydubychi'],
     darn: [87, 67, 'Дарниця', 'Darnytsia'], pozn: [81, 92, 'Позняки', 'Pozniaky'], khark: [95, 99, 'Харківська', 'Kharkivska'],
     osok: [77, 110, 'Осокорки', 'Osokorky'],
+    taras: [41, 33, 'Тараса Шевченка', 'Tarasa Shevchenka'], dnipro: [58, 53, 'Дніпро (набережна)', 'Dnipro (embankment)'], navod: [57, 66, 'Наводницька', 'Navodnytska'],
     karav: [22, 72, 'Караваєві Дачі', 'Karavaievi Dachi'], svyat: [10, 46, 'Святошин', 'Sviatoshyn'], vokzal: [30, 64, 'Старовокзальна', 'Starovokzalna'], borsch: [8, 66, 'Борщагівка', 'Borshchahivka'],
     lismas: [101, 27, 'Лісовий масив', 'Lisovyi masyv'], lisova: [99, 41, 'Лісова', 'Lisova'], chern: [90, 46, 'Чернігівська', 'Chernihivska'],
     rusan: [75, 47, 'Русанівка', 'Rusanivka'], berez: [76, 77, 'Березняки', 'Bereznyaky'], vyrl: [97, 108, 'Вирлиця', 'Vyrlytsia'], borys: [106, 114, 'Бориспільська', 'Boryspilska'],
@@ -19,9 +20,9 @@
     ['obolon', 'pochaina', 'metro bus marsh'], ['obolon', 'petrivka', 'bus marsh tram'], ['pochaina', 'petrivka', 'bus tram'],
     ['pochaina', 'podil', 'metro tram bus'], ['petrivka', 'podil', 'tram bus'], ['petrivka', 'troie', 'bus marsh train', 'pivn'],
     ['podil', 'kontr', 'tram bus'], ['kontr', 'poshtova', 'metro tram bus'], ['poshtova', 'khresh', 'metro bus trolley'],
-    ['podil', 'khresh', 'trolley bus'], ['khresh', 'arsenal', 'metro trolley'], ['arsenal', 'hydro', 'metro bus', 'metro'],
+    ['podil', 'khresh', 'trolley bus'], ['khresh', 'arsenal', 'metro trolley'], ['dnipro', 'hydro', 'metro bus', 'metro'], ['arsenal', 'dnipro', 'metro bus'],
     ['hydro', 'livob', 'metro bus'], ['khresh', 'lybid', 'metro trolley bus'], ['lybid', 'holos', 'metro trolley'],
-    ['lybid', 'druzhby', 'trolley bus'], ['druzhby', 'vydub', 'metro bus'], ['druzhby', 'livob', 'bus marsh trolley', 'paton'],
+    ['lybid', 'druzhby', 'trolley bus'], ['druzhby', 'vydub', 'metro bus'], ['navod', 'livob', 'bus marsh trolley', 'paton'], ['druzhby', 'navod', 'bus trolley'],
     ['holos', 'vydub', 'bus marsh'], ['vydub', 'pozn', 'metro bus marsh', 'pivd'], ['vydub', 'darn', 'train marsh', 'darnb'],
     ['livob', 'darn', 'metro tram bus'], ['darn', 'pozn', 'bus marsh'], ['troie', 'livob', 'stram marsh bus'],
     ['troie', 'darn', 'bus marsh train'], ['pozn', 'osok', 'metro bus marsh'], ['khark', 'osok', 'bus marsh'],
@@ -31,6 +32,12 @@
     ['berez', 'pozn', 'bus marsh'], ['darn', 'berez', 'marsh'], ['khark', 'vyrl', 'metro bus'], ['vyrl', 'borys', 'metro bus'],
     ['borys', 'osok', 'marsh bus'],
     // city ring train (Kyiv city express): Zenit/Petrivka – Troieshchyna – Darnytsia – Vydubychi – Karavaievi Dachi – Sviatoshyn – Zenit
+    // riverside links so you can actually reach the bridge heads
+    ['pochaina', 'taras', 'metro bus'], ['taras', 'kontr', 'metro tram'], ['taras', 'petrivka', 'bus marsh'], ['kontr', 'petrivka', 'tram bus'],
+    ['kontr', 'khresh', 'bus'], ['poshtova', 'dnipro', 'bus marsh'], ['navod', 'arsenal', 'bus trolley'], ['dnipro', 'navod', 'bus marsh'],
+    ['navod', 'vydub', 'bus marsh'], ['obolon', 'taras', 'marsh'],
+    ['hydro', 'rusan', 'bus'], ['hydro', 'berez', 'bus'], ['holos', 'karav', 'bus'], ['lismas', 'chern', 'bus marsh'], ['lisova', 'darn', 'bus marsh'],
+    ['rusan', 'berez', 'bus'], ['borys', 'khark', 'bus'],
     ['vydub', 'karav', 'train'], ['karav', 'svyat', 'train'], ['svyat', 'petrivka', 'train'],
     // right-bank speed tram: Starovokzalna – Borshchahivka
     ['vokzal', 'borsch', 'stram'],
@@ -46,7 +53,7 @@
     metro: { e: '🚇', ua: 'метро', en: 'metro', spd: 0.55, cost: 8 }, bus: { e: '🚌', ua: 'автобус', en: 'bus', spd: 1.3, cost: 8 },
     marsh: { e: '🚐', ua: 'маршрутка', en: 'marshrutka', spd: 1.0, cost: 15 }, tram: { e: '🚋', ua: 'трамвай', en: 'tram', spd: 1.2, cost: 8 },
     trolley: { e: '🚎', ua: 'тролейбус', en: 'trolleybus', spd: 1.3, cost: 8 }, stram: { e: '🚊', ua: 'швидкісний трамвай', en: 'speed tram', spd: 0.75, cost: 8 }, train: { e: '🚆', ua: 'електричка', en: 'city train', spd: 0.6, cost: 10 },
-    scooter: { e: '🛴', ua: 'самокат', en: 'e-scooter', spd: 0.9, cost: 35 }, walk: { e: "🚶", ua: "пішки", en: "walk", spd: 1.75, cost: 0 },
+    scooter: { e: '🛴', ua: 'самокат', en: 'e-scooter', spd: 0.9, cost: 35 }, walk: { e: "🚶", ua: "пішки", en: "walk", spd: 1.6, cost: 0 },
     wait: { e: '⏳', ua: 'чекати', en: 'wait', spd: 0, cost: 0 },
     taxi: { e: '🚕', ua: 'таксі', en: 'taxi', spd: 0.7, cost: 0 },
   };
@@ -84,10 +91,27 @@
   const canCross = (g, e, m) => !e.bridge || (!g.bridges[e.bridge].closed && g.bridges[e.bridge].allow.includes(m));
   const R = (g, a, b) => a + g.rng() * (b - a);
   const RI = (g, a, b) => Math.round(R(g, a, b));
-  function walkTarget(g) {
-    const cand = edgesOf(g.at).filter((e) => okEdge(g, e) && canCross(g, e, 'walk')).sort((x, y) => dist(other(x, g.at), GOAL) - dist(other(y, g.at), GOAL));
-    return cand[0];
+  // how promising a stop looks for a given mode: on the left bank — distance to goal;
+  // on the right bank — distance to the nearest bridge head that is open for that mode
+  function promise(g, k, mode) {
+    if (LEFT.has(k)) return dist(k, GOAL);
+    let best = 999;
+    for (const e of E) {
+      if (!e.bridge || !canCross(g, e, mode)) continue;
+      const head = LEFT.has(e.a) ? e.b : e.a;
+      best = Math.min(best, dist(k, head));
+    }
+    return 150 + (best === 999 ? dist(k, GOAL) : best);
   }
+  // walk: nearest stop that looks useful; taxi: toward an open bridge / goal. Both try to differ from other offers.
+  function targetFor(g, mode, avoid) {
+    const c = edgesOf(g.at).filter((e) => okEdge(g, e) && canCross(g, e, mode));
+    if (!c.length) return null;
+    const here = promise(g, g.at, mode);
+    const score = (e) => { const k = other(e, g.at); let s = promise(g, k, mode); if (mode === 'walk') s += dist(g.at, k) * 0.8; if (avoid.includes(k)) s += 60; if (promise(g, k, mode) > here + 5) s += 30; return s; };
+    return c.sort((x, y) => score(x) - score(y))[0];
+  }
+  const walkTarget = (g) => targetFor(g, 'walk', []);
   function taxiPrice(g, e) { return Math.round(dist(g.at, other(e, g.at)) * TAXI_K * (1.6 + g.rng() * 2.6)); }
   function offer(g) {
     // the city offers exactly two transport options, preferring ones that lead away or are slow
@@ -99,7 +123,7 @@
         if (!canCross(g, e, m)) continue;
         if (m === 'train' && g.rng() < 0.4) continue; // ring train only runs now and then
         if (m === 'metro' && g.turns < g.nextMetro) continue; // metro shows up every 3-4 turns — maybe you'll get lucky
-        cands.push({ e, m, to, w: Math.exp(-gain / 60) * (MODE[m].spd > 1 ? 1.4 : 1) });
+        cands.push({ e, m, to, w: Math.exp(-gain / 80) * (MODE[m].spd > 1 ? 1.4 : 1) });
       }
     }
     const pick = [];
@@ -107,11 +131,15 @@
       let s = cands.reduce((a, c) => a + c.w, 0), x = g.rng() * s, i = 0;
       for (; i < cands.length - 1; i++) { x -= cands[i].w; if (x <= 0) break; }
       const c = cands.splice(i, 1)[0];
-      if (!pick.some((p) => p.e.id === c.e.id && p.m === c.m)) pick.push(c);
+      if (pick.some((p) => p.e.id === c.e.id && p.m === c.m)) continue;
+      // prefer a different destination for the second offer, if one exists at all
+      if (pick.length === 1 && c.to === pick[0].to && cands.some((x) => x.to !== pick[0].to)) continue;
+      pick.push(c);
     }
     if (pick.some((x) => x.m === 'metro')) g.nextMetro = g.turns + 3 + ((g.rng() * 2) | 0);
-    const wt = walkTarget(g);
-    const tt = edgesOf(g.at).filter((e) => okEdge(g, e) && canCross(g, e, 'taxi')).sort((x, y) => dist(other(x, g.at), GOAL) - dist(other(y, g.at), GOAL))[0];
+    const used = pick.map((p) => p.to);
+    const wt = targetFor(g, 'walk', used);
+    const tt = targetFor(g, 'taxi', wt ? used.concat(other(wt, g.at)) : used);
     const opts = pick.map((p) => ({ kind: p.m, e: p.e, to: p.to }));
     if (wt) {
       opts.push({ kind: 'walk', e: wt, to: other(wt, g.at) });
@@ -368,7 +396,25 @@
   $('lang').onclick = () => { lang = lang === 'ua' ? 'en' : 'ua'; localStorage.setItem('commute-lang', lang); render(); if (!$('overlay').classList.contains('hidden')) { if (!started) overlay(T[lang].startT, T[lang].startB, T[lang].go); else if (g.over) showEnd(); } };
   $('pauseBtn').onclick = () => { if (!started || g.over) return; paused = !paused; $('pause').classList.toggle('hidden', !paused); $('pauseTxt').textContent = T[lang].pause; render(); };
   $('pause').onclick = () => $('pauseBtn').onclick();
-  window.__commute = { simulate, getState: () => ({ at: g.at, t: g.t, money: g.money, over: g.over, won: g.won, opts: g.opts.map((o) => o.kind + '>' + o.to), started, anim: !!anim }), act, openFull, logCount: () => g.log.length, start: () => $('oBtn').click() };
+  function checkGraph(rolls) {
+    const out = {};
+    for (const k in N) {
+      if (k === GOAL) continue;
+      const nb = new Set(edgesOf(k).map((e) => other(e, k)));
+      let conv = 0, dsum = 0;
+      for (let i = 0; i < rolls; i++) {
+        const g = newGame(); g.at = k; g.turns = (Math.random() * 10) | 0; g.nextMetro = (Math.random() * 8) | 0;
+        const es = edgesOf(k).filter((e) => !LEFT.has(k) || LEFT.has(other(e, k)));
+        g.last = Math.random() < 0.7 && es.length ? es[(Math.random() * es.length) | 0].id : -1;
+        for (let j = 0; j < 3; j++) tickBridges(g);
+        const d = new Set(offer(g).filter((o) => o.kind !== 'wait').map((o) => o.to));
+        dsum += d.size; if (d.size <= 1) conv++;
+      }
+      out[k] = { neighbours: nb.size, avgDistinct: +(dsum / rolls).toFixed(2), convergePct: Math.round((conv / rolls) * 100) };
+    }
+    return out;
+  }
+  window.__commute = { simulate, checkGraph, getState: () => ({ at: g.at, t: g.t, money: g.money, over: g.over, won: g.won, opts: g.opts.map((o) => o.kind + '>' + o.to), started, anim: !!anim }), act, openFull, logCount: () => g.log.length, start: () => $('oBtn').click() };
   offer(g); render(); overlay(T[lang].startT, T[lang].startB, T[lang].go);
   requestAnimationFrame(draw);
 })();

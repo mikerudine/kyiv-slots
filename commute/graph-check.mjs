@@ -1,0 +1,11 @@
+import { chromium } from 'playwright';
+import http from 'http'; import fs from 'fs'; import path from 'path';
+const root='/workspace/kyiv-slots';
+const srv=http.createServer((q,r)=>{let p=decodeURIComponent(q.url.split('?')[0]);if(p.endsWith('/'))p+='index.html';const f=path.join(root,p);fs.readFile(f,(e,d)=>{if(e){r.writeHead(404);r.end();return}r.writeHead(200,{'content-type':f.endsWith('.js')?'text/javascript':'text/html'});r.end(d)})}).listen(8780);
+const b=await chromium.launch({executablePath:'/usr/bin/google-chrome'});const pg=await b.newPage();
+await pg.goto('http://localhost:8780/commute/');
+const r=await pg.evaluate(()=>__commute.checkGraph(500));
+const bad=Object.entries(r).filter(([k,v])=>v.neighbours<3||v.convergePct>10);
+for(const [k,v] of Object.entries(r))console.log(k.padEnd(9),JSON.stringify(v));
+console.log('FLAGGED',JSON.stringify(bad));
+await b.close();srv.close();

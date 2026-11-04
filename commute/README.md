@@ -26,3 +26,16 @@ Live: https://mikerudine.github.io/kyiv-slots/menu/ → commute
 - **Speed tram:** right bank Starovokzalna – Borshchahivka, left bank Troieshchyna – Livoberezhna.
 - **Metro:** offered at most every 3–4 turns ("maybe you'll get lucky").
 - **New stops:** Karavaievi Dachi, Sviatoshyn, Starovokzalna, Borshchahivka.
+
+## v5: graph fixes
+- **Riverside stops** so you can reach the bridge heads:
+  - Tarasa Shevchenka (toward Pivnichnyi via Petrivka).
+  - Dnipro embankment (the Metro bridge now starts here).
+  - Navodnytska (the Paton bridge now starts here).
+  - Extra links Kontraktova ↔ Petrivka, Tarasa Shevchenka and Khreshchatyk; Poshtova ↔ Dnipro; Navodnytska ↔ Vydubychi and Arsenalna.
+- **At least 3 neighbours per stop:** every stop now has 3 or more. A few left-bank links were added too: Lisovyi masyv ↔ Chernihivska, Lisova ↔ Darnytsia, Rusanivka ↔ Bereznyaky, Boryspilska ↔ Kharkivska, and Hydropark ↔ Rusanivka and Bereznyaky.
+- **Different destinations:** the two city offers prefer different destinations.
+  - Walking goes to the nearest useful stop.
+  - The taxi heads for a bridge that's currently open for taxis, or toward the goal on the left bank.
+  - Both try not to duplicate the other offers.
+- **Automated check:** `graph-check.mjs` calls `__commute.checkGraph(500)` and flags any stop with fewer than 3 neighbours, or where more than 10% of rolls send every option to the same place. It currently flags 0 stops.
