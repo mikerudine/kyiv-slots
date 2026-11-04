@@ -38,7 +38,7 @@
     metro: { e: '🚇', ua: 'метро', en: 'metro', spd: 0.55, cost: 8 }, bus: { e: '🚌', ua: 'автобус', en: 'bus', spd: 1.3, cost: 8 },
     marsh: { e: '🚐', ua: 'маршрутка', en: 'marshrutka', spd: 1.0, cost: 15 }, tram: { e: '🚋', ua: 'трамвай', en: 'tram', spd: 1.2, cost: 8 },
     trolley: { e: '🚎', ua: 'тролейбус', en: 'trolleybus', spd: 1.3, cost: 8 }, train: { e: '🚆', ua: 'електричка', en: 'city train', spd: 0.6, cost: 10 },
-    scooter: { e: '🛴', ua: 'самокат', en: 'e-scooter', spd: 0.9, cost: 35 }, walk: { e: "🚶", ua: "пішки", en: "walk", spd: 2.2, cost: 0 },
+    scooter: { e: '🛴', ua: 'самокат', en: 'e-scooter', spd: 0.9, cost: 35 }, walk: { e: "🚶", ua: "пішки", en: "walk", spd: 2.0, cost: 0 },
     wait: { e: '⏳', ua: 'чекати', en: 'wait', spd: 0, cost: 0 },
     taxi: { e: '🚕', ua: 'таксі', en: 'taxi', spd: 0.7, cost: 0 },
   };
@@ -169,6 +169,16 @@
         else ev.push(['Самокат їде! Холодно, але швидко.', 'Scooter works! Cold but quick.']);
         break;
       case 'walk':
+        if (g.alert && g.rng() < 0.4) {
+          // GPS jamming during an alert: navigator thinks you're in Peru, you wander off to a random wrong stop
+          const pool = Object.keys(N).filter((k) => k !== g.at && k !== o.to && k !== GOAL && LEFT.has(g.at) === LEFT.has(k) && dist(k, g.at) < 40);
+          const lost = pool[(g.rng() * pool.length) | 0];
+          if (lost) {
+            to = lost; edge = { id: -1, bridge: null }; ride = 0; wait += RI(g, 25, 45);
+            ev.push([`📡 РЕБ! Навігатор каже, що ти в Перу 🇵🇪. Йдучи за ним, заблукав і вийшов на: ${N[lost][2]}. Лам не бачив.`, `📡 GPS jamming! The navigator says you're in Peru 🇵🇪. Following it, you got lost and came out at ${N[lost][3]}. No llamas seen.`]);
+            break;
+          }
+        }
         if (r < 0.35) { ride *= 1.25; ev.push(['Почався дощ. Йдеш повільніше.', 'It started raining. Walking slower.']); }
         else if (r < 0.5) { wait += 20; ev.push(['Зрізав через будмайданчик — а там глухий паркан. Назад (+20 хв).', 'Took a shortcut through a construction site — dead-end fence. Back you go (+20 min).']); }
         else ev.push(['Йдеш пішки. Довго.', 'Walking. It takes forever.']);
