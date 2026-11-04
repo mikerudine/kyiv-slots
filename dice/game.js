@@ -2,10 +2,10 @@
 (function () {
   'use strict';
   const T = {
-    ua: { title: 'Кості світла', guess: 'Скільки годин світла сьогодні буде?', roll: 'Кинути кості', again: 'Грати ще раз', rolling: 'Кидаємо…',
+    ua: { title: 'Кості світла', guess: 'Скільки годин світла сьогодні буде?', hold: '🎲 Затисни й відпусти', shaking: 'Трусимо… відпусти!', hint: 'Затисни кнопку або кості, щоб потрусити, відпусти — кидок', again: 'Грати ще раз', rolling: 'Кидаємо…',
       info: (w, b) => `⚪ ${w} год світла · ⚫ ${b} год без світла`, light: 'є світло', dark: 'немає світла',
       win: (n) => `Вгадав! Світло було ${n} год ⚡`, lose: (n, g) => `Світло було ${n} год, твій прогноз ${g} (різниця ${Math.abs(n - g)})` },
-    en: { title: 'Power Dice', guess: 'How many hours of power today?', roll: 'Roll the dice', again: 'Play again', rolling: 'Rolling…',
+    en: { title: 'Power Dice', guess: 'How many hours of power today?', hold: '🎲 Hold & release', shaking: 'Shaking… let go!', hint: 'Hold the button or dice to shake, release to throw', again: 'Play again', rolling: 'Rolling…',
       info: (w, b) => `⚪ ${w} h power · ⚫ ${b} h outage`, light: 'power on', dark: 'no power',
       win: (n) => `Spot on! ${n} h of power ⚡`, lose: (n, g) => `Power was on ${n} h, you guessed ${g} (off by ${Math.abs(n - g)})` },
   };
@@ -34,7 +34,7 @@
   }
   function reset() {
     cells.forEach((c) => { c.className = 'cell empty'; c.querySelector('.ic').textContent = ''; });
-    $('result').textContent = ''; $('result').className = ''; lastInfo = ''; $('rollInfo').textContent = '';
+    $('result').textContent = ''; $('result').className = ''; lastInfo = ''; $('rollInfo').textContent = ''; hour = 0;
     lightHours = 0;
   }
   async function rollDie(el, v) {
@@ -42,28 +42,34 @@
     for (let i = 0; i < 5; i++) { face(el, rnd()); await sleep(90); }
     face(el, v);
   }
-  async function play() {
-    if (state === 'rolling') return;
-    if (state === 'done') { reset(); state = 'idle'; applyLang(); return; }
-    state = 'rolling'; applyLang();
-    $('guess').disabled = true;
-    const guess = +$('guess').value;
-    let h = 0;
-    const rolls = [];
-    while (h < 24) {
-      const w = rnd(), b = rnd();
-      rolls.push([w, b]);
-      $('rollInfo').textContent = T[lang].rolling;
-      await Promise.all([rollDie($('dw'), w), rollDie($('db'), b)]);
-      lastInfo = [w, b]; $('rollInfo').textContent = T[lang].info(w, b);
-      for (let i = 0; i < w && h < 24; i++, h++) { paint(h, true); lightHours++; await sleep(120); }
-      for (let i = 0; i < b && h < 24; i++, h++) { paint(h, false); await sleep(120); }
-      await sleep(250);
-    }
-    window.__dice.lastRolls = rolls;
-    state = 'done'; $('guess').disabled = false;
-    showResult(guess); applyLang();
+  let hour = 0, rolls = [], shakeTimer = null;
+  const diceEls = () => [$('dw'), $('db')];
+  function startHold(ev) {
+    if (ev) ev.preventDefault();
+    if (state === 'done') return;
+    if (state !== 'idle' && state !== 'ready') return;
+    if (state === 'idle') { $('guess').disabled = true; hour = 0; rolls = []; lightHours = 0; }
+    state = 'holding'; applyLang();
+    diceEls().forEach((d) => { d.classList.remove('roll'); d.classList.add('shake'); });
+    shakeTimer = setInterval(() => diceEls().forEach((d) => face(d, rnd())), 140);
   }
+  async function release() {
+    if (state !== 'holding') return;
+    clearInterval(shakeTimer); shakeTimer = null;
+    state = 'throwing'; applyLang();
+    diceEls().forEach((d) => d.classList.remove('shake'));
+    const w = rnd(), b = rnd();
+    rolls.push([w, b]);
+    await Promise.all([rollDie($('dw'), w), rollDie($('db'), b)]);
+    lastInfo = [w, b]; $('rollInfo').textContent = T[lang].info(w, b);
+    for (let i = 0; i < w && hour < 24; i++, hour++) { paint(hour, true); lightHours++; await sleep(110); }
+    for (let i = 0; i < b && hour < 24; i++, hour++) { paint(hour, false); await sleep(110); }
+    window.__dice.lastRolls = rolls;
+    if (hour >= 24) { state = 'done'; $('guess').disabled = false; showResult(+$('guess').value); }
+    else state = 'ready';
+    applyLang();
+  }
+  function onBtnClick() { if (state === 'done') { reset(); state = 'idle'; applyLang(); } }
   let lastGuess = 0;
   function showResult(g) {
     lastGuess = g;
@@ -77,14 +83,21 @@
     $('lang').textContent = lang.toUpperCase();
     $('title').textContent = L.title; $('guessLbl').textContent = L.guess;
     $('lgL').textContent = L.light; $('lgD').textContent = L.dark;
-    $('btn').textContent = state === 'done' ? L.again : state === 'rolling' ? L.rolling : L.roll;
-    $('btn').disabled = state === 'rolling';
+    $('btn').textContent = state === 'done' ? L.again : state === 'holding' ? L.shaking : state === 'throwing' ? L.rolling : L.hold;
+    $('btn').disabled = state === 'throwing';
+    if (!lastInfo || state === 'idle') $('rollInfo').textContent = state === 'done' ? '' : L.hint;
     if (lastInfo) $('rollInfo').textContent = L.info(lastInfo[0], lastInfo[1]);
     if (state === 'done') showResult(lastGuess);
   }
   $('guess').addEventListener('input', () => { $('guessVal').textContent = $('guess').value; });
   $('lang').addEventListener('click', () => { lang = lang === 'ua' ? 'en' : 'ua'; localStorage.setItem('dice-lang', lang); applyLang(); });
-  $('btn').addEventListener('click', play);
-  window.__dice = { play, getState: () => ({ state, lightHours, painted: cells.filter((c) => !c.classList.contains('empty')).length }) };
+  for (const el of [$('btn'), $('dice')]) {
+    el.addEventListener('pointerdown', startHold);
+    for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) el.addEventListener(ev, release);
+    el.addEventListener('contextmenu', (e) => e.preventDefault());
+  }
+  $('btn').addEventListener('click', onBtnClick);
+  window.addEventListener('pointerup', release);
+  window.__dice = { startHold: () => startHold(), release, getState: () => ({ state, lightHours, painted: cells.filter((c) => !c.classList.contains('empty')).length }) };
   applyLang();
 })();
