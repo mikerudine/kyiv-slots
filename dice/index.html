@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<link rel="icon" href="data:,">
+<title>Кості світла · One Day in Kyiv</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:#e9ecf1;font-family:system-ui,-apple-system,sans-serif;color:#1c2742}
+#wrap{position:relative;margin:0 auto;width:min(100vw,calc(100dvh*9/16),480px);height:min(100dvh,calc(100vw*16/9));aspect-ratio:9/16;background:#f2f3f6;display:flex;flex-direction:column;padding:10px 14px calc(10px + env(safe-area-inset-bottom));overflow:hidden}
+header{display:flex;align-items:center;justify-content:space-between;gap:8px}
+header a{color:#64748b;text-decoration:none;font-size:13px}
+h1{font-size:18px;margin:0;font-weight:800}
+#lang{border:0;border-radius:999px;background:#1c2742;color:#fff;font-weight:800;padding:6px 12px;font-size:12px}
+.card{background:#fff;border-radius:16px;padding:10px 12px;margin-top:8px;box-shadow:0 1px 3px #0001}
+#guessRow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+#guessRow label{font-size:13px;flex:1 1 100%}
+#guess{flex:1;accent-color:#f5b400}
+#guessVal{font-size:22px;font-weight:900;min-width:44px;text-align:center}
+#dice{display:flex;justify-content:center;gap:22px;align-items:center;height:76px}
+.die{width:62px;height:62px;border-radius:12px;display:grid;grid-template:repeat(3,1fr)/repeat(3,1fr);padding:8px;transition:transform .5s ease}
+.die.white{background:#fff;border:2px solid #cbd2dc}
+.die.black{background:#1c2742;border:2px solid #1c2742}
+.die i{width:10px;height:10px;border-radius:50%;place-self:center;visibility:hidden}
+.die.white i{background:#1c2742}.die.black i{background:#fff!important}
+.die i.on{visibility:visible}
+.die.roll{animation:wob .55s ease-in-out}
+@keyframes wob{0%{transform:rotate(0)}30%{transform:rotate(-14deg) scale(1.05)}60%{transform:rotate(10deg)}100%{transform:rotate(0)}}
+#rollInfo{text-align:center;font-size:13px;color:#475569;min-height:18px}
+#grid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+.cell{height:clamp(30px,5.2dvh,44px);border-radius:10px;border:1.5px solid #dfe3ea;background:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#1c2742;transition:background .35s ease,color .35s ease}
+.cell .ic{margin-right:4px;font-size:12px;opacity:0}
+.cell.light .ic{opacity:1;color:#f5b400}
+.cell.dark{background:#1c2742;border-color:#1c2742;color:#fff}
+.cell.dark .ic{opacity:1}
+.cell.empty{color:#b6bdc8}
+#legend{display:flex;gap:14px;font-size:12px;margin-top:8px;flex-wrap:wrap}
+#legend span{display:flex;align-items:center;gap:6px}
+#legend b{width:14px;height:14px;border-radius:50%;display:inline-block;border:1.5px solid #cbd2dc}
+#result{text-align:center;font-weight:800;font-size:17px;min-height:24px;margin-top:6px}
+#result.win{color:#16a34a}#result.lose{color:#b91c1c}
+#btn{margin-top:auto;border:0;border-radius:999px;background:#f5b400;color:#1c2742;font-weight:900;font-size:17px;padding:14px;width:100%}
+#btn:disabled{opacity:.5}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <header><a href="../">← Слоти</a><h1 id="title">Кості світла</h1><button id="lang" type="button">UA</button></header>
+  <div class="card" id="guessRow">
+    <label id="guessLbl" for="guess"></label>
+    <input id="guess" type="range" min="1" max="24" value="12"><span id="guessVal">12</span>
+  </div>
+  <div class="card">
+    <div id="dice"><div class="die white" id="dw"></div><div class="die black" id="db"></div></div>
+    <div id="rollInfo"></div>
+  </div>
+  <div class="card">
+    <div id="grid"></div>
+    <div id="legend"><span><b style="background:#fff"></b><em id="lgL"></em></span><span><b style="background:#1c2742;border-color:#1c2742"></b><em id="lgD"></em></span></div>
+  </div>
+  <div id="result"></div>
+  <button id="btn" type="button"></button>
+</div>
+<script src="game.js"></script>
+</body>
+</html>
