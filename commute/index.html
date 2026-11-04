@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="data:,">
+<title>Дорога на Осокорки · One Day in Kyiv</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:#0b1020;color:#e2e8f0;font-family:ui-monospace,"Courier New",monospace}
+#wrap{position:relative;margin:0 auto;width:min(100vw,calc(100dvh*9/16),480px);height:min(100dvh,calc(100vw*16/9));aspect-ratio:9/16;display:flex;flex-direction:column;padding:8px 10px calc(8px + env(safe-area-inset-bottom));overflow:hidden;background:#111729}
+header{display:flex;align-items:center;gap:8px}
+header a{color:#94a3b8;font-size:12px;text-decoration:none}
+h1{flex:1;margin:0;font-size:15px;color:#fde047;text-align:center;text-shadow:1px 1px 0 #7c2d12}
+header button{border:2px solid #fde047;background:#1a1f33;color:#fde047;font:700 12px inherit;padding:3px 8px;border-radius:4px}
+#stats{display:flex;justify-content:space-between;font-size:15px;font-weight:700;margin:6px 2px 4px}
+#clock.late{color:#f87171}
+#map{width:100%;aspect-ratio:120/124;image-rendering:pixelated;image-rendering:crisp-edges;border:3px solid #2a3150;border-radius:4px;background:#1a1f33;flex:none;max-height:44%;object-fit:contain}
+#where{font-size:11px;color:#94a3b8;margin:4px 2px}
+#opts{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.opt{text-align:left;border:2px solid #64748b;background:#1e2540;color:#e2e8f0;padding:6px 7px;border-radius:3px;font:12px/1.25 inherit;box-shadow:2px 2px 0 #000;min-height:48px}
+.opt b{color:#fde047}.opt small{display:block;color:#94a3b8;font-size:10px;margin-top:2px}
+.opt.alw{border-style:dashed;background:#171c30}.opt.poor{opacity:.5}
+.opt:active{transform:translate(1px,1px);box-shadow:1px 1px 0 #000}
+#log{margin-top:6px;font-size:11px;line-height:1.35;flex:1;overflow:hidden;border-top:2px dashed #2a3150;padding-top:4px}
+#log span{color:#fde047}
+.ov{position:absolute;inset:0;background:#0b1020e6;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;gap:12px}
+.ov.hidden{display:none}
+.ov h2{margin:0;color:#fde047;font-size:22px}.ov p{margin:0;font-size:14px;line-height:1.4}
+.ov button{border:3px solid #000;background:#fde047;color:#0b1020;font:900 16px inherit;padding:10px 22px;box-shadow:3px 3px 0 #000}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <header><a href="../menu/" id="menu">☰ Меню</a><h1 id="title"></h1><button id="lang" type="button">UA</button><button id="pauseBtn" type="button">⏸</button></header>
+  <div id="stats"><span id="clock"></span><span id="money"></span></div>
+  <canvas id="map"></canvas>
+  <div id="where"></div>
+  <div id="opts"></div>
+  <div id="log"></div>
+  <div class="ov hidden" id="pause"><h2 id="pauseTxt">Пауза</h2></div>
+  <div class="ov hidden" id="overlay"><h2 id="oTitle"></h2><p id="oBody"></p><button id="oBtn" type="button"></button></div>
+</div>
+<script src="game.js"></script>
+</body>
+</html>
