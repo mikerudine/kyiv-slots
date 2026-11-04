@@ -14,9 +14,9 @@ Turn-based mini-game for *One Day in Kyiv*: get from Obolon (right bank) to Osok
 - Once you reach the left bank you are never sent back across the river: no offered option, wrong-way bus, walk or taxi crosses back. The left bank has extra stops (Lisovyi masyv, Lisova, Chernihivska, Rusanivka, Bereznyaky, Vyrlytsia, Boryspilska), so there's still room for trouble there.
 - The trip log scrolls and keeps the whole trip. The end screen has a "📜 Read the whole trip" view.
 - If nothing at all can go, a ⏳ wait (20 min) option appears.
-- Every ride comes with trouble: air alerts, blackouts, tunnel stops, buses once an hour or going the wrong way, marshrutka queues, "no seats", being dropped halfway, dead trams, jammed bridges, rain, taxi cancellations, dead scooters.
+- Every ride comes with trouble (v3 adds road accidents, scooters dying after 5 min, wrong-direction metro, inspectors, broken terminals, motorcades, a dead phone, chatty friends, downpours, crowd-closed metro, a taxi driver who has never heard of Osokorky, shelters, and construction-site dead ends): air alerts, blackouts, tunnel stops, buses once an hour or going the wrong way, marshrutka queues, "no seats", being dropped halfway, dead trams, jammed bridges, rain, taxi cancellations, dead scooters.
 - The city prefers to offer options that lead away from the goal or are slow.
-- Balance (bots in `window.__commute.simulate(n, smart)`): random play arrives about 2–3% of the time; a greedy "skilled" bot arrives about 35%.
+- Balance (bots in `window.__commute.simulate(n, smart)`): random play arrives about 3–4% of the time; a greedy "skilled" bot arrives about 34%.
 - Hand-drawn pixel style: a 120×124 canvas upscaled with `image-rendering: pixelated`. The lines are jittered with a fixed seed so they never wiggle, and nothing scrolls.
 
 Live: https://mikerudine.github.io/kyiv-slots/menu/ → commute
