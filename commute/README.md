@@ -20,3 +20,9 @@ Turn-based mini-game for *One Day in Kyiv*: get from Obolon (right bank) to Osok
 - Hand-drawn pixel style: a 120×124 canvas upscaled with `image-rendering: pixelated`. The lines are jittered with a fixed seed so they never wiggle, and nothing scrolls.
 
 Live: https://mikerudine.github.io/kyiv-slots/menu/ → commute
+
+## v4: transport realism
+- **City train:** it only runs on the ring line, Petrivka (Zenit) – Troieshchyna – Darnytsia – Vydubychi – Karavaievi Dachi – Sviatoshyn – Petrivka, so you only get it when you're at one of those stations. Even there it's offered about 60% of the time.
+- **Speed tram:** right bank Starovokzalna – Borshchahivka, left bank Troieshchyna – Livoberezhna.
+- **Metro:** offered at most every 3–4 turns ("maybe you'll get lucky").
+- **New stops:** Karavaievi Dachi, Sviatoshyn, Starovokzalna, Borshchahivka.

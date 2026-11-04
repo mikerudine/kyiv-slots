@@ -10,25 +10,33 @@
     druzhby: [51, 70, 'Дружби народів', 'Druzhby Narodiv'], holos: [31, 92, 'Голосіїв', 'Holosiiv'], vydub: [55, 85, 'Видубичі', 'Vydubychi'],
     darn: [87, 67, 'Дарниця', 'Darnytsia'], pozn: [81, 92, 'Позняки', 'Pozniaky'], khark: [95, 99, 'Харківська', 'Kharkivska'],
     osok: [77, 110, 'Осокорки', 'Osokorky'],
+    karav: [22, 72, 'Караваєві Дачі', 'Karavaievi Dachi'], svyat: [10, 46, 'Святошин', 'Sviatoshyn'], vokzal: [30, 64, 'Старовокзальна', 'Starovokzalna'], borsch: [8, 66, 'Борщагівка', 'Borshchahivka'],
     lismas: [101, 27, 'Лісовий масив', 'Lisovyi masyv'], lisova: [99, 41, 'Лісова', 'Lisova'], chern: [90, 46, 'Чернігівська', 'Chernihivska'],
     rusan: [75, 47, 'Русанівка', 'Rusanivka'], berez: [76, 77, 'Березняки', 'Bereznyaky'], vyrl: [97, 108, 'Вирлиця', 'Vyrlytsia'], borys: [106, 114, 'Бориспільська', 'Boryspilska'],
   };
   const LEFT = new Set(['troie', 'livob', 'darn', 'pozn', 'khark', 'osok', 'lismas', 'lisova', 'chern', 'rusan', 'berez', 'vyrl', 'borys']);
   const E = [
     ['obolon', 'pochaina', 'metro bus marsh'], ['obolon', 'petrivka', 'bus marsh tram'], ['pochaina', 'petrivka', 'bus tram'],
-    ['pochaina', 'podil', 'metro tram bus'], ['petrivka', 'podil', 'train tram'], ['petrivka', 'troie', 'bus marsh train', 'pivn'],
+    ['pochaina', 'podil', 'metro tram bus'], ['petrivka', 'podil', 'tram bus'], ['petrivka', 'troie', 'bus marsh train', 'pivn'],
     ['podil', 'kontr', 'tram bus'], ['kontr', 'poshtova', 'metro tram bus'], ['poshtova', 'khresh', 'metro bus trolley'],
     ['podil', 'khresh', 'trolley bus'], ['khresh', 'arsenal', 'metro trolley'], ['arsenal', 'hydro', 'metro bus', 'metro'],
     ['hydro', 'livob', 'metro bus'], ['khresh', 'lybid', 'metro trolley bus'], ['lybid', 'holos', 'metro trolley'],
     ['lybid', 'druzhby', 'trolley bus'], ['druzhby', 'vydub', 'metro bus'], ['druzhby', 'livob', 'bus marsh trolley', 'paton'],
     ['holos', 'vydub', 'bus marsh'], ['vydub', 'pozn', 'metro bus marsh', 'pivd'], ['vydub', 'darn', 'train marsh', 'darnb'],
-    ['livob', 'darn', 'metro tram bus'], ['darn', 'pozn', 'bus marsh train'], ['troie', 'livob', 'tram marsh bus'],
-    ['troie', 'darn', 'bus marsh'], ['pozn', 'osok', 'metro bus marsh'], ['khark', 'osok', 'bus marsh'],
+    ['livob', 'darn', 'metro tram bus'], ['darn', 'pozn', 'bus marsh'], ['troie', 'livob', 'stram marsh bus'],
+    ['troie', 'darn', 'bus marsh train'], ['pozn', 'osok', 'metro bus marsh'], ['khark', 'osok', 'bus marsh'],
     ['pozn', 'khark', 'metro bus'], ['darn', 'khark', 'bus tram'],
     ['troie', 'lismas', 'bus marsh'], ['lismas', 'lisova', 'bus tram'], ['lisova', 'chern', 'metro bus'], ['chern', 'darn', 'metro bus'],
     ['troie', 'chern', 'marsh tram'], ['livob', 'rusan', 'bus marsh'], ['rusan', 'darn', 'bus'], ['livob', 'berez', 'bus trolley'],
     ['berez', 'pozn', 'bus marsh'], ['darn', 'berez', 'marsh'], ['khark', 'vyrl', 'metro bus'], ['vyrl', 'borys', 'metro bus'],
-    ['borys', 'osok', 'marsh bus'], ['vyrl', 'osok', 'marsh'],
+    ['borys', 'osok', 'marsh bus'],
+    // city ring train (Kyiv city express): Zenit/Petrivka – Troieshchyna – Darnytsia – Vydubychi – Karavaievi Dachi – Sviatoshyn – Zenit
+    ['vydub', 'karav', 'train'], ['karav', 'svyat', 'train'], ['svyat', 'petrivka', 'train'],
+    // right-bank speed tram: Starovokzalna – Borshchahivka
+    ['vokzal', 'borsch', 'stram'],
+    // links for the new west-side stops
+    ['vokzal', 'khresh', 'metro bus'], ['vokzal', 'lybid', 'bus trolley'], ['vokzal', 'karav', 'tram bus'],
+    ['karav', 'lybid', 'bus'], ['svyat', 'khresh', 'metro bus'], ['svyat', 'borsch', 'bus marsh'], ['borsch', 'karav', 'marsh'], ['svyat', 'obolon', 'bus marsh'], ['vyrl', 'osok', 'marsh'],
   ].map(([a, b, m, br], i) => ({ id: i, a, b, modes: m.split(' '), bridge: br || null }));
   const BR = { pivn: ['Північний міст', 'Pivnichnyi bridge'], metro: ['міст Метро', 'Metro bridge'], paton: ['міст Патона', 'Paton bridge'], pivd: ['Південний міст', 'Pivdennyi bridge'], darnb: ['Дарницький міст', 'Darnytskyi bridge'] };
   // what each bridge normally lets across
@@ -37,8 +45,8 @@
   const MODE = {
     metro: { e: '🚇', ua: 'метро', en: 'metro', spd: 0.55, cost: 8 }, bus: { e: '🚌', ua: 'автобус', en: 'bus', spd: 1.3, cost: 8 },
     marsh: { e: '🚐', ua: 'маршрутка', en: 'marshrutka', spd: 1.0, cost: 15 }, tram: { e: '🚋', ua: 'трамвай', en: 'tram', spd: 1.2, cost: 8 },
-    trolley: { e: '🚎', ua: 'тролейбус', en: 'trolleybus', spd: 1.3, cost: 8 }, train: { e: '🚆', ua: 'електричка', en: 'city train', spd: 0.6, cost: 10 },
-    scooter: { e: '🛴', ua: 'самокат', en: 'e-scooter', spd: 0.9, cost: 35 }, walk: { e: "🚶", ua: "пішки", en: "walk", spd: 2.0, cost: 0 },
+    trolley: { e: '🚎', ua: 'тролейбус', en: 'trolleybus', spd: 1.3, cost: 8 }, stram: { e: '🚊', ua: 'швидкісний трамвай', en: 'speed tram', spd: 0.75, cost: 8 }, train: { e: '🚆', ua: 'електричка', en: 'city train', spd: 0.6, cost: 10 },
+    scooter: { e: '🛴', ua: 'самокат', en: 'e-scooter', spd: 0.9, cost: 35 }, walk: { e: "🚶", ua: "пішки", en: "walk", spd: 1.75, cost: 0 },
     wait: { e: '⏳', ua: 'чекати', en: 'wait', spd: 0, cost: 0 },
     taxi: { e: '🚕', ua: 'таксі', en: 'taxi', spd: 0.7, cost: 0 },
   };
@@ -50,7 +58,7 @@
 
   // ---------- core (pure, rng injectable) ----------
   function newGame(rng) {
-    const gg = { rng: rng || Math.random, alert: 0, phone: 0, bridges: {}, at: HOME, t: START, money: MONEY0, last: -1, trail: [HOME], log: [], over: false, won: false, opts: [], turns: 0 };
+    const gg = { rng: rng || Math.random, alert: 0, phone: 0, nextMetro: 0, bridges: {}, at: HOME, t: START, money: MONEY0, last: -1, trail: [HOME], log: [], over: false, won: false, opts: [], turns: 0 };
     for (const k of BR_ORDER) gg.bridges[k] = { closed: false, allow: BRIDGE_BASE[k].slice() };
     tickBridges(gg, true);
     return gg;
@@ -89,8 +97,9 @@
       const to = other(e, g.at), gain = here - dist(to, GOAL);
       for (const m of e.modes.concat(g.rng() < 0.25 && !g.phone ? ['scooter'] : [])) {
         if (!canCross(g, e, m)) continue;
-        if (m === 'train' && g.rng() < 0.6) continue; // elektrychka is rare
-        cands.push({ e, m, to, w: Math.exp(-gain / 45) * (MODE[m].spd > 1 ? 1.4 : 1) });
+        if (m === 'train' && g.rng() < 0.4) continue; // ring train only runs now and then
+        if (m === 'metro' && g.turns < g.nextMetro) continue; // metro shows up every 3-4 turns — maybe you'll get lucky
+        cands.push({ e, m, to, w: Math.exp(-gain / 60) * (MODE[m].spd > 1 ? 1.4 : 1) });
       }
     }
     const pick = [];
@@ -100,6 +109,7 @@
       const c = cands.splice(i, 1)[0];
       if (!pick.some((p) => p.e.id === c.e.id && p.m === c.m)) pick.push(c);
     }
+    if (pick.some((x) => x.m === 'metro')) g.nextMetro = g.turns + 3 + ((g.rng() * 2) | 0);
     const wt = walkTarget(g);
     const tt = edgesOf(g.at).filter((e) => okEdge(g, e) && canCross(g, e, 'taxi')).sort((x, y) => dist(other(x, g.at), GOAL) - dist(other(y, g.at), GOAL))[0];
     const opts = pick.map((p) => ({ kind: p.m, e: p.e, to: p.to }));
@@ -158,7 +168,7 @@
         else if (r < 0.34) { wait += 25; ev.push(['Злива. Маршрутки набиті як банка шпротів, пропустив дві (+25 хв).', 'Downpour. Marshrutkas packed like sprat tins, let two go by (+25 min).']); }
         break;
       }
-      case 'tram': case 'trolley':
+      case 'tram': case 'trolley': case 'stram':
         if (r < 0.3) { move = false; cost = 0; const w = RI(g, 10, 25); wait += w; ev.push([`Знеструмлення — ${m.ua} стоїть. Втратив ${w} хв.`, `Power cut — the ${m.en} is dead. Lost ${w} min.`]); }
         else if (r < 0.42) { wait += 12; ev.push(['«Київ Цифровий» завис — квиток не купується. Перезапуск, ще перезапуск… +12 хв.', '"Kyiv Digital" app froze — can\'t buy a ticket. Restart, restart again… +12 min.']); }
         else { const w = RI(g, 5, 20); wait += w; ev.push([`Чекав ${w} хв на зупинці.`, `Waited ${w} min at the stop.`]); }
@@ -230,7 +240,7 @@
     let best = 0, bs = -1e9;
     o.forEach((x, i) => {
       if (x.kind === 'taxi' && x.price > g.money) return;
-      const gain = here - dist(x.to, GOAL) + (x.kind === 'wait' ? 0.01 : 0), exp = { wait: 20, metro: 25, bus: 35, marsh: 50, tram: 20, trolley: 20, train: 50, scooter: 15, walk: 0, taxi: 5 }[x.kind] + dist(g.at, x.to) * MODE[x.kind].spd;
+      const gain = here - dist(x.to, GOAL) + (x.kind === 'wait' ? 0.01 : 0), exp = { wait: 20, metro: 25, bus: 35, marsh: 50, tram: 20, stram: 15, trolley: 20, train: 50, scooter: 15, walk: 0, taxi: 5 }[x.kind] + dist(g.at, x.to) * MODE[x.kind].spd;
       let s = gain / exp; if (x.kind === 'taxi') s *= (CURFEW - g.t < 120 ? 1.5 : 0.4);
       if (s > bs) { bs = s; best = i; }
     });
