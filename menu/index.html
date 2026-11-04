@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="data:,">
+<title>Меню · One Day in Kyiv</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;min-height:100%;background:#0b1020;font-family:system-ui,-apple-system,sans-serif;color:#e2e8f0}
+#wrap{margin:0 auto;max-width:480px;min-height:100dvh;padding:16px 16px calc(20px + env(safe-area-inset-bottom));background:radial-gradient(120% 60% at 50% 0%,#1e2a4a 0%,#0b1020 70%)}
+header{display:flex;align-items:center;justify-content:space-between}
+h1{margin:0;font-size:24px;color:#fde047}
+.sub{color:#94a3b8;font-size:13px;margin:4px 0 16px}
+#lang{border:0;border-radius:999px;background:#1e293b;color:#fde047;font-weight:800;padding:7px 13px}
+a.card{display:flex;align-items:center;gap:14px;background:#151d33;border:1px solid #26314f;border-radius:18px;padding:14px;margin-bottom:12px;text-decoration:none;color:inherit;transition:background .2s}
+a.card:active{background:#1e2a4a}
+.ic{font-size:34px;width:52px;height:52px;display:grid;place-items:center;background:#0b1020;border-radius:14px;flex:none}
+.t{font-weight:800;font-size:17px;color:#fde047}
+.d{font-size:13px;color:#cbd5e1;margin-top:2px}
+.arch{display:block;text-align:center;color:#64748b;font-size:12px;margin-top:18px}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <header><h1 id="h">🌃 Один день у Києві</h1><button id="lang" type="button">UA</button></header>
+  <div class="sub" id="sub"></div>
+  <div id="list"></div>
+  <a class="arch" href="../raycaster/" id="arch"></a>
+</div>
+<script>
+const G=[
+ {h:'../',e:'🎰',ua:['Слоти','Тривога, світла нема, дощ — крути барабани'],en:['Slots','Air raid, blackout, rain — spin the reels']},
+ {h:'../dogwalk/',e:'🐕',ua:['Прогулянка','Вигуляй собаку вечірнім Києвом'],en:['Dog walk','Walk the dog through evening Kyiv']},
+ {h:'../scooter/',e:'🛴',ua:['Самокат','Їдь крізь блекаути з фарою'],en:['Scooter','Ride through blackouts with a headlight']},
+ {h:'../laundry/',e:'🫧',ua:['Стирка','Три в ряд, поки є світло'],en:['Laundry','Match-3 while the power is on']},
+ {h:'../dice/',e:'🎲',ua:['Кості світла','Вгадай, скільки годин світла сьогодні'],en:['Power dice','Guess how many hours of power today']},
+];
+const T={ua:{h:'🌃 Один день у Києві',sub:'Усі міні-ігри',arch:'Архів: raycaster-прототип'},en:{h:'🌃 One Day in Kyiv',sub:'All mini-games',arch:'Archive: raycaster prototype'}};
+let lang=localStorage.getItem('menu-lang')||'ua';
+function render(){const L=T[lang];document.documentElement.lang=lang==='ua'?'uk':'en';
+ h.textContent=L.h;sub.textContent=L.sub;arch.textContent=L.arch;document.getElementById('lang').textContent=lang.toUpperCase();
+ list.innerHTML=G.map(g=>`<a class="card" href="${g.h}"><div class="ic">${g.e}</div><div><div class="t">${g[lang][0]}</div><div class="d">${g[lang][1]}</div></div></a>`).join('');}
+document.getElementById('lang').onclick=()=>{lang=lang==='ua'?'en':'ua';localStorage.setItem('menu-lang',lang);render();};
+render();
+</script>
+</body>
+</html>
