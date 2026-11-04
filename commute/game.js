@@ -24,11 +24,15 @@
     ['pozn', 'khark', 'metro bus'], ['darn', 'khark', 'bus tram'],
   ].map(([a, b, m, br], i) => ({ id: i, a, b, modes: m.split(' '), bridge: br || null }));
   const BR = { pivn: ['Північний міст', 'Pivnichnyi bridge'], metro: ['міст Метро', 'Metro bridge'], paton: ['міст Патона', 'Paton bridge'], pivd: ['Південний міст', 'Pivdennyi bridge'], darnb: ['Дарницький міст', 'Darnytskyi bridge'] };
+  // what each bridge normally lets across
+  const BRIDGE_BASE = { pivn: ['bus', 'marsh', 'taxi', 'scooter', 'train'], metro: ['metro', 'walk', 'bus'], paton: ['bus', 'marsh', 'trolley', 'taxi', 'scooter'], pivd: ['taxi', 'marsh', 'bus', 'metro'], darnb: ['train', 'marsh', 'taxi'] };
+  const BR_ORDER = ['pivn', 'metro', 'paton', 'pivd', 'darnb'];
   const MODE = {
     metro: { e: '🚇', ua: 'метро', en: 'metro', spd: 0.55, cost: 8 }, bus: { e: '🚌', ua: 'автобус', en: 'bus', spd: 1.3, cost: 8 },
     marsh: { e: '🚐', ua: 'маршрутка', en: 'marshrutka', spd: 1.0, cost: 15 }, tram: { e: '🚋', ua: 'трамвай', en: 'tram', spd: 1.2, cost: 8 },
     trolley: { e: '🚎', ua: 'тролейбус', en: 'trolleybus', spd: 1.3, cost: 8 }, train: { e: '🚆', ua: 'електричка', en: 'city train', spd: 0.6, cost: 10 },
-    scooter: { e: '🛴', ua: 'самокат', en: 'e-scooter', spd: 0.9, cost: 35 }, walk: { e: "🚶", ua: "пішки", en: "walk", spd: 3.4, cost: 0 },
+    scooter: { e: '🛴', ua: 'самокат', en: 'e-scooter', spd: 0.9, cost: 35 }, walk: { e: "🚶", ua: "пішки", en: "walk", spd: 2.8, cost: 0 },
+    wait: { e: '⏳', ua: 'чекати', en: 'wait', spd: 0, cost: 0 },
     taxi: { e: '🚕', ua: 'таксі', en: 'taxi', spd: 0.7, cost: 0 },
   };
   const START = 17 * 60, CURFEW = 24 * 60, MONEY0 = 200, GOAL = 'osok', HOME = 'obolon';
@@ -38,12 +42,32 @@
 
   // ---------- core (pure, rng injectable) ----------
   function newGame(rng) {
-    return { rng: rng || Math.random, at: HOME, t: START, money: MONEY0, last: -1, trail: [HOME], log: [], over: false, won: false, opts: [], turns: 0 };
+    const gg = { rng: rng || Math.random, alert: 0, bridges: {}, at: HOME, t: START, money: MONEY0, last: -1, trail: [HOME], log: [], over: false, won: false, opts: [], turns: 0 };
+    for (const k of BR_ORDER) gg.bridges[k] = { closed: false, allow: BRIDGE_BASE[k].slice() };
+    tickBridges(gg, true);
+    return gg;
   }
+  // the city keeps flipping air alerts and bridge rules every turn
+  function tickBridges(g, first) {
+    const ev = [];
+    if (g.alert > 0) { g.alert--; if (!g.alert) ev.push(['Відбій тривоги.', 'All clear.']); }
+    else if (!first && g.rng() < 0.22) { g.alert = 1 + ((g.rng() * 3) | 0); ev.push(['🚨 Повітряна тривога! Мости перекривають.', '🚨 Air alert! Bridges are being closed.']); }
+    for (const k of BR_ORDER) {
+      const b = g.bridges[k], was = b.closed;
+      if (b.closed) { if (g.rng() < (g.alert ? 0.2 : 0.45)) b.closed = false; }
+      else if (g.rng() < (g.alert ? 0.45 : 0.15)) b.closed = true;
+      if (k === 'metro' && g.alert) b.closed = true;
+      b.allow = BRIDGE_BASE[k].filter(() => true);
+      if (g.rng() < 0.35 && b.allow.length > 1) b.allow.splice((g.rng() * b.allow.length) | 0, 1);
+      if (!first && was !== b.closed) ev.push(b.closed ? [`⛔ ${BR[k][0]} закрито.`, `⛔ ${BR[k][1]} closed.`] : [`✅ ${BR[k][0]} знову відкрито.`, `✅ ${BR[k][1]} reopened.`]);
+    }
+    return ev;
+  }
+  const canCross = (g, e, m) => !e.bridge || (!g.bridges[e.bridge].closed && g.bridges[e.bridge].allow.includes(m));
   const R = (g, a, b) => a + g.rng() * (b - a);
   const RI = (g, a, b) => Math.round(R(g, a, b));
   function walkTarget(g) {
-    const cand = edgesOf(g.at).filter((e) => e.id !== g.last).sort((x, y) => dist(other(x, g.at), GOAL) - dist(other(y, g.at), GOAL));
+    const cand = edgesOf(g.at).filter((e) => e.id !== g.last && canCross(g, e, 'walk')).sort((x, y) => dist(other(x, g.at), GOAL) - dist(other(y, g.at), GOAL));
     return cand[0];
   }
   function taxiPrice(g, e) { return Math.round(dist(g.at, other(e, g.at)) * 7 * (1.6 + g.rng() * 2.6)); }
@@ -54,6 +78,7 @@
       if (e.id === g.last) continue;
       const to = other(e, g.at), gain = here - dist(to, GOAL);
       for (const m of e.modes.concat(g.rng() < 0.25 ? ['scooter'] : [])) {
+        if (!canCross(g, e, m)) continue;
         if (m === 'train' && g.rng() < 0.6) continue; // elektrychka is rare
         cands.push({ e, m, to, w: Math.exp(-gain / 30) * (MODE[m].spd > 1 ? 1.4 : 1) });
       }
@@ -66,11 +91,13 @@
       if (!pick.some((p) => p.e.id === c.e.id && p.m === c.m)) pick.push(c);
     }
     const wt = walkTarget(g);
+    const tt = edgesOf(g.at).filter((e) => e.id !== g.last && canCross(g, e, 'taxi')).sort((x, y) => dist(other(x, g.at), GOAL) - dist(other(y, g.at), GOAL))[0];
     const opts = pick.map((p) => ({ kind: p.m, e: p.e, to: p.to }));
     if (wt) {
       opts.push({ kind: 'walk', e: wt, to: other(wt, g.at) });
-      opts.push({ kind: 'taxi', e: wt, to: other(wt, g.at), price: taxiPrice(g, wt) });
     }
+    if (tt) opts.push({ kind: 'taxi', e: tt, to: other(tt, g.at), price: taxiPrice(g, tt) });
+    if (opts.length < 2) opts.push({ kind: 'wait', e: null, to: g.at });
     g.opts = opts;
     return opts;
   }
@@ -83,16 +110,17 @@
     let ride = d * m.spd;
     if (cost > g.money) { ev.push(['Не вистачає грошей. Стоїш і думаєш 5 хв.', 'Not enough money. You stand there thinking for 5 min.']); g.t += 5; return finish(g, ev); }
     const r = g.rng();
+    if (o.kind === 'wait') { g.t += 20; ev.push(['Чекаєш 20 хв, поки щось відкриють.', 'You wait 20 min for something to open.']); return finish(g, ev); }
     switch (o.kind) {
       case 'metro':
-        if (r < 0.22) { const w = RI(g, 10, 35); wait += w; ev.push([`Повітряна тривога — метро стоїть ${w} хв.`, `Air alert — metro halted for ${w} min.`]); }
+        if (r < (g.alert ? 0.6 : 0.1)) { const w = RI(g, 10, 35); wait += w; ev.push([`Повітряна тривога — метро стоїть ${w} хв.`, `Air alert — metro halted for ${w} min.`]); }
         else if (r < 0.45) { const w = RI(g, 15, 40); wait += w; ev.push([`Застряг у тунелі на ${w} хв. Світла нема.`, `Stuck in the tunnel for ${w} min. Lights out.`]); }
         else if (r < 0.6) { move = false; wait += 12; cost = 0; ev.push(['Станцію закрито. Виходиш нагору.', 'Station closed. Back up to the street.']); }
         else { const w = RI(g, 3, 9); wait += w; ev.push([`Тиснява, пропустив два потяги (+${w} хв).`, `Packed, missed two trains (+${w} min).`]); }
         break;
       case 'bus':
         if (r < 0.38) {
-          const away = edgesOf(g.at).filter((e) => e.id !== g.last && e.id !== o.e.id).sort((x, y) => dist(other(y, g.at), GOAL) - dist(other(x, g.at), GOAL))[0];
+          const away = edgesOf(g.at).filter((e) => e.id !== g.last && e.id !== o.e.id && canCross(g, e, 'bus')).sort((x, y) => dist(other(y, g.at), GOAL) - dist(other(x, g.at), GOAL))[0];
           wait += RI(g, 10, 18);
           if (away) { edge = away; to = other(away, g.at); ride = dist(g.at, to) * m.spd; ev.push([`Автобус прийшов за 15 хв… але їде не туди. Вийшов: ${N[to][2]}.`, `Bus came in 15 min… going the wrong way. Off at ${N[to][3]}.`]); }
           else ev.push(['Автобус прийшов за 15 хв, повний.', 'Bus came in 15 min, packed.']);
@@ -126,7 +154,7 @@
     if (move && edge.bridge && o.kind !== 'metro' && o.kind !== 'walk' && o.kind !== 'train') {
       if (g.rng() < 0.22) { const w = RI(g, 20, 50); wait += w; ev.push([`${BR[edge.bridge][0]} стоїть у заторі: +${w} хв.`, `${BR[edge.bridge][1]} is jammed: +${w} min.`]); }
     }
-    if (g.rng() < 0.08 && o.kind !== 'metro') { const w = RI(g, 15, 40); wait += w; ev.push([`Повітряна тривога, все зупинилось на ${w} хв.`, `Air alert, everything stopped for ${w} min.`]); }
+    if (g.alert && g.rng() < 0.3 && o.kind !== 'metro') { const w = RI(g, 15, 40); wait += w; ev.push([`Повітряна тривога, все зупинилось на ${w} хв.`, `Air alert, everything stopped for ${w} min.`]); }
     g.t += Math.round(wait + (move ? ride : 0));
     g.money -= cost;
     if (move) { g.trail.push(to); g.at = to; g.last = edge.id; }
@@ -134,6 +162,7 @@
   }
   function finish(g, ev) {
     g.turns++;
+    if (!g.over) ev.push(...tickBridges(g));
     for (const x of ev) g.log.unshift({ t: g.t, m: x });
     if (g.at === GOAL && g.t <= CURFEW) { g.over = true; g.won = true; }
     else if (g.t >= CURFEW) { g.over = true; g.won = false; g.t = Math.min(g.t, CURFEW + 120); }
@@ -149,7 +178,7 @@
     let best = 0, bs = -1e9;
     o.forEach((x, i) => {
       if (x.kind === 'taxi' && x.price > g.money) return;
-      const gain = here - dist(x.to, GOAL), exp = { metro: 25, bus: 35, marsh: 50, tram: 20, trolley: 20, train: 50, scooter: 15, walk: 0, taxi: 5 }[x.kind] + dist(g.at, x.to) * MODE[x.kind].spd;
+      const gain = here - dist(x.to, GOAL) + (x.kind === 'wait' ? 0.01 : 0), exp = { wait: 20, metro: 25, bus: 35, marsh: 50, tram: 20, trolley: 20, train: 50, scooter: 15, walk: 0, taxi: 5 }[x.kind] + dist(g.at, x.to) * MODE[x.kind].spd;
       let s = gain / exp; if (x.kind === 'taxi') s *= (CURFEW - g.t < 120 ? 1.5 : 0.4);
       if (s > bs) { bs = s; best = i; }
     });
@@ -200,7 +229,7 @@
     for (let w = -4; w <= 4; w++) for (let i = 0; i < RIVER.length - 1; i++) line(RIVER[i][0] + w, RIVER[i][1], RIVER[i + 1][0] + w, RIVER[i + 1][1], Math.abs(w) > 3 ? '#2b4a7a' : '#22406e', 'r' + w + i);
     for (const e of E) {
       const A = N[e.a], B = N[e.b];
-      line(A[0], A[1], B[0], B[1], e.bridge ? '#b08a5a' : '#475069', 'e' + e.id);
+      line(A[0], A[1], B[0], B[1], e.bridge ? (g.bridges[e.bridge].closed ? '#ef4444' : '#d6a35c') : '#475069', 'e' + e.id);
     }
     // trail
     for (let i = 0; i < g.trail.length - 1; i++) { const A = N[g.trail[i]], B = N[g.trail[i + 1]]; line(A[0], A[1], B[0], B[1], '#fde047', 'e' + i + g.trail[i]); }
@@ -232,11 +261,15 @@
     $('clock').textContent = '🕔 ' + hhmm(Math.min(g.t, CURFEW)); $('money').textContent = '💸 ' + g.money + ' ' + L.money;
     $('clock').className = CURFEW - g.t < 90 ? 'late' : '';
     $('where').textContent = L.at + ' ' + nm(g.at) + ' · ' + L.goal;
+    $('bridges').innerHTML = (g.alert ? `<div class="al">${lang === 'ua' ? '🚨 ТРИВОГА' : '🚨 AIR ALERT'}</div>` : '') + BR_ORDER.map((k) => {
+      const b = g.bridges[k];
+      return `<div class="${b.closed ? 'cl' : ''}"><b>${BR[k][lang === 'ua' ? 0 : 1]}</b> ${b.closed ? '⛔' : b.allow.map((x) => MODE[x].e).join('')}</div>`;
+    }).join('');
     const box = $('opts'); box.innerHTML = '';
     if (!g.over && started) g.opts.forEach((o, i) => {
       const m = MODE[o.kind], b = document.createElement('button');
-      const sub = o.kind === 'walk' ? L.walkL : o.kind === 'taxi' ? (o.price > g.money ? L.noMoney + ' · ' : '') + L.taxiL(o.price) : m.cost + ' ' + L.money;
-      b.innerHTML = `<b>${m.e} ${m[lang]}</b> ${L.to} ${nm(o.to)}<small>${sub}</small>`;
+      const sub = o.kind === 'wait' ? '20 ' + L.min : o.kind === 'walk' ? L.walkL : o.kind === 'taxi' ? (o.price > g.money ? L.noMoney + ' · ' : '') + L.taxiL(o.price) : m.cost + ' ' + L.money;
+      b.innerHTML = o.kind === 'wait' ? `<b>${m.e} ${m[lang]}</b>` : `<b>${m.e} ${m[lang]}</b> ${L.to} ${nm(o.to)}${o.e && o.e.bridge ? ' 🌉' : ''}<small>${sub}</small>`;
       b.className = 'opt' + (o.kind === 'walk' || o.kind === 'taxi' ? ' alw' : '');
       if (o.kind === 'taxi' && o.price > g.money) b.classList.add('poor');
       b.disabled = paused || !!anim;

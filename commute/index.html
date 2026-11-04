@@ -15,7 +15,10 @@ h1{flex:1;margin:0;font-size:15px;color:#fde047;text-align:center;text-shadow:1p
 header button{border:2px solid #fde047;background:#1a1f33;color:#fde047;font:700 12px inherit;padding:3px 8px;border-radius:4px}
 #stats{display:flex;justify-content:space-between;font-size:15px;font-weight:700;margin:6px 2px 4px}
 #clock.late{color:#f87171}
-#map{width:100%;aspect-ratio:120/124;image-rendering:pixelated;image-rendering:crisp-edges;border:3px solid #2a3150;border-radius:4px;background:#1a1f33;flex:none;max-height:44%;object-fit:contain}
+#map{width:100%;aspect-ratio:120/124;image-rendering:pixelated;image-rendering:crisp-edges;border:3px solid #2a3150;border-radius:4px;background:#1a1f33;flex:none;max-height:38%;object-fit:contain}
+#bridges{display:grid;grid-template-columns:1fr 1fr;gap:1px 8px;font-size:10px;margin-top:4px;color:#e2e8f0}
+#bridges b{color:#d6a35c;font-weight:700}#bridges .cl{color:#f87171}#bridges .cl b{color:#f87171;text-decoration:line-through}
+#bridges .al{grid-column:1/-1;color:#f87171;font-weight:900}
 #where{font-size:11px;color:#94a3b8;margin:4px 2px}
 #opts{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .opt{text-align:left;border:2px solid #64748b;background:#1e2540;color:#e2e8f0;padding:6px 7px;border-radius:3px;font:12px/1.25 inherit;box-shadow:2px 2px 0 #000;min-height:48px}
@@ -35,6 +38,7 @@ header button{border:2px solid #fde047;background:#1a1f33;color:#fde047;font:700
   <header><a href="../menu/" id="menu">☰ Меню</a><h1 id="title"></h1><button id="lang" type="button">UA</button><button id="pauseBtn" type="button">⏸</button></header>
   <div id="stats"><span id="clock"></span><span id="money"></span></div>
   <canvas id="map"></canvas>
+  <div id="bridges"></div>
   <div id="where"></div>
   <div id="opts"></div>
   <div id="log"></div>
