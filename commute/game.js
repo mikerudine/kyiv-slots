@@ -189,6 +189,12 @@
         else ev.push([`Таксі, сурдж ×${(o.price / (d * TAXI_K)).toFixed(1)}: ${o.price} грн.`, `Taxi, surge ×${(o.price / (d * TAXI_K)).toFixed(1)}: ${o.price} UAH.`]);
         break;
     }
+    if (move && o.kind === 'marsh' && g.rng() < 0.35) {
+      // driver didn't hear "stop at the stop!" — you end up one stop past (same bank rule applies)
+      const past = edgesOf(to).map((e) => other(e, to)).filter((k) => k !== g.at && LEFT.has(k) === LEFT.has(to));
+      const k = past[(g.rng() * past.length) | 0];
+      if (k) { ride += dist(to, k) * m.spd; ev.push([`«Зупиніть на зупинці!» — водій не почув. Проїхав ${N[to][2]}, вийшов аж на: ${N[k][2]}.`, `"Stop at the stop!" — the driver didn't hear. Missed ${N[to][3]}, got off at ${N[k][3]}.`]); to = k; edge = { id: -1, bridge: null }; }
+    }
     if (move && ['bus', 'trolley', 'marsh'].includes(o.kind) && g.rng() < 0.07) { const w = walkMin(d, 0.6); ride *= 0.4; wait += w; ev.push([`ДТП на маршруті! Всіх висадили. Далі пішки до розвилки (${w} хв).`, `Road accident on the route! Everyone off. Walking on to the next fork (${w} min).`]); }
     if (g.alert && move && ['bus', 'trolley', 'marsh', 'tram', 'taxi'].includes(o.kind) && g.rng() < 0.25) {
       if (g.rng() < 0.5) ev.push(['Тривога. Водій за законом сам вирішує — вирішив їхати далі. Пощастило.', 'Air alert. By law the driver decides — he keeps going. Lucky.']);
