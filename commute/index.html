@@ -25,10 +25,17 @@ header button{border:2px solid #fde047;background:#1a1f33;color:#fde047;font:700
 .opt b{color:#fde047}.opt small{display:block;color:#94a3b8;font-size:10px;margin-top:2px}
 .opt.alw{border-style:dashed;background:#171c30}.opt.poor{opacity:.5}
 .opt:active{transform:translate(1px,1px);box-shadow:1px 1px 0 #000}
-#log{margin-top:6px;font-size:11px;line-height:1.35;flex:1;overflow:hidden;border-top:2px dashed #2a3150;padding-top:4px}
+#log{margin-top:6px;font-size:11px;line-height:1.35;flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;border-top:2px dashed #2a3150;padding-top:4px}
 #log span{color:#fde047}
 .ov{position:absolute;inset:0;background:#0b1020e6;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;gap:12px}
 .ov.hidden{display:none}
+#fullBtn.hidden{display:none}
+#fullBtn{background:#1e2540!important;color:#fde047!important;border-color:#fde047!important;font-size:13px!important}
+#full{justify-content:flex-start;padding:12px;text-align:left;z-index:5}
+#full .hd{display:flex;width:100%;justify-content:space-between;align-items:center}
+#fullLog{flex:1;min-height:0;width:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;font-size:12px;line-height:1.45}
+#fullLog span,#log span{color:#fde047}
+#fullClose{padding:4px 12px!important}
 .ov h2{margin:0;color:#fde047;font-size:22px}.ov p{margin:0;font-size:14px;line-height:1.4}
 .ov button{border:3px solid #000;background:#fde047;color:#0b1020;font:900 16px inherit;padding:10px 22px;box-shadow:3px 3px 0 #000}
 </style>
@@ -43,7 +50,8 @@ header button{border:2px solid #fde047;background:#1a1f33;color:#fde047;font:700
   <div id="opts"></div>
   <div id="log"></div>
   <div class="ov hidden" id="pause"><h2 id="pauseTxt">Пауза</h2></div>
-  <div class="ov hidden" id="overlay"><h2 id="oTitle"></h2><p id="oBody"></p><button id="oBtn" type="button"></button></div>
+  <div class="ov hidden" id="overlay"><h2 id="oTitle"></h2><p id="oBody"></p><button id="oBtn" type="button"></button><button id="fullBtn" class="hidden" type="button"></button></div>
+  <div class="ov hidden" id="full"><div class="hd"><h2 id="fullTitle"></h2><button id="fullClose" type="button">✕</button></div><div id="fullLog"></div></div>
 </div>
 <script src="game.js"></script>
 </body>

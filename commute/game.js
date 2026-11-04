@@ -10,7 +10,10 @@
     druzhby: [51, 70, 'Дружби народів', 'Druzhby Narodiv'], holos: [31, 92, 'Голосіїв', 'Holosiiv'], vydub: [55, 85, 'Видубичі', 'Vydubychi'],
     darn: [87, 67, 'Дарниця', 'Darnytsia'], pozn: [81, 92, 'Позняки', 'Pozniaky'], khark: [95, 99, 'Харківська', 'Kharkivska'],
     osok: [77, 110, 'Осокорки', 'Osokorky'],
+    lismas: [101, 27, 'Лісовий масив', 'Lisovyi masyv'], lisova: [99, 41, 'Лісова', 'Lisova'], chern: [90, 46, 'Чернігівська', 'Chernihivska'],
+    rusan: [75, 47, 'Русанівка', 'Rusanivka'], berez: [76, 77, 'Березняки', 'Bereznyaky'], vyrl: [97, 108, 'Вирлиця', 'Vyrlytsia'], borys: [106, 114, 'Бориспільська', 'Boryspilska'],
   };
+  const LEFT = new Set(['troie', 'livob', 'darn', 'pozn', 'khark', 'osok', 'lismas', 'lisova', 'chern', 'rusan', 'berez', 'vyrl', 'borys']);
   const E = [
     ['obolon', 'pochaina', 'metro bus marsh'], ['obolon', 'petrivka', 'bus marsh tram'], ['pochaina', 'petrivka', 'bus tram'],
     ['pochaina', 'podil', 'metro tram bus'], ['petrivka', 'podil', 'train tram'], ['petrivka', 'troie', 'bus marsh train', 'pivn'],
@@ -22,6 +25,10 @@
     ['livob', 'darn', 'metro tram bus'], ['darn', 'pozn', 'bus marsh train'], ['troie', 'livob', 'tram marsh bus'],
     ['troie', 'darn', 'bus marsh'], ['pozn', 'osok', 'metro bus marsh'], ['khark', 'osok', 'bus marsh'],
     ['pozn', 'khark', 'metro bus'], ['darn', 'khark', 'bus tram'],
+    ['troie', 'lismas', 'bus marsh'], ['lismas', 'lisova', 'bus tram'], ['lisova', 'chern', 'metro bus'], ['chern', 'darn', 'metro bus'],
+    ['troie', 'chern', 'marsh tram'], ['livob', 'rusan', 'bus marsh'], ['rusan', 'darn', 'bus'], ['livob', 'berez', 'bus trolley'],
+    ['berez', 'pozn', 'bus marsh'], ['darn', 'berez', 'marsh'], ['khark', 'vyrl', 'metro bus'], ['vyrl', 'borys', 'metro bus'],
+    ['borys', 'osok', 'marsh bus'], ['vyrl', 'osok', 'marsh'],
   ].map(([a, b, m, br], i) => ({ id: i, a, b, modes: m.split(' '), bridge: br || null }));
   const BR = { pivn: ['Північний міст', 'Pivnichnyi bridge'], metro: ['міст Метро', 'Metro bridge'], paton: ['міст Патона', 'Paton bridge'], pivd: ['Південний міст', 'Pivdennyi bridge'], darnb: ['Дарницький міст', 'Darnytskyi bridge'] };
   // what each bridge normally lets across
@@ -63,11 +70,13 @@
     }
     return ev;
   }
+  // once on the left bank the city never sends you back across the river
+  const okEdge = (g, e) => e.id !== g.last && !(LEFT.has(g.at) && !LEFT.has(other(e, g.at)));
   const canCross = (g, e, m) => !e.bridge || (!g.bridges[e.bridge].closed && g.bridges[e.bridge].allow.includes(m));
   const R = (g, a, b) => a + g.rng() * (b - a);
   const RI = (g, a, b) => Math.round(R(g, a, b));
   function walkTarget(g) {
-    const cand = edgesOf(g.at).filter((e) => e.id !== g.last && canCross(g, e, 'walk')).sort((x, y) => dist(other(x, g.at), GOAL) - dist(other(y, g.at), GOAL));
+    const cand = edgesOf(g.at).filter((e) => okEdge(g, e) && canCross(g, e, 'walk')).sort((x, y) => dist(other(x, g.at), GOAL) - dist(other(y, g.at), GOAL));
     return cand[0];
   }
   function taxiPrice(g, e) { return Math.round(dist(g.at, other(e, g.at)) * 7 * (1.6 + g.rng() * 2.6)); }
@@ -75,7 +84,7 @@
     // the city offers exactly two transport options, preferring ones that lead away or are slow
     const here = dist(g.at, GOAL), cands = [];
     for (const e of edgesOf(g.at)) {
-      if (e.id === g.last) continue;
+      if (!okEdge(g, e)) continue;
       const to = other(e, g.at), gain = here - dist(to, GOAL);
       for (const m of e.modes.concat(g.rng() < 0.25 ? ['scooter'] : [])) {
         if (!canCross(g, e, m)) continue;
@@ -91,7 +100,7 @@
       if (!pick.some((p) => p.e.id === c.e.id && p.m === c.m)) pick.push(c);
     }
     const wt = walkTarget(g);
-    const tt = edgesOf(g.at).filter((e) => e.id !== g.last && canCross(g, e, 'taxi')).sort((x, y) => dist(other(x, g.at), GOAL) - dist(other(y, g.at), GOAL))[0];
+    const tt = edgesOf(g.at).filter((e) => okEdge(g, e) && canCross(g, e, 'taxi')).sort((x, y) => dist(other(x, g.at), GOAL) - dist(other(y, g.at), GOAL))[0];
     const opts = pick.map((p) => ({ kind: p.m, e: p.e, to: p.to }));
     if (wt) {
       opts.push({ kind: 'walk', e: wt, to: other(wt, g.at) });
@@ -120,7 +129,7 @@
         break;
       case 'bus':
         if (r < 0.38) {
-          const away = edgesOf(g.at).filter((e) => e.id !== g.last && e.id !== o.e.id && canCross(g, e, 'bus')).sort((x, y) => dist(other(y, g.at), GOAL) - dist(other(x, g.at), GOAL))[0];
+          const away = edgesOf(g.at).filter((e) => okEdge(g, e) && e.id !== o.e.id && canCross(g, e, 'bus')).sort((x, y) => dist(other(y, g.at), GOAL) - dist(other(x, g.at), GOAL))[0];
           wait += RI(g, 10, 18);
           if (away) { edge = away; to = other(away, g.at); ride = dist(g.at, to) * m.spd; ev.push([`Автобус прийшов за 15 хв… але їде не туди. Вийшов: ${N[to][2]}.`, `Bus came in 15 min… going the wrong way. Off at ${N[to][3]}.`]); }
           else ev.push(['Автобус прийшов за 15 хв, повний.', 'Bus came in 15 min, packed.']);
@@ -185,13 +194,13 @@
     return best;
   }
   function simulate(n, smart) {
-    let win = 0, tsum = 0;
+    let win = 0, tsum = 0, back = 0;
     for (let i = 0; i < n; i++) {
       const g = newGame(); offer(g); let k = 0;
-      while (!g.over && k++ < 300) choose(g, botPick(g, smart));
+      while (!g.over && k++ < 300) { const was = g.at; choose(g, botPick(g, smart)); if (LEFT.has(was) && !LEFT.has(g.at)) back++; }
       if (g.won) { win++; tsum += g.t - START; }
     }
-    return { n, arrived: win, rate: win / n, avgMin: win ? Math.round(tsum / win) : null };
+    return { n, arrived: win, rate: win / n, avgMin: win ? Math.round(tsum / win) : null, crossedBack: back };
   }
 
   // ---------- UI ----------
@@ -199,11 +208,11 @@
     ua: { title: 'Дорога на Осокорки', pause: 'Пауза', resume: 'Далі', menu: '☰ Меню', goal: 'Оболонь → Осокорки до 00:00', at: 'Ти тут:', money: 'грн',
       startT: 'Дорога на Осокорки', startB: 'Ти на Оболоні, 17:00, у кишені 200 грн. Треба на Осокорки до комендантської. Місто буде проти.', go: 'Поїхали', again: 'Ще раз',
       win: 'Доїхав! 🎉', winB: (m, mo) => `Дорога зайняла ${Math.floor(m / 60)} год ${m % 60} хв. Лишилось ${mo} грн.`, lose: 'Комендантська 🌙', loseB: (p) => `Північ застала тебе тут: ${p}. Ночуєш у друзів.`,
-      min: 'хв', walkL: 'дуже довго', taxiL: (p) => `${p} грн, сурдж`, to: '→', noMoney: 'не вистачає', },
+      full: '📜 Читати всю подорож', min: 'хв', walkL: 'дуже довго', taxiL: (p) => `${p} грн, сурдж`, to: '→', noMoney: 'не вистачає', },
     en: { title: 'Road to Osokorky', pause: 'Pause', resume: 'Resume', menu: '☰ Menu', goal: 'Obolon → Osokorky by 00:00', at: 'You are at:', money: 'UAH',
       startT: 'Road to Osokorky', startB: "You're in Obolon, 17:00, 200 UAH in your pocket. Get to Osokorky before curfew. The city will fight you.", go: "Let's go", again: 'Play again',
       win: 'You made it! 🎉', winB: (m, mo) => `The trip took ${Math.floor(m / 60)} h ${m % 60} min. ${mo} UAH left.`, lose: 'Curfew 🌙', loseB: (p) => `Midnight caught you at ${p}. Sleeping at a friend's.`,
-      min: 'min', walkL: 'very long', taxiL: (p) => `${p} UAH, surge`, to: '→', noMoney: "can't afford", },
+      full: '📜 Read the whole trip', min: 'min', walkL: 'very long', taxiL: (p) => `${p} UAH, surge`, to: '→', noMoney: "can't afford", },
   };
   if (typeof document === 'undefined') return;
   let lang = localStorage.getItem('commute-lang') || 'ua';
@@ -276,7 +285,21 @@
       b.onclick = () => act(i);
       box.appendChild(b);
     });
-    $('log').innerHTML = g.log.slice(0, 5).map((x, i) => `<div style="opacity:${1 - i * 0.16}"><span>${hhmm(Math.min(x.t, CURFEW))}</span> ${x.m[lang === 'ua' ? 0 : 1]}</div>`).join('');
+    const lg = $('log');
+    lg.innerHTML = logHtml();
+    if (logStick) lg.scrollTop = lg.scrollHeight;
+  }
+  // full trip, chronological (log is stored newest-first)
+  // follow newest entries unless the player scrolled up to read
+  let logStick = true;
+  $('log').addEventListener('scroll', () => { const l = $('log'); logStick = l.scrollTop + l.clientHeight >= l.scrollHeight - 12; }, { passive: true });
+  if (window.ResizeObserver) new ResizeObserver(() => { if (logStick) $('log').scrollTop = $('log').scrollHeight; }).observe($('log'));
+  function logHtml() {
+    return g.log.slice().reverse().map((x) => `<div><span>${hhmm(Math.min(x.t, CURFEW))}</span> ${x.m[lang === 'ua' ? 0 : 1]}</div>`).join('');
+  }
+  function openFull() {
+    $('fullTitle').textContent = T[lang].full; $('fullClose').textContent = '✕';
+    const f = $('fullLog'); f.innerHTML = logHtml(); $('full').classList.remove('hidden'); f.scrollTop = 0;
   }
   function act(i) {
     if (paused || anim || g.over) return;
@@ -285,13 +308,14 @@
     render(); setTimeout(render, 950);
     if (g.over) setTimeout(showEnd, 1100);
   }
-  function overlay(t, b, btn) { $('oTitle').textContent = t; $('oBody').textContent = b; $('oBtn').textContent = btn; $('overlay').classList.remove('hidden'); }
+  function overlay(t, b, btn) { $('fullBtn').classList.toggle('hidden', !(started && g.over)); $('fullBtn').textContent = T[lang].full; $('oTitle').textContent = t; $('oBody').textContent = b; $('oBtn').textContent = btn; $('overlay').classList.remove('hidden'); }
   function showEnd() { const L = T[lang]; g.won ? overlay(L.win, L.winB(g.t - START, g.money), L.again) : overlay(L.lose, L.loseB(nm(g.at)), L.again); }
-  $('oBtn').onclick = () => { $('overlay').classList.add('hidden'); g = newGame(); offer(g); started = true; paused = false; render(); };
+  $('fullBtn').onclick = openFull; $('fullClose').onclick = () => $('full').classList.add('hidden');
+  $('oBtn').onclick = () => { $('overlay').classList.add('hidden'); g = newGame(); offer(g); started = true; logStick = true; paused = false; render(); };
   $('lang').onclick = () => { lang = lang === 'ua' ? 'en' : 'ua'; localStorage.setItem('commute-lang', lang); render(); if (!$('overlay').classList.contains('hidden')) { if (!started) overlay(T[lang].startT, T[lang].startB, T[lang].go); else if (g.over) showEnd(); } };
   $('pauseBtn').onclick = () => { if (!started || g.over) return; paused = !paused; $('pause').classList.toggle('hidden', !paused); $('pauseTxt').textContent = T[lang].pause; render(); };
   $('pause').onclick = () => $('pauseBtn').onclick();
-  window.__commute = { simulate, getState: () => ({ at: g.at, t: g.t, money: g.money, over: g.over, won: g.won, opts: g.opts.map((o) => o.kind + '>' + o.to), started, anim: !!anim }), act, start: () => $('oBtn').click() };
+  window.__commute = { simulate, getState: () => ({ at: g.at, t: g.t, money: g.money, over: g.over, won: g.won, opts: g.opts.map((o) => o.kind + '>' + o.to), started, anim: !!anim }), act, openFull, logCount: () => g.log.length, start: () => $('oBtn').click() };
   offer(g); render(); overlay(T[lang].startT, T[lang].startB, T[lang].go);
   requestAnimationFrame(draw);
 })();

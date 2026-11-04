@@ -11,10 +11,12 @@ Turn-based mini-game for *One Day in Kyiv*: get from Obolon (right bank) to Osok
   - Pivdennyi: cars, marshrutkas, buses and metro.
   - Darnytskyi: city train, marshrutkas and taxis.
   - After every turn the city may start or end an air alert, close or reopen bridges, and drop one allowed transport type. During an alert the Metro bridge always closes. A status panel under the map shows every bridge, and the map draws closed bridges in red.
+- Once you reach the left bank you are never sent back across the river: no offered option, wrong-way bus, walk or taxi crosses back. The left bank has extra stops (Lisovyi masyv, Lisova, Chernihivska, Rusanivka, Bereznyaky, Vyrlytsia, Boryspilska), so there's still room for trouble there.
+- The trip log scrolls and keeps the whole trip. The end screen has a "📜 Read the whole trip" view.
 - If nothing at all can go, a ⏳ wait (20 min) option appears.
 - Every ride comes with trouble: air alerts, blackouts, tunnel stops, buses once an hour or going the wrong way, marshrutka queues, "no seats", being dropped halfway, dead trams, jammed bridges, rain, taxi cancellations, dead scooters.
 - The city prefers to offer options that lead away from the goal or are slow.
-- Balance (bots in `window.__commute.simulate(n, smart)`): random play arrives about 3–5% of the time; a greedy "skilled" bot arrives about 34%.
+- Balance (bots in `window.__commute.simulate(n, smart)`): random play arrives about 2–3% of the time; a greedy "skilled" bot arrives about 35%.
 - Hand-drawn pixel style: a 120×124 canvas upscaled with `image-rendering: pixelated`. The lines are jittered with a fixed seed so they never wiggle, and nothing scrolls.
 
 Live: https://mikerudine.github.io/kyiv-slots/menu/ → commute
