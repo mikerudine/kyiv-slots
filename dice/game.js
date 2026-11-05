@@ -34,7 +34,7 @@
   }
   function reset() {
     cells.forEach((c) => { c.className = 'cell empty'; c.querySelector('.ic').textContent = ''; });
-    $('result').textContent = ''; $('result').className = ''; $('meme').textContent = ''; lastInfo = ''; $('rollInfo').textContent = ''; hour = 0;
+    $('result').textContent = ''; $('result').className = ''; $('meme').textContent = ''; $('wrap').classList.remove('done'); lastInfo = ''; $('rollInfo').textContent = ''; hour = 0;
     lightHours = 0;
   }
   async function rollDie(el, v) {
@@ -65,7 +65,7 @@
     for (let i = 0; i < w && hour < 24; i++, hour++) { paint(hour, true); lightHours++; await sleep(110); }
     for (let i = 0; i < b && hour < 24; i++, hour++) { paint(hour, false); await sleep(110); }
     window.__dice.lastRolls = rolls;
-    if (hour >= 24) { state = 'done'; $('guess').disabled = false; showResult(+$('guess').value); showMeme(); }
+    if (hour >= 24) { state = 'done'; $('guess').disabled = false; showResult(+$('guess').value); $('wrap').classList.add('done'); showMeme(); }
     else state = 'ready';
     applyLang();
   }

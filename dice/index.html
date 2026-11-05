@@ -46,6 +46,7 @@ h1{font-size:18px;margin:0;font-weight:800}
 #meme{flex:1 1 0;min-height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;margin:0 0 10px}
 #meme img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;border-radius:12px;display:block}
 #meme:empty{display:none}
+#wrap.done #guessRow,#wrap.done #diceCard{display:none}
 #btn{margin-top:auto;border:0;border-radius:999px;background:#f5b400;color:#1c2742;font-weight:900;font-size:17px;padding:14px;width:100%}
 #btn:disabled{opacity:.5}
 </style>
@@ -57,7 +58,7 @@ h1{font-size:18px;margin:0;font-weight:800}
     <label id="guessLbl" for="guess"></label>
     <input id="guess" type="range" min="1" max="24" value="12"><span id="guessVal">12</span>
   </div>
-  <div class="card">
+  <div class="card" id="diceCard">
     <div id="dice"><div class="die white" id="dw"></div><div class="die black" id="db"></div></div>
     <div id="rollInfo"></div>
   </div>
