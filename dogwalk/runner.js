@@ -621,6 +621,61 @@
       rush: kind === 'dog' ? (1.15 + Math.random() * 0.25) : 1,
       growlT: 0,
     });
+    if (kind === 'generator') {
+      // the generator belongs to a shop on the nearest building: awning + glowing sign
+      const o = obstacles[obstacles.length - 1];
+      o.side = l === 0 ? -1 : l === 2 ? 1 : (Math.random() < 0.5 ? -1 : 1);
+      o.sign = SIGNS[(Math.random() * SIGNS.length) | 0];
+    }
+  }
+
+  // shop fronts next to generators (solid awnings, no stripes)
+  const SIGNS = [
+    { ua: 'КАФЕ', en: 'CAFE', c: '#fbbf24', glow: '#f59e0b', awn: '#7c2d12' },
+    { ua: 'БАР', en: 'BAR', c: '#f472b6', glow: '#db2777', awn: '#4c1d95' },
+    { ua: 'ПРОДУКТИ', en: 'GROCERY', c: '#4ade80', glow: '#16a34a', awn: '#14532d' },
+  ];
+  function shopFront(o) {
+    const z = Math.max(o.z, Z_NEAR + 0.3);
+    const p = project(o.side * (PATH_HALF + 0.45), z);
+    const s = p.s;
+    return { x: p.x, y: p.y - s * 1.35, w: s * 2.0, h: s * 0.45, s };
+  }
+  function drawAwning(o) {
+    if (!o.side) return;
+    const f = shopFront(o);
+    // awning: solid trapezoid sticking out toward the path
+    const out = -o.side * f.w * 0.25;
+    ctx.fillStyle = blackout ? '#1a1414' : o.sign.awn;
+    ctx.beginPath();
+    ctx.moveTo(f.x - f.w / 2, f.y);
+    ctx.lineTo(f.x + f.w / 2, f.y);
+    ctx.lineTo(f.x + f.w / 2 + out, f.y + f.h);
+    ctx.lineTo(f.x - f.w / 2 + out, f.y + f.h);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = blackout ? '#0f0b0b' : '#00000055';
+    ctx.fillRect(f.x - f.w / 2 + out, f.y + f.h, f.w, Math.max(1, f.h * 0.18)); // scalloped edge shadow, solid
+  }
+  // signs are drawn AFTER the darkness overlay so they glow even in a blackout
+  function drawShopSigns() {
+    for (const o of obstacles) {
+      if (o.kind !== 'generator' || !o.side || o.z > 60) continue;
+      const f = shopFront(o);
+      const txt = o.sign[lang === 'en' ? 'en' : 'ua'];
+      const fs = Math.max(10, Math.min(30, f.s * 0.6));
+      const y = f.y - fs * 0.35;
+      ctx.save();
+      ctx.font = `900 ${fs}px system-ui,sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const tw = ctx.measureText(txt).width;
+      ctx.fillStyle = 'rgba(10,8,20,0.85)';
+      ctx.fillRect(f.x - tw / 2 - fs * 0.3, y - fs * 0.62, tw + fs * 0.6, fs * 1.24);
+      ctx.shadowColor = o.sign.glow; ctx.shadowBlur = fs * 0.9;
+      ctx.fillStyle = o.sign.c;
+      ctx.fillText(txt, f.x, y);
+      ctx.shadowBlur = fs * 0.4; ctx.fillText(txt, f.x, y);
+      ctx.restore();
+    }
   }
 
   function spawnNotif() {
@@ -1409,13 +1464,14 @@
       if (o.kind === 'puddle') deco.push({ z: o.z, draw: () => drawPuddle(o.lane, o.z) });
       else if (o.kind === 'dog') deco.push({ z: o.z, draw: () => drawAngryDog(o) });
       else if (o.kind === 'cat') deco.push({ z: o.z, draw: () => drawCat(o) });
-      else deco.push({ z: o.z, draw: () => drawGenerator(o) });
+      else { deco.push({ z: o.z + 0.01, draw: () => drawAwning(o) }); deco.push({ z: o.z, draw: () => drawGenerator(o) }); }
     }
     deco.sort((a, b) => b.z - a.z);
     for (const d of deco) d.draw();
 
     drawDogAndLeash();
     drawFlashlightOverlay();
+    drawShopSigns();
     drawAngryDogEyesAboveDark();
     drawWeatherParticles();
 
@@ -1574,6 +1630,9 @@
     spawnLensSplat: (kind) => spawnLensSplat(kind),
     clearLensSplats: () => clearLensSplats(),
     forceAlert: () => { spawnNotif(); },
+    spawnGenerators: () => { obstacles = obstacles.filter((o) => o.kind !== 'generator');
+      [[0, 14, 0], [2, 22, 1], [0, 34, 2], [2, 46, 0]].forEach(([l, z, k]) => obstacles.push({ kind: 'generator', lane: l, z, hit: false, phase: z, bob: 0, rush: 1, growlT: 0, side: l === 0 ? -1 : 1, sign: SIGNS[k] })); },
+    freeze: (v) => { paused = !!v; },
     placeCrossingAt: (z) => {
       crossings.push({ z: z || 14, half: 1.4 });
     },
