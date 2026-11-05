@@ -137,7 +137,7 @@
   let distance = 0, score = 0, lives = START_LIVES;
   let running = false, dead = false, invuln = 0, shake = 0;
   let spawnAcc = 0, notifAcc = 0, notifRate = 6.5;
-  let bushT = 0, nextBushAt = 1000; // every 1000 m the dog dives under a bush: calm break
+  let bushT = 0, nextBushAt = 1000, bushSide = -1, bushOff = 0; // bush stands at the roadside by the houses // every 1000 m the dog dives under a bush: calm break
   // ---- «Реальний Київ»-style pushes (phrasing modelled on t.me/s/kievreal1, rewritten short) ----
   const DISTRICTS = [ // [nominative UA, accusative UA, EN]
     ['Оболонь', 'Оболонь', 'Obolon'], ['Троєщина', 'Троєщину', 'Troieshchyna'], ['Дарниця', 'Дарницю', 'Darnytsia'],
@@ -189,7 +189,7 @@
   function resetGame() {
     lane = 1; laneF = 1; dogLaneF = 1;
     speed = SPEED0; distance = 0; score = 0; lives = START_LIVES;
-    invuln = 0; spawnAcc = 0; notifAcc = 0; notifRate = 6.5; bushT = 0; nextBushAt = 1000; airAlert = false; airTimer = 6 + Math.random() * 6;
+    invuln = 0; spawnAcc = 0; notifAcc = 0; notifRate = 6.5; bushT = 0; nextBushAt = 1000; bushOff = 0; airAlert = false; airTimer = 6 + Math.random() * 6;
     obstacles = []; shake = 0; dead = false; time = 0;
     blackout = false; blackoutTimer = 0; nextBlackoutIn = 50 + Math.random() * 20;
     paused = false; hidePauseUI();
@@ -714,7 +714,7 @@
 
   function drawBush() {
     // a round leafy bush over the dog (solid blobs, no patterns)
-    const p = project(lerpLane(dogLaneF), Z_DOG);
+    const p = project(bushSide * (PATH_HALF * 0.9), Z_DOG);
     const r = p.s * 0.75;
     const blobs = [[-0.9, 0.1, 0.8], [0.9, 0.1, 0.8], [0, -0.35, 1.0], [-0.45, 0.35, 0.75], [0.45, 0.35, 0.75]];
     for (const [dx, dy, k] of blobs) {
@@ -1419,7 +1419,7 @@
   }
 
   function drawDogAndLeash() {
-    const dogWX = lerpLane(dogLaneF);
+    const dogWX = lerpLane(dogLaneF) + bushOff;
     const dp = project(dogWX, Z_DOG);
     const s = dp.s * 0.95; // much bigger dog
 
@@ -1465,7 +1465,7 @@
 
   function drawFlashlightOverlay() {
     if (!blackout) return;
-    const dogWX = lerpLane(dogLaneF);
+    const dogWX = lerpLane(dogLaneF) + bushOff;
     const dp = project(dogWX, Z_DOG);
     const ahead = project(dogWX, Z_DOG + 3.8);
     const hx = dp.x * 0.3 + ahead.x * 0.7;
@@ -1517,7 +1517,7 @@
     for (const d of deco) d.draw();
 
     drawDogAndLeash();
-    if (bushT > 0) drawBush();
+    if (bushT > 0 || Math.abs(bushOff) > 0.05) drawBush();
     drawFlashlightOverlay();
     drawShopSigns();
     drawAngryDogEyesAboveDark();
@@ -1599,7 +1599,14 @@
 
     if (bushT <= 0 && distance >= nextBushAt) {
       bushT = 5 + Math.random() * 5; nextBushAt += 1000;
+      bushSide = dogLaneF > 1 ? 1 : (dogLaneF < 1 ? -1 : (Math.random() < 0.5 ? -1 : 1));
       obstacles = obstacles.filter((o) => o.z < Z_DOG - 1.5); // everything ahead is gone
+    }
+    {
+      // run off sideways to the bush, hide, then come back to the lane in the last ~0.9 s
+      const target = bushT > 0.9 ? bushSide * (PATH_HALF * 0.9) - lerpLane(dogLaneF) : 0;
+      bushOff += (target - bushOff) * Math.min(1, 4 * dt);
+      if (bushT <= 0 && Math.abs(bushOff) < 0.01) bushOff = 0;
     }
     if (bushT > 0) { bushT -= dt; spawnAcc = 0; update._catAcc = 0; }
     spawnAcc += dt;
@@ -1697,7 +1704,9 @@
     spawnLensSplat: (kind) => spawnLensSplat(kind),
     clearLensSplats: () => clearLensSplats(),
     forceAlert: () => { spawnNotif(); },
-    bush: (s) => { bushT = s || 7; obstacles = []; },
+    bush: (s, side) => { bushT = s || 7; bushSide = side || -1; obstacles = []; },
+    bushOff: () => bushOff,
+    clearNotifs: () => clearNotifs(),
     setDistance: (d) => { distance = d; },
     bushT: () => bushT,
     setAirAlert: (v) => { airAlert = !v; airTimer = 0; },
