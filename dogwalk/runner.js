@@ -59,6 +59,7 @@
       ],
       swipeHint: 'змахни / клік',
       blackout: '💡 Світла нема',
+      bush: (s) => `🐕 Під кущем… ${s} с`,
       growl: 'ГРРР!',
       pause: 'Пауза',
       pauseBody: 'Торкніться, щоб продовжити',
@@ -86,6 +87,7 @@
       ],
       swipeHint: 'swipe / click',
       blackout: '💡 Blackout',
+      bush: (s) => `🐕 Under a bush… ${s}s`,
       growl: 'GRRR!',
       pause: 'Paused',
       pauseBody: 'Tap to resume',
@@ -135,6 +137,7 @@
   let distance = 0, score = 0, lives = START_LIVES;
   let running = false, dead = false, invuln = 0, shake = 0;
   let spawnAcc = 0, notifAcc = 0, notifRate = 6.5;
+  let bushT = 0, nextBushAt = 1000; // every 1000 m the dog dives under a bush: calm break
   // ---- «Реальний Київ»-style pushes (phrasing modelled on t.me/s/kievreal1, rewritten short) ----
   const DISTRICTS = [ // [nominative UA, accusative UA, EN]
     ['Оболонь', 'Оболонь', 'Obolon'], ['Троєщина', 'Троєщину', 'Troieshchyna'], ['Дарниця', 'Дарницю', 'Darnytsia'],
@@ -186,7 +189,7 @@
   function resetGame() {
     lane = 1; laneF = 1; dogLaneF = 1;
     speed = SPEED0; distance = 0; score = 0; lives = START_LIVES;
-    invuln = 0; spawnAcc = 0; notifAcc = 0; notifRate = 6.5; airAlert = false; airTimer = 6 + Math.random() * 6;
+    invuln = 0; spawnAcc = 0; notifAcc = 0; notifRate = 6.5; bushT = 0; nextBushAt = 1000; airAlert = false; airTimer = 6 + Math.random() * 6;
     obstacles = []; shake = 0; dead = false; time = 0;
     blackout = false; blackoutTimer = 0; nextBlackoutIn = 50 + Math.random() * 20;
     paused = false; hidePauseUI();
@@ -266,12 +269,12 @@
 
   function spawnLensSplat(forceKind) {
     if (!running || dead || paused) return;
-    if (lensSplats.length >= 4) return; // fair cap
+    if (lensSplats.length >= 6) return; // fair cap
     const kind = forceKind || weather || 'rain';
     const el = document.createElement('div');
     el.className = 'lens-splat ' + (kind === 'snow' ? 'snow' : 'rain');
     const wrap = document.getElementById('wrap').getBoundingClientRect();
-    const size = 64 + Math.random() * 36;
+    const size = 22 + Math.pow(Math.random(), 1.5) * 118; // tiny specks to big blobs
     el.style.width = size + 'px';
     el.style.height = size + 'px';
     // Prefer mid/upper lens area — "on glasses"
@@ -331,6 +334,7 @@
       // Discrete lens hits — slow, capped, never auto-clear
       splatAcc += dt;
       const every = 2.6 + lensSplats.length * 0.7; // slower when already messy
+      if (bushT > 0) splatAcc = 0;
       if (splatAcc >= every) {
         splatAcc = 0;
         if (Math.random() < 0.85) spawnLensSplat();
@@ -708,6 +712,18 @@
     }
   }
 
+  function drawBush() {
+    // a round leafy bush over the dog (solid blobs, no patterns)
+    const p = project(lerpLane(dogLaneF), Z_DOG);
+    const r = p.s * 0.75;
+    const blobs = [[-0.9, 0.1, 0.8], [0.9, 0.1, 0.8], [0, -0.35, 1.0], [-0.45, 0.35, 0.75], [0.45, 0.35, 0.75]];
+    for (const [dx, dy, k] of blobs) {
+      ctx.fillStyle = blackout ? '#0f2a17' : '#166534';
+      ctx.beginPath(); ctx.arc(p.x + dx * r, p.y - r * 0.9 + dy * r, r * k, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.fillStyle = blackout ? '#14532d' : '#22c55e';
+    ctx.beginPath(); ctx.arc(p.x - r * 0.3, p.y - r * 1.5, r * 0.35, 0, Math.PI * 2); ctx.fill();
+  }
   function spawnNotif(pair, icon) {
     if (notifs.length >= 8) return;
     const L = t();
@@ -1501,6 +1517,7 @@
     for (const d of deco) d.draw();
 
     drawDogAndLeash();
+    if (bushT > 0) drawBush();
     drawFlashlightOverlay();
     drawShopSigns();
     drawAngryDogEyesAboveDark();
@@ -1521,6 +1538,14 @@
       ctx.fillStyle = '#fde68a';
       ctx.font = 'bold 12px system-ui,sans-serif';
       ctx.fillText(t().blackout, 18, chipY + 17);
+      chipY -= 28;
+    }
+    if (running && bushT > 0) {
+      ctx.fillStyle = '#14532dcc';
+      ctx.fillRect(10, chipY, 170, 24);
+      ctx.fillStyle = '#bbf7d0';
+      ctx.font = 'bold 12px system-ui,sans-serif';
+      ctx.fillText(t().bush(Math.ceil(bushT)), 18, chipY + 17);
       chipY -= 28;
     }
     if (running && weather) {
@@ -1572,6 +1597,11 @@
       return o.z > Z_NEAR - 1.2;
     });
 
+    if (bushT <= 0 && distance >= nextBushAt) {
+      bushT = 5 + Math.random() * 5; nextBushAt += 1000;
+      obstacles = obstacles.filter((o) => o.z < Z_DOG - 1.5); // everything ahead is gone
+    }
+    if (bushT > 0) { bushT -= dt; spawnAcc = 0; update._catAcc = 0; }
     spawnAcc += dt;
     // Wide gaps early; tighten only with ramp
     const every = 3.2 - rampT * 1.8; // 3.2s → ~1.4s over 3 min
@@ -1584,14 +1614,14 @@
     if (!update._catAcc) update._catAcc = 0;
     update._catAcc += dt;
     const catEvery = time < 60 ? (5.5 + Math.random() * 2) : (3.2 + Math.random() * 1.8);
-    if (update._catAcc > catEvery) {
+    if (bushT <= 0 && update._catAcc > catEvery) {
       update._catAcc = 0;
       if (time < 45) { if (Math.random() < 0.35) spawnCat(); }
       else if (Math.random() < 0.65) spawnCat();
     }
 
     for (const o of obstacles) {
-      if (o.hit) continue;
+      if (o.hit || bushT > 0) continue;
       if (o.kind === 'cat') {
         // collision when cat crosses player's depth AND same lane
         if (o.z < Z_DOG + 1.4 && o.z > Z_DOG - 1.6) {
@@ -1644,12 +1674,9 @@
       notifAcc = 0;
     }
     const rate = airAlert ? notifRate : notifRate * 2.6;
+    if (bushT > 0) notifAcc = 0;
     if (notifAcc >= rate) { notifAcc = 0; spawnNotif(airAlert ? null : pick([['Чисто', 'All clear so far'], ['Не фіксується', 'Nothing on radar'], ['Дорозвідка в області', 'Checking the region']])); }
-    if (notifs.length >= 7) {
-      if (!update._nDrain) update._nDrain = 0;
-      update._nDrain += dt;
-      if (update._nDrain > 3.5) { update._nDrain = 0; hit(); }
-    } else update._nDrain = 0;
+    // a screen full of pushes/drops never stops or hurts the run — the dog keeps going
 
     document.getElementById('scoreLine').textContent = t().score(distance, score);
     document.getElementById('livesLine').textContent = t().lives(lives);
@@ -1670,6 +1697,9 @@
     spawnLensSplat: (kind) => spawnLensSplat(kind),
     clearLensSplats: () => clearLensSplats(),
     forceAlert: () => { spawnNotif(); },
+    bush: (s) => { bushT = s || 7; obstacles = []; },
+    setDistance: (d) => { distance = d; },
+    bushT: () => bushT,
     setAirAlert: (v) => { airAlert = !v; airTimer = 0; },
     airAlert: () => airAlert,
     spawnGenerators: () => { obstacles = obstacles.filter((o) => o.kind !== 'generator');
