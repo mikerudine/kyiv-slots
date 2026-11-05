@@ -50,7 +50,7 @@
       again: 'Ще раз',
       overTitle: 'Кінець прогулянки',
       overBody: (d, s) => `Дистанція ${d | 0} м · рахунок ${s | 0}`,
-      notifApp: 'Повітряна тривога',
+      notifApp: 'Реальний Київ',
       notifMsg: [
         'Повітряна тривога в м. Київ. Прямуйте в укриття!',
         'УВАГА! Відбій ще не оголошено. Залишайтесь в укритті.',
@@ -77,7 +77,7 @@
       again: 'Again',
       overTitle: 'Walk over',
       overBody: (d, s) => `Distance ${d | 0} m · score ${s | 0}`,
-      notifApp: 'Air-raid alert',
+      notifApp: 'Real Kyiv',
       notifMsg: [
         'Air-raid alert in Kyiv. Proceed to shelter!',
         'WARNING! All-clear not yet declared. Stay sheltered.',
@@ -112,9 +112,8 @@
       document.getElementById('oBtn').textContent = dead ? L.again : L.start;
     }
     document.querySelectorAll('.notif').forEach((el) => {
-      const idx = +el.dataset.msgIndex || 0;
       el.querySelector('.app').textContent = L.notifApp;
-      el.querySelector('.msg').textContent = L.notifMsg[idx % L.notifMsg.length];
+      el.querySelector('.msg').textContent = lang === 'ua' ? el.dataset.ua : el.dataset.en;
       el.querySelector('.swipe').textContent = L.swipeHint;
     });
   }
@@ -136,6 +135,37 @@
   let distance = 0, score = 0, lives = START_LIVES;
   let running = false, dead = false, invuln = 0, shake = 0;
   let spawnAcc = 0, notifAcc = 0, notifRate = 6.5;
+  // ---- «Реальний Київ»-style pushes (phrasing modelled on t.me/s/kievreal1, rewritten short) ----
+  const DISTRICTS = [ // [nominative UA, accusative UA, EN]
+    ['Оболонь', 'Оболонь', 'Obolon'], ['Троєщина', 'Троєщину', 'Troieshchyna'], ['Дарниця', 'Дарницю', 'Darnytsia'],
+    ['Борщагівка', 'Борщагівку', 'Borshchahivka'], ['Осокорки', 'Осокорки', 'Osokorky'], ['Поділ', 'Поділ', 'Podil'],
+    ['Голосіїв', 'Голосіїв', 'Holosiiv'], ['Виноградар', 'Виноградар', 'Vynohradar'], ['Нивки', 'Нивки', 'Nyvky'],
+    ['Теремки', 'Теремки', 'Teremky'], ['Видубичі', 'Видубичі', 'Vydubychi'], ['Жуляни', 'Жуляни', 'Zhuliany'],
+    ['Лук\'янівка', 'Лук\'янівку', 'Lukianivka'], ['Бортничі', 'Бортничі', 'Bortnychi'], ['ДВРЗ', 'ДВРЗ', 'DVRZ'],
+  ];
+  const pick = (a) => a[(Math.random() * a.length) | 0];
+  const shahedUa = (n) => (n === 1 ? 'шахед' : n < 5 ? 'шахеди' : 'шахедів');
+  const FLAVOR = [
+    () => { const d = pick(DISTRICTS), n = 1 + ((Math.random() * 7) | 0); return [`${n} ${shahedUa(n)} на ${d[1]}!`, `${n} Shahed${n > 1 ? 's' : ''} heading for ${d[2]}!`]; },
+    () => { const d = pick(DISTRICTS); return [`Шахед на ${d[1]}`, `Shahed toward ${d[2]}`]; },
+    () => { const d = pick(DISTRICTS); return [`${d[0]} — в укриттях`, `${d[2]} — take shelter`]; },
+    () => ['Йде низько!', 'Flying low!'],
+    () => ['Летять низько, погано фіксуються', 'Flying low, hard to track'],
+    () => ['Ховайтесь в жито 🌾', 'Hide in the rye 🌾'],
+    () => ['Балістика на Київ! В укриття', 'Ballistic missile on Kyiv! Take cover'],
+    () => ['Загроза балістики з Брянська', 'Ballistic threat from Bryansk'],
+    () => ['Циркон на Київ', 'Zircon heading for Kyiv'],
+    () => ['Працює ППО', 'Air defence working'],
+    () => ['Гучно', 'Loud'],
+    () => ['Вибухи', 'Explosions'],
+    () => ['Ще летить', 'Still incoming'],
+    () => ['Дорозвідка', 'Checking further'],
+    () => { const d = pick(['Васильків', 'Бровари', 'Вишгород']); const e = { 'Васильків': 'Vasylkiv', 'Бровари': 'Brovary', 'Вишгород': 'Vyshhorod' }[d]; return [`Реактивний БпЛА курсом на ${d}`, `Jet drone heading for ${e}`]; },
+    () => ['Без фіксації', 'Nothing tracked'],
+  ];
+  const ALERT_ON = () => pick([['🚨 М. КИЇВ — ОГОЛОШЕНА ПОВІТРЯНА ТРИВОГА', '🚨 KYIV — AIR-RAID ALERT'], ['🚨 Тривога! Загроза БпЛА', '🚨 Alert! Drone threat'], ['🚨 Тривога. Балістична загроза', '🚨 Alert. Ballistic threat']]);
+  const ALERT_OFF = () => pick([['❎ М. КИЇВ — ВІДБІЙ ТРИВОГИ', '❎ KYIV — ALL CLEAR'], ['❎ Київ та область — відбій', '❎ Kyiv & region — all clear']]);
+  let airAlert = false, airTimer = 10;
   let obstacles = [], scenery = [];
   let blackout = false, blackoutTimer = 0, nextBlackoutIn = 55;
   let time = 0;
@@ -156,7 +186,7 @@
   function resetGame() {
     lane = 1; laneF = 1; dogLaneF = 1;
     speed = SPEED0; distance = 0; score = 0; lives = START_LIVES;
-    invuln = 0; spawnAcc = 0; notifAcc = 0; notifRate = 6.5;
+    invuln = 0; spawnAcc = 0; notifAcc = 0; notifRate = 6.5; airAlert = false; airTimer = 6 + Math.random() * 6;
     obstacles = []; shake = 0; dead = false; time = 0;
     blackout = false; blackoutTimer = 0; nextBlackoutIn = 50 + Math.random() * 20;
     paused = false; hidePauseUI();
@@ -678,16 +708,16 @@
     }
   }
 
-  function spawnNotif() {
+  function spawnNotif(pair, icon) {
     if (notifs.length >= 8) return;
     const L = t();
     const el = document.createElement('div');
     el.className = 'notif';
-    const msgIndex = (Math.random() * L.notifMsg.length) | 0;
-    el.dataset.msgIndex = String(msgIndex);
-    el.innerHTML = `<div class="icon">🚨</div><div class="body"><div class="app"></div><div class="msg"></div><div class="swipe"></div></div>`;
+    const m = pair || pick(FLAVOR)();
+    el.dataset.ua = m[0]; el.dataset.en = m[1];
+    el.innerHTML = `<div class="icon">${icon || (airAlert ? '🚨' : '📢')}</div><div class="body"><div class="app"></div><div class="msg"></div><div class="swipe"></div></div>`;
     el.querySelector('.app').textContent = L.notifApp;
-    el.querySelector('.msg').textContent = L.notifMsg[msgIndex];
+    el.querySelector('.msg').textContent = lang === 'ua' ? m[0] : m[1];
     el.querySelector('.swipe').textContent = L.swipeHint;
     const wrap = document.getElementById('wrap').getBoundingClientRect();
     let top = 56 + Math.random() * Math.max(40, wrap.height * 0.55);
@@ -1016,7 +1046,8 @@
       const lampWX = s.side * (PATH_HALF + 0.55);
       const lamp = project(lampWX, s.z);
       const sc = lamp.s;
-      const poolWX = s.side * (PATH_HALF * 0.62);
+      // pool spans 2 lanes: the lamp's own (outer) lane + the middle lane
+      const poolWX = s.side * (LANE_X[2] * 0.5);
       // Two-cell length: blend projections at z and z+~1.25 (≈2 path tiles)
       const zA = Math.max(Z_NEAR, s.z - 0.62);
       const zB = s.z + 0.62;
@@ -1025,7 +1056,7 @@
       const pool = project(poolWX, s.z);
       const cx = (pA.x + pB.x) * 0.5;
       const cy = (pA.y + pB.y) * 0.5;
-      const rw = Math.max(9, sc * 1.45);
+      const rw = Math.max(14, sc * 2.35);
       const rh = Math.max(8, Math.abs(pB.y - pA.y) * 0.55 + sc * 0.35);
       const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(rw, rh));
       g.addColorStop(0, 'rgba(255, 236, 160, 0.44)');
@@ -1604,7 +1635,16 @@
     // Slow pushes at start; still pressure later
     notifRate = 7.5 - rampT * 4.5; // 7.5s → 3.0s
     if (notifRate < 2.5) notifRate = 2.5;
-    if (notifAcc >= notifRate) { notifAcc = 0; spawnNotif(); }
+    // alert cycle: alert (40–70 s) ⇄ calm (15–30 s); start/end pushes, flavour pushes mostly during alerts
+    airTimer -= dt;
+    if (airTimer <= 0) {
+      airAlert = !airAlert;
+      airTimer = airAlert ? 40 + Math.random() * 30 : 15 + Math.random() * 15;
+      spawnNotif(airAlert ? ALERT_ON() : ALERT_OFF(), airAlert ? '🚨' : '❎');
+      notifAcc = 0;
+    }
+    const rate = airAlert ? notifRate : notifRate * 2.6;
+    if (notifAcc >= rate) { notifAcc = 0; spawnNotif(airAlert ? null : pick([['Чисто', 'All clear so far'], ['Не фіксується', 'Nothing on radar'], ['Дорозвідка в області', 'Checking the region']])); }
     if (notifs.length >= 7) {
       if (!update._nDrain) update._nDrain = 0;
       update._nDrain += dt;
@@ -1630,6 +1670,8 @@
     spawnLensSplat: (kind) => spawnLensSplat(kind),
     clearLensSplats: () => clearLensSplats(),
     forceAlert: () => { spawnNotif(); },
+    setAirAlert: (v) => { airAlert = !v; airTimer = 0; },
+    airAlert: () => airAlert,
     spawnGenerators: () => { obstacles = obstacles.filter((o) => o.kind !== 'generator');
       [[0, 14, 0], [2, 22, 1], [0, 34, 2], [2, 46, 0]].forEach(([l, z, k]) => obstacles.push({ kind: 'generator', lane: l, z, hit: false, phase: z, bob: 0, rush: 1, growlT: 0, side: l === 0 ? -1 : 1, sign: SIGNS[k] })); },
     freeze: (v) => { paused = !!v; },
