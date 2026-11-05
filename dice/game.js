@@ -34,7 +34,7 @@
   }
   function reset() {
     cells.forEach((c) => { c.className = 'cell empty'; c.querySelector('.ic').textContent = ''; });
-    $('result').textContent = ''; $('result').className = ''; lastInfo = ''; $('rollInfo').textContent = ''; hour = 0;
+    $('result').textContent = ''; $('result').className = ''; $('meme').textContent = ''; lastInfo = ''; $('rollInfo').textContent = ''; hour = 0;
     lightHours = 0;
   }
   async function rollDie(el, v) {
@@ -65,11 +65,23 @@
     for (let i = 0; i < w && hour < 24; i++, hour++) { paint(hour, true); lightHours++; await sleep(110); }
     for (let i = 0; i < b && hour < 24; i++, hour++) { paint(hour, false); await sleep(110); }
     window.__dice.lastRolls = rolls;
-    if (hour >= 24) { state = 'done'; $('guess').disabled = false; showResult(+$('guess').value); }
+    if (hour >= 24) { state = 'done'; $('guess').disabled = false; showResult(+$('guess').value); showMeme(); }
     else state = 'ready';
     applyLang();
   }
   function onBtnClick() { if (state === 'done') { reset(); state = 'idle'; applyLang(); } }
+  // memes: drop a file into memes/ and add one line to memes/memes.json
+  let memes = [], lastMeme = -1;
+  fetch('memes/memes.json').then((r) => r.json()).then((a) => { memes = a.filter((m) => m && m.file); }).catch(() => {});
+  function showMeme() {
+    const box = $('meme'); box.textContent = '';
+    if (!memes.length) return;
+    let i = (Math.random() * memes.length) | 0;
+    if (memes.length > 1 && i === lastMeme) i = (i + 1 + ((Math.random() * (memes.length - 1)) | 0)) % memes.length;
+    lastMeme = i;
+    const img = new Image(); img.src = 'memes/' + memes[i].file; img.alt = memes[i].alt || ''; img.decoding = 'async';
+    box.appendChild(img);
+  }
   let lastGuess = 0;
   function showResult(g) {
     lastGuess = g;
@@ -98,6 +110,6 @@
   }
   $('btn').addEventListener('click', onBtnClick);
   window.addEventListener('pointerup', release);
-  window.__dice = { startHold: () => startHold(), release, getState: () => ({ state, lightHours, painted: cells.filter((c) => !c.classList.contains('empty')).length }) };
+  window.__dice = { startHold: () => startHold(), release, lastMeme: () => lastMeme, getState: () => ({ state, meme: $('meme').querySelector('img')?.getAttribute('src') || null, lightHours, painted: cells.filter((c) => !c.classList.contains('empty')).length }) };
   applyLang();
 })();
