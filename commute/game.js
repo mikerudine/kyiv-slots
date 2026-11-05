@@ -185,14 +185,22 @@
         else { const w = RI(g, 3, 9); wait += w; ev.push([`Тиснява, пропустив два потяги (+${w} хв).`, `Packed, missed two trains (+${w} min).`]); }
         break;
       case 'bus':
-        if (r < 0.38) {
-          const away = edgesOf(g.at).filter((e) => okEdge(g, e) && e.id !== o.e.id && canCross(g, e, 'bus')).sort((x, y) => dist(other(y, g.at), GOAL) - dist(other(x, g.at), GOAL))[0];
-          wait += RI(g, 10, 18);
-          if (away) { edge = away; to = other(away, g.at); ride = dist(g.at, to) * m.spd; ev.push([`Автобус прийшов за 15 хв… але їде не туди. Вийшов: ${N[to][2]}.`, `Bus came in 15 min… going the wrong way. Off at ${N[to][3]}.`]); }
-          else ev.push(['Автобус прийшов за 15 хв, повний.', 'Bus came in 15 min, packed.']);
-        } else if (r < 0.75) { const w = RI(g, 10, 35); wait += w; ev.push([`Автобус ходить раз на годину. Чекав ${w} хв.`, `Bus runs once an hour. Waited ${w} min.`]); }
-        else if (r < 0.85) { wait += 25; ev.push(['Вулицю перекрили під кортеж. Автобус їде в об\'їзд через пів міста (+25 хв).', 'Street closed for a motorcade. The bus detours through half the city (+25 min).']); }
-        else { const w = RI(g, 5, 15); wait += w; ev.push([`Пробка, +${w} хв.`, `Traffic jam, +${w} min.`]); }
+        g.busRides = (g.busRides || 0) + 1;
+        {
+          // wrong-way bus: ~17% per ride, never twice in a row (after one, the next bus is guaranteed right)
+          const away = g.busWasWrong ? null : edgesOf(g.at).filter((e) => okEdge(g, e) && e.id !== o.e.id && canCross(g, e, 'bus')).sort((x, y) => dist(other(y, g.at), GOAL) - dist(other(x, g.at), GOAL))[0];
+          const wrong = !!away && g.rng() < 0.17;
+          if (wrong && g.busWasWrong) g.busBack2 = (g.busBack2 || 0) + 1;
+          g.busWasWrong = wrong;
+          if (wrong) {
+            wait += RI(g, 10, 18); g.busWrong = (g.busWrong || 0) + 1; edge = away; to = other(away, g.at); ride = dist(g.at, to) * m.spd;
+            ev.push([`Автобус прийшов за 15 хв… але їде не туди. Вийшов: ${N[to][2]}.`, `Bus came in 15 min… going the wrong way. Off at ${N[to][3]}.`]);
+          }
+          else if (r < 0.14) { wait += RI(g, 10, 18); ev.push(['Автобус прийшов за 15 хв, повний.', 'Bus came in 15 min, packed.']); }
+          else if (r < 0.5) { const w = RI(g, 10, 35); wait += w; ev.push([`Автобус ходить раз на годину. Чекав ${w} хв.`, `Bus runs once an hour. Waited ${w} min.`]); }
+          else if (r < 0.6) { wait += 25; ev.push(['Вулицю перекрили під кортеж. Автобус їде в об\'їзд через пів міста (+25 хв).', 'Street closed for a motorcade. The bus detours through half the city (+25 min).']); }
+          else { const w = RI(g, 5, 15); wait += w; ev.push([`Пробка, +${w} хв.`, `Traffic jam, +${w} min.`]); }
+        }
         break;
       case 'marsh': {
         const q = Math.round(Math.pow(g.rng(), 2.6) * 120); wait += q; ev.push([`Черга на маршрутку: ${q} хв.`, `Marshrutka queue: ${q} min.`]);
@@ -279,13 +287,14 @@
     return best;
   }
   function simulate(n, smart) {
-    let win = 0, tsum = 0, back = 0;
+    let win = 0, tsum = 0, back = 0, br = 0, bw = 0, bb = 0;
     for (let i = 0; i < n; i++) {
       const g = newGame(); offer(g); let k = 0;
       while (!g.over && k++ < 300) { const was = g.at; choose(g, botPick(g, smart)); if (LEFT.has(was) && !LEFT.has(g.at)) back++; }
+      br += g.busRides || 0; bw += g.busWrong || 0; bb += g.busBack2 || 0;
       if (g.won) { win++; tsum += g.t - START; }
     }
-    return { n, arrived: win, rate: win / n, avgMin: win ? Math.round(tsum / win) : null, crossedBack: back };
+    return { n, arrived: win, rate: win / n, avgMin: win ? Math.round(tsum / win) : null, crossedBack: back, busRides: br, busWrongPct: br ? Math.round(1000 * bw / br) / 10 : null, wrongTwiceInRow: bb };
   }
 
   // ---------- UI ----------
