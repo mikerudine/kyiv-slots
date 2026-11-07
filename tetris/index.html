@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<link rel="icon" href="data:,">
+<title>Тетріс відключень · One Day in Kyiv</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+html,body{margin:0;min-height:100%;background:#e8ebf0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#1a2340}
+#wrap{margin:0 auto;max-width:520px;min-height:100dvh;padding:10px 12px calc(12px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:8px;background:#f4f5f8}
+header{display:flex;align-items:center;justify-content:space-between;gap:8px}
+header a{color:#64748b;text-decoration:none;font-size:13px;font-weight:600;white-space:nowrap}
+h1{margin:0;font-size:clamp(15px,4.2vw,18px);font-weight:800;color:#1a2340;text-align:center;flex:1;line-height:1.2}
+#lang,#pauseBtn{border:0;border-radius:999px;background:#1a2340;color:#fff;font-weight:800;padding:8px 12px;font-size:12px;min-height:36px;min-width:40px;cursor:pointer}
+#pauseBtn{background:#fff;color:#1a2340;border:1.5px solid #c9ced8}
+#toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.stat{background:#fff;border:1px solid #d7dbe3;border-radius:12px;padding:8px 12px;font-size:13px;font-weight:700;color:#1a2340;display:flex;align-items:center;gap:6px;min-height:40px}
+.stat b{font-variant-numeric:tabular-nums;font-size:16px}
+.stat.hi b{color:#1a2340;background:#ffe566;border-radius:6px;padding:1px 6px}
+#hint{font-size:12px;color:#64748b;line-height:1.35;min-height:16px}
+#play{display:grid;grid-template-columns:minmax(0,1fr) 88px;gap:8px;align-items:start}
+#boardCard{background:#fff;border:1px solid #d0d5de;border-radius:14px;overflow:hidden;box-shadow:0 1px 2px #0000000a;padding:0}
+#board{display:block;width:100%;height:auto;touch-action:none;vertical-align:top}
+#side{display:flex;flex-direction:column;gap:8px}
+#nextCard,#legendCard{background:#fff;border:1px solid #d0d5de;border-radius:12px;padding:8px;box-shadow:0 1px 2px #0000000a}
+#nextLbl,#legTitle{font-size:11px;font-weight:800;color:#1a2340;margin:0 0 6px;text-transform:uppercase;letter-spacing:.02em}
+#next{display:block;width:100%;height:auto;background:#fff}
+#legend{display:flex;flex-direction:column;gap:6px;font-size:11px;color:#475569}
+#legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:16px;height:16px;border-radius:2px;border:1px solid #c9ced8;display:inline-flex;align-items:center;justify-content:center;flex:none}
+.sw.light{background:#fff}
+.sw.dark{background:#9aa3b2}
+.sw.dark svg{width:11px;height:11px}
+#pad{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:2px}
+#pad button{border:0;border-radius:14px;background:#fff;color:#1a2340;border:1.5px solid #c9ced8;font-weight:900;font-size:18px;min-height:52px;cursor:pointer;box-shadow:0 1px 0 #0001}
+#pad button:active{background:#eef1f6}
+#pad .soft{font-size:15px;grid-column:1/2}
+#pad .drop{grid-column:2/-1;background:#ffe566;border-color:#f5b400;font-size:15px}
+#status{min-height:18px;font-size:13px;font-weight:700;text-align:center;color:#64748b}
+.ov{position:fixed;inset:0;background:#1a2340cc;display:flex;align-items:center;justify-content:center;padding:20px;z-index:20}
+.ov.hidden{display:none}
+.panel{background:#fff;border-radius:16px;padding:20px 18px;max-width:360px;width:100%;box-shadow:0 12px 40px #0004}
+.panel h2{margin:0 0 10px;font-size:20px;color:#1a2340}
+.panel p{margin:0 0 16px;font-size:14px;line-height:1.45;color:#334155}
+.panel button{border:0;border-radius:999px;background:#f5b400;color:#1a2340;font-weight:900;font-size:15px;padding:12px 22px;width:100%;cursor:pointer}
+@media (max-width:380px){
+  #play{grid-template-columns:minmax(0,1fr) 76px}
+  #pad button{min-height:48px;font-size:16px}
+}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <header>
+    <a href="../menu/" id="menu">☰ Меню</a>
+    <h1 id="title">Тетріс відключень</h1>
+    <button id="lang" type="button">UA</button>
+  </header>
+  <div id="toolbar">
+    <div class="stat hi" id="scoreStat"><span id="scoreLbl">рахунок</span> <b id="score">0</b></div>
+    <div class="stat" id="linesStat"><span id="linesLbl">лінії</span> <b id="lines">0</b></div>
+    <div class="stat" id="levelStat"><span id="levelLbl">рівень</span> <b id="level">1</b></div>
+    <button type="button" id="pauseBtn" title="Pause">⏸</button>
+  </div>
+  <div id="hint"></div>
+  <div id="play">
+    <div id="boardCard"><canvas id="board" width="420" height="360" aria-label="tetris board"></canvas></div>
+    <div id="side">
+      <div id="nextCard">
+        <div id="nextLbl">Далі</div>
+        <canvas id="next" width="72" height="72"></canvas>
+      </div>
+      <div id="legendCard">
+        <div id="legTitle">Легенда</div>
+        <div id="legend"></div>
+      </div>
+    </div>
+  </div>
+  <div id="status"></div>
+  <div id="pad" aria-label="controls">
+    <button type="button" id="btnLeft" aria-label="left">◀</button>
+    <button type="button" id="btnRot" aria-label="rotate">↻</button>
+    <button type="button" id="btnRight" aria-label="right">▶</button>
+    <button type="button" id="btnSoft" class="soft" aria-label="soft drop">▼</button>
+    <button type="button" id="btnHard" class="drop" aria-label="hard drop">▼▼ Hard</button>
+  </div>
+</div>
+<div class="ov" id="overlay">
+  <div class="panel">
+    <h2 id="oTitle"></h2>
+    <p id="oBody"></p>
+    <button type="button" id="oBtn"></button>
+  </div>
+</div>
+<script src="game.js"></script>
+</body>
+</html>
