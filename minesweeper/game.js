@@ -2,9 +2,10 @@
 (function () {
   'use strict';
 
-  const ROWS = 12;
-  const COLS = 14; // 7 weekdays × 2 half-days
-  const MINES = 18; // gentle beginner density (~10.7%)
+  const MODES = {
+    easy: { rows: 12, cols: 14, mines: 18 },   // ~10.7% — beginner week
+    hard: { rows: 24, cols: 28, mines: 120 },  // ~17.9% — challenging month
+  };
   const DAYS_UA = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд'];
   const DAYS_EN = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -18,27 +19,32 @@
       flagOn: '🏷 Мітка ON',
       rules: 'Правила',
       replay: 'Ще раз',
+      easy: 'Проста',
+      hard: 'Складна',
       hint: 'Відкрий клітинку зі світлом. Сірі з блискавкою — темрява. Довге натискання або ПКМ — мітка.',
       hintFlag: 'Режим мітки: торкнись клітинки, щоб позначити темряву.',
+      hintHard: 'Складна: 24 години × 28 днів. Гортай сітку в обидва боки.',
       startT: 'Графік світла',
       startB: 'Це сапер у вигляді графіка відключень. Світлі клітинки безпечні; сірі з перекресленою блискавкою — темрява.',
-      rulesList: [
-        '12×14 клітинок: 7 днів × дві половини доби (00–12 і 12–24).',
+      rulesCommon: [
         'Відкрий клітинку — побачиш, скільки темряви навколо (8 сусідів).',
         'Нуль відкриває сусідні світлі клітинки автоматично.',
         'Перший хід завжди безпечний.',
         'Мітка: довге натискання / ПКМ / кнопка «Мітка».',
         'Виграш — відкрити всі світлі клітинки.',
+        '«Проста» — тиждень (12×14). «Складна» — місяць по годинах (24×28).',
       ],
+      rulesEasy: 'Проста: 12×14 клітинок — 7 днів × дві половини доби (00–12 і 12–24), 18 темряви.',
+      rulesHard: 'Складна: 24×28 клітинок — година на рядок (00–01 … 23–24), день на колонку (28 днів), 120 темряви.',
       go: 'Грати',
       win: 'Є світло! ⚡',
       winB: 'Усі світлі клітинки відкрито. Темрява позначена або обійдена.',
       lose: 'Темрява…',
       loseB: 'Відкрив клітинку без світла. Спробуй ще раз.',
       again: 'Ще раз',
-      statusIdle: '',
       halfAm: '00–12',
       halfPm: '12–24',
+      week: (n) => 'Тиждень ' + n,
       legendClosed: 'закрито',
       legendLight: 'світло',
       legendDark: 'темрява',
@@ -53,27 +59,32 @@
       flagOn: '🏷 Flag ON',
       rules: 'Rules',
       replay: 'Replay',
+      easy: 'Easy',
+      hard: 'Hard',
       hint: 'Open a lit cell. Grey with a crossed bolt is darkness. Long-press or right-click to flag.',
       hintFlag: 'Flag mode: tap a cell to mark darkness.',
+      hintHard: 'Hard: 24 hours × 28 days. Scroll the grid both ways.',
       startT: 'Power schedule',
       startB: 'Minesweeper as an outage timetable. Lit cells are safe; grey crossed-bolt cells are darkness.',
-      rulesList: [
-        '12×14 grid: 7 weekdays × two half-days (00–12 and 12–24).',
+      rulesCommon: [
         'Open a cell to see how many darkness cells are around it (8 neighbours).',
         'A zero floods open neighbouring lit cells.',
         'The first click is always safe.',
         'Flag with long-press / right-click / Flag button.',
         'Win by opening every lit cell.',
+        'Easy is a week (12×14). Hard is a month by the hour (24×28).',
       ],
+      rulesEasy: 'Easy: 12×14 cells — 7 weekdays × two half-days (00–12 and 12–24), 18 darkness.',
+      rulesHard: 'Hard: 24×28 cells — one hour per row (00–01 … 23–24), one day per column (28 days), 120 darkness.',
       go: 'Play',
       win: 'Lights on! ⚡',
       winB: 'Every lit cell is open. Darkness flagged or avoided.',
       lose: 'Blackout…',
       loseB: 'You opened a dark cell. Try again.',
       again: 'Play again',
-      statusIdle: '',
       halfAm: '00–12',
       halfPm: '12–24',
+      week: (n) => 'Week ' + n,
       legendClosed: 'closed',
       legendLight: 'power on',
       legendDark: 'outage',
@@ -83,8 +94,13 @@
 
   const $ = (id) => document.getElementById(id);
   let lang = localStorage.getItem('minesweeper-lang') || 'ua';
+  let mode = localStorage.getItem('minesweeper-mode') === 'hard' ? 'hard' : 'easy';
   let flagMode = false;
   let overlayMode = 'start'; // start | rules | win | lose
+
+  let ROWS = MODES.easy.rows;
+  let COLS = MODES.easy.cols;
+  let MINES = MODES.easy.mines;
 
   /** @type {{mine:boolean,open:boolean,flag:boolean,n:number,hit?:boolean}[]} */
   let cells = [];
@@ -97,6 +113,13 @@
     '<path fill="#1a2340" d="M13.2 2.2 6.4 13.1h4.3l-1.6 8.7 8.2-12.4h-4.5z"/>' +
     '<path stroke="#1a2340" stroke-width="2.4" stroke-linecap="round" d="M5 5.5 19 18.5"/>' +
     '</svg>';
+
+  function applyModeDims() {
+    const m = MODES[mode];
+    ROWS = m.rows;
+    COLS = m.cols;
+    MINES = m.mines;
+  }
 
   function idx(r, c) { return r * COLS + c; }
   function rc(i) { return { r: (i / COLS) | 0, c: i % COLS }; }
@@ -114,7 +137,7 @@
     return out;
   }
 
-  function hourLabel(row) {
+  function hourLabelEasy(row) {
     const a0 = String(row).padStart(2, '0');
     const a1 = String(row + 1).padStart(2, '0');
     const p0 = String(row + 12).padStart(2, '0');
@@ -122,9 +145,28 @@
     return { am: a0 + '–' + a1, pm: p0 + '–' + p1 };
   }
 
+  function hourLabelHard(row) {
+    const a0 = String(row).padStart(2, '0');
+    const a1 = String(row + 1).padStart(2, '0');
+    return a0 + '–' + a1;
+  }
+
+  function dayName(dayIndex) {
+    const days = lang === 'ua' ? DAYS_UA : DAYS_EN;
+    return days[dayIndex % 7];
+  }
+
   function buildBoardSkeleton() {
     const board = $('board');
     board.innerHTML = '';
+    board.className = mode;
+    $('boardWrap').scrollTop = 0;
+    $('boardWrap').scrollLeft = 0;
+    if (mode === 'hard') buildHardBoard(board);
+    else buildEasyBoard(board);
+  }
+
+  function buildEasyBoard(board) {
     const days = lang === 'ua' ? DAYS_UA : DAYS_EN;
     const L = T[lang];
 
@@ -141,8 +183,7 @@
     }
 
     const corner2 = document.createElement('div');
-    corner2.className = 'corner';
-    corner2.style.minHeight = '22px';
+    corner2.className = 'corner half-spacer';
     corner2.setAttribute('aria-hidden', 'true');
     board.appendChild(corner2);
 
@@ -158,33 +199,75 @@
     }
 
     for (let r = 0; r < ROWS; r++) {
-      const h = hourLabel(r);
+      const h = hourLabelEasy(r);
       const lab = document.createElement('div');
       lab.className = 'hour';
       lab.innerHTML = '<span class="am">' + h.am + '</span><span class="pm">' + h.pm + '</span>';
       board.appendChild(lab);
-      for (let c = 0; c < COLS; c++) {
-        const el = document.createElement('button');
-        el.type = 'button';
-        el.className = 'cell closed';
-        el.dataset.r = String(r);
-        el.dataset.c = String(c);
-        el.setAttribute('aria-label', cellAria(r, c));
-        board.appendChild(el);
-      }
+      for (let c = 0; c < COLS; c++) appendCell(board, r, c);
     }
   }
 
+  function buildHardBoard(board) {
+    const L = T[lang];
+
+    const corner = document.createElement('div');
+    corner.className = 'corner';
+    corner.textContent = lang === 'ua' ? 'Час' : 'Time';
+    board.appendChild(corner);
+
+    for (let w = 0; w < 4; w++) {
+      const week = document.createElement('div');
+      week.className = 'week';
+      week.textContent = L.week(w + 1);
+      board.appendChild(week);
+    }
+
+    const corner2 = document.createElement('div');
+    corner2.className = 'corner day-spacer';
+    corner2.setAttribute('aria-hidden', 'true');
+    board.appendChild(corner2);
+
+    for (let d = 0; d < 28; d++) {
+      const el = document.createElement('div');
+      el.className = 'dayn';
+      el.innerHTML = '<span class="wd">' + dayName(d) + '</span><span class="dn">' + (d + 1) + '</span>';
+      board.appendChild(el);
+    }
+
+    for (let r = 0; r < ROWS; r++) {
+      const lab = document.createElement('div');
+      lab.className = 'hour';
+      lab.textContent = hourLabelHard(r);
+      board.appendChild(lab);
+      for (let c = 0; c < COLS; c++) appendCell(board, r, c);
+    }
+  }
+
+  function appendCell(board, r, c) {
+    const el = document.createElement('button');
+    el.type = 'button';
+    el.className = 'cell closed';
+    el.dataset.r = String(r);
+    el.dataset.c = String(c);
+    el.setAttribute('aria-label', cellAria(r, c));
+    board.appendChild(el);
+  }
+
   function cellAria(r, c) {
+    if (mode === 'hard') {
+      return dayName(c) + ' ' + (c + 1) + ' ' + hourLabelHard(r);
+    }
     const days = lang === 'ua' ? DAYS_UA : DAYS_EN;
     const day = days[(c / 2) | 0];
     const half = c % 2 === 0 ? T[lang].halfAm : T[lang].halfPm;
-    const h = hourLabel(r);
+    const h = hourLabelEasy(r);
     const slot = c % 2 === 0 ? h.am : h.pm;
     return day + ' ' + half + ' ' + slot;
   }
 
   function resetGame() {
+    applyModeDims();
     cells = Array.from({ length: ROWS * COLS }, () => ({ mine: false, open: false, flag: false, n: 0 }));
     placed = false;
     over = false;
@@ -198,11 +281,23 @@
     applyLang();
   }
 
+  function setMode(next) {
+    if (next !== 'easy' && next !== 'hard') return;
+    if (mode === next && cells.length === MODES[next].rows * MODES[next].cols) {
+      // still refresh selection UI
+      applyLang();
+      return;
+    }
+    mode = next;
+    localStorage.setItem('minesweeper-mode', mode);
+    hideOverlay();
+    resetGame();
+  }
+
   function placeMines(safeIndex) {
     const forbidden = new Set([safeIndex, ...neighbors(rc(safeIndex).r, rc(safeIndex).c)]);
     const pool = [];
     for (let i = 0; i < ROWS * COLS; i++) if (!forbidden.has(i)) pool.push(i);
-    // shuffle
     for (let i = pool.length - 1; i > 0; i--) {
       const j = (Math.random() * (i + 1)) | 0;
       const t = pool[i]; pool[i] = pool[j]; pool[j] = t;
@@ -259,9 +354,7 @@
 
   function updateCounters() {
     const mineCount = placed ? cells.filter((c) => c.mine).length : MINES;
-    // classic minesweeper counter: mines − flags
-    const remain = mineCount - flags;
-    $('darkCount').textContent = String(remain);
+    $('darkCount').textContent = String(mineCount - flags);
     $('flagCount').textContent = String(flags);
   }
 
@@ -334,7 +427,6 @@
     updateCounters();
   }
 
-  // ---- input: click / long-press / right-click ----
   let pressTimer = null;
   let longFired = false;
   let pressIndex = -1;
@@ -386,12 +478,16 @@
         onPointerUp(e, i);
       });
       el.addEventListener('pointercancel', onPointerCancel);
-      el.addEventListener('pointerleave', () => { /* keep long-press if still down */ });
       el.addEventListener('contextmenu', (e) => {
         e.preventDefault();
         toggleFlag(i);
       });
     });
+  }
+
+  function rulesList() {
+    const L = T[lang];
+    return [mode === 'hard' ? L.rulesHard : L.rulesEasy, ...L.rulesCommon];
   }
 
   function applyLang() {
@@ -407,7 +503,11 @@
     $('flagMode').classList.toggle('on', flagMode);
     $('rulesBtn').textContent = L.rules;
     $('replay').textContent = L.replay;
-    $('hint').textContent = flagMode ? L.hintFlag : L.hint;
+    $('diffEasy').textContent = L.easy;
+    $('diffHard').textContent = L.hard;
+    $('diffEasy').classList.toggle('on', mode === 'easy');
+    $('diffHard').classList.toggle('on', mode === 'hard');
+    $('hint').textContent = flagMode ? L.hintFlag : (mode === 'hard' ? L.hintHard + ' ' + L.hint : L.hint);
     const miniBolt =
       '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#1a2340" d="M13.2 2.2 6.4 13.1h4.3l-1.6 8.7 8.2-12.4h-4.5z"/>' +
       '<path stroke="#1a2340" stroke-width="2.4" stroke-linecap="round" d="M5 5.5 19 18.5"/></svg>';
@@ -416,11 +516,20 @@
       '<span><i class="sw light"></i>' + L.legendLight + '</span>' +
       '<span><i class="sw dark">' + miniBolt + '</i>' + L.legendDark + '</span>' +
       '<span><i class="sw flag"></i>' + L.legendFlag + '</span>';
-    // refresh day headers without wiping game state
-    const days = lang === 'ua' ? DAYS_UA : DAYS_EN;
-    $('board').querySelectorAll('.day').forEach((el, i) => { el.textContent = days[i]; });
-    const halves = $('board').querySelectorAll('.half');
-    halves.forEach((el, i) => { el.textContent = i % 2 === 0 ? L.halfAm : L.halfPm; });
+
+    // refresh headers in place when language changes (same mode/geometry)
+    if (mode === 'easy') {
+      const days = lang === 'ua' ? DAYS_UA : DAYS_EN;
+      $('board').querySelectorAll('.day').forEach((el, i) => { el.textContent = days[i]; });
+      $('board').querySelectorAll('.half').forEach((el, i) => {
+        el.textContent = i % 2 === 0 ? L.halfAm : L.halfPm;
+      });
+    } else {
+      $('board').querySelectorAll('.week').forEach((el, i) => { el.textContent = L.week(i + 1); });
+      $('board').querySelectorAll('.dayn').forEach((el, i) => {
+        el.innerHTML = '<span class="wd">' + dayName(i) + '</span><span class="dn">' + (i + 1) + '</span>';
+      });
+    }
     const corner = $('board').querySelector('.corner');
     if (corner) corner.textContent = lang === 'ua' ? 'Час' : 'Time';
     $('board').querySelectorAll('.cell').forEach((el) => {
@@ -438,7 +547,7 @@
     if (overlayMode === 'start' || overlayMode === 'rules') {
       $('oTitle').textContent = overlayMode === 'rules' ? L.rules : L.startT;
       $('oBody').textContent = L.startB;
-      L.rulesList.forEach((line) => {
+      rulesList().forEach((line) => {
         const li = document.createElement('li');
         li.textContent = line;
         rules.appendChild(li);
@@ -455,8 +564,8 @@
     }
   }
 
-  function showOverlay(mode) {
-    overlayMode = mode;
+  function showOverlay(modeName) {
+    overlayMode = modeName;
     fillOverlay();
     $('overlay').classList.remove('hidden');
   }
@@ -476,32 +585,35 @@
   };
   $('rulesBtn').onclick = () => showOverlay('rules');
   $('replay').onclick = () => { hideOverlay(); resetGame(); };
+  $('diffEasy').onclick = () => setMode('easy');
+  $('diffHard').onclick = () => setMode('hard');
   $('oBtn').onclick = () => {
     if (overlayMode === 'rules') { hideOverlay(); return; }
     hideOverlay();
-    if (overlayMode === 'start') { /* already reset */ return; }
+    if (overlayMode === 'start') return;
     resetGame();
   };
 
-  // prevent browser context menu on board
   $('boardWrap').addEventListener('contextmenu', (e) => e.preventDefault());
 
-  // ---- test API ----
   window.__minesweeper = {
-    ROWS, COLS, MINES,
+    get ROWS() { return ROWS; },
+    get COLS() { return COLS; },
+    get MINES() { return MINES; },
+    get mode() { return mode; },
+    MODES,
     state: () => ({
-      placed, over, flags, flagMode, lang,
+      mode, placed, over, flags, flagMode, lang, rows: ROWS, cols: COLS, minesTarget: MINES,
       mines: cells.filter((c) => c.mine).length,
       open: cells.filter((c) => c.open).length,
       cells: cells.map((c) => ({ mine: c.mine, open: c.open, flag: c.flag, n: c.n, hit: !!c.hit })),
     }),
-    openAt, toggleFlag, reset: resetGame,
+    openAt, toggleFlag, reset: resetGame, setMode,
     idx, neighbors, placeMines,
-    /** Force-place mines with a known layout for tests. safeIndex is opened after. */
     seed(mineIndices, openIndex) {
       resetGame();
       cells.forEach((c) => { c.mine = false; c.n = 0; });
-      for (const i of mineIndices) cells[i].mine = true;
+      for (const i of mineIndices) if (cells[i]) cells[i].mine = true;
       for (let i = 0; i < cells.length; i++) {
         if (cells[i].mine) continue;
         const { r, c } = rc(i);
@@ -513,6 +625,7 @@
     },
   };
 
+  applyModeDims();
   resetGame();
   showOverlay('start');
 })();

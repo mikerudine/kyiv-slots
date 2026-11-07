@@ -13,6 +13,9 @@ header{display:flex;align-items:center;justify-content:space-between;gap:8px}
 header a{color:#64748b;text-decoration:none;font-size:13px;font-weight:600;white-space:nowrap}
 h1{margin:0;font-size:clamp(15px,4.2vw,18px);font-weight:800;color:#1a2340;text-align:center;flex:1;line-height:1.2}
 #lang{border:0;border-radius:999px;background:#1a2340;color:#fff;font-weight:800;padding:6px 12px;font-size:12px}
+#diff{display:flex;gap:6px;background:#fff;border:1px solid #d7dbe3;border-radius:999px;padding:3px}
+#diff button{border:0;border-radius:999px;background:transparent;color:#475569;font-weight:800;font-size:12px;padding:8px 12px;min-height:36px;cursor:pointer}
+#diff button.on{background:#ffe566;color:#1a2340;box-shadow:inset 0 0 0 1px #f5b400}
 #toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .stat{background:#fff;border:1px solid #d7dbe3;border-radius:12px;padding:8px 12px;font-size:13px;font-weight:700;color:#1a2340;display:flex;align-items:center;gap:6px;min-height:40px}
 .stat b{font-variant-numeric:tabular-nums;font-size:16px}
@@ -23,15 +26,25 @@ h1{margin:0;font-size:clamp(15px,4.2vw,18px);font-weight:800;color:#1a2340;text-
 #rulesBtn,#replay{background:#1a2340;color:#fff}
 #rulesBtn{background:#fff;color:#1a2340;border:1.5px solid #c9ced8}
 #hint{font-size:12px;color:#64748b;line-height:1.35;min-height:16px}
-#boardWrap{background:#fff;border:1px solid #d0d5de;border-radius:14px;overflow:auto;-webkit-overflow-scrolling:touch;flex:1;min-height:0;box-shadow:0 1px 2px #0000000a}
-#board{display:grid;grid-template-columns:56px repeat(14,minmax(40px,1fr));width:max(100%,620px);min-width:620px;border-collapse:collapse}
-.corner,.day,.half,.hour{background:#f7f8fb;color:#1a2340;font-weight:700;font-size:11px;display:flex;align-items:center;justify-content:center;text-align:center;border-bottom:1px solid #e2e5ec;border-right:1px solid #e2e5ec;padding:4px 2px;line-height:1.15}
-.corner{position:sticky;left:0;z-index:3;background:#f7f8fb}
-.day{grid-column:span 2;font-size:12px;font-weight:800;background:#eef1f6;border-bottom:1px solid #d7dbe3;min-height:28px}
-.half{font-size:10px;color:#475569;font-weight:700;min-height:22px}
+#boardWrap{background:#fff;border:1px solid #d0d5de;border-radius:14px;overflow:auto;-webkit-overflow-scrolling:touch;flex:1;min-height:280px;box-shadow:0 1px 2px #0000000a}
+#board{display:grid;border-collapse:collapse}
+#board.easy{grid-template-columns:56px repeat(14,minmax(40px,1fr));width:max(100%,620px);min-width:620px}
+#board.hard{grid-template-columns:48px repeat(28,40px);width:max-content;min-width:1168px}
+.corner,.day,.half,.hour,.week,.dayn{background:#f7f8fb;color:#1a2340;font-weight:700;font-size:11px;display:flex;align-items:center;justify-content:center;text-align:center;border-bottom:1px solid #e2e5ec;border-right:1px solid #e2e5ec;padding:4px 2px;line-height:1.15}
+.corner{position:sticky;left:0;top:0;z-index:5;background:#f7f8fb}
+#board.easy .day{grid-column:span 2;font-size:12px;font-weight:800;background:#eef1f6;border-bottom:1px solid #d7dbe3;min-height:28px;position:sticky;top:0;z-index:3}
+#board.easy .half{font-size:10px;color:#475569;font-weight:700;min-height:22px;position:sticky;top:28px;z-index:3;background:#f7f8fb}
+#board.easy .corner.half-spacer{top:28px;min-height:22px;z-index:4}
+#board.hard .week{grid-column:span 7;font-size:11px;font-weight:800;background:#eef1f6;min-height:24px;position:sticky;top:0;z-index:3}
+#board.hard .dayn{flex-direction:column;gap:0;font-size:10px;min-height:36px;position:sticky;top:24px;z-index:3;background:#f7f8fb;padding:2px 1px}
+#board.hard .dayn .wd{font-weight:800;font-size:11px}
+#board.hard .dayn .dn{font-weight:600;color:#64748b;font-variant-numeric:tabular-nums}
+#board.hard .corner.day-spacer{top:24px;min-height:36px;z-index:4}
 .hour{position:sticky;left:0;z-index:2;flex-direction:column;gap:1px;font-variant-numeric:tabular-nums;min-height:40px;background:#f7f8fb}
+#board.hard .hour{min-height:36px;font-size:11px;font-weight:800}
 .hour .am{font-weight:800}.hour .pm{font-weight:600;color:#64748b;font-size:10px}
 .cell{min-height:40px;min-width:40px;border:0;border-bottom:1px solid #e4e7ee;border-right:1px solid #e4e7ee;border-radius:0;background:#e9edf3;display:flex;align-items:center;justify-content:center;cursor:pointer;font-weight:800;font-size:14px;color:#1a2340;position:relative;touch-action:manipulation;padding:0;-webkit-appearance:none;appearance:none}
+#board.hard .cell{min-height:36px;min-width:40px;font-size:13px}
 .cell:active{filter:brightness(.96)}
 .cell.closed{background:linear-gradient(180deg,#eef1f6 0%,#e2e6ee 100%);box-shadow:inset 0 1px 0 #fff8,inset 0 -1px 0 #0000000d}
 .cell.open{background:#fff;cursor:default}
@@ -40,6 +53,7 @@ h1{margin:0;font-size:clamp(15px,4.2vw,18px);font-weight:800;color:#1a2340;text-
 .cell.hit{outline:2px solid #f5b400;outline-offset:-2px}
 .cell.flagged{background:#fff7cc}
 .cell .bolt{width:18px;height:18px;display:block}
+#board.hard .cell .bolt{width:15px;height:15px}
 .cell .flag{font-size:15px;line-height:1}
 .n1{color:#1d4ed8}.n2{color:#15803d}.n3{color:#b45309}.n4{color:#7c3aed}
 .n5{color:#be123c}.n6{color:#0f766e}.n7{color:#1a2340}.n8{color:#64748b}
@@ -55,7 +69,7 @@ h1{margin:0;font-size:clamp(15px,4.2vw,18px);font-weight:800;color:#1a2340;text-
 #status.win{color:#15803d}#status.lose{color:#b91c1c}
 .ov{position:fixed;inset:0;background:#1a2340cc;display:flex;align-items:center;justify-content:center;padding:20px;z-index:20}
 .ov.hidden{display:none}
-.panel{background:#fff;border-radius:16px;padding:20px 18px;max-width:360px;width:100%;box-shadow:0 12px 40px #0004}
+.panel{background:#fff;border-radius:16px;padding:20px 18px;max-width:360px;width:100%;box-shadow:0 12px 40px #0004;max-height:min(90dvh,640px);overflow:auto}
 .panel h2{margin:0 0 10px;font-size:20px;color:#1a2340}
 .panel p{margin:0 0 10px;font-size:14px;line-height:1.45;color:#334155}
 .panel ul{margin:0 0 16px;padding-left:18px;font-size:13px;line-height:1.45;color:#475569}
@@ -69,6 +83,10 @@ h1{margin:0;font-size:clamp(15px,4.2vw,18px);font-weight:800;color:#1a2340;text-
     <h1 id="title">Графік світла</h1>
     <button id="lang" type="button">UA</button>
   </header>
+  <div id="diff" role="group" aria-label="difficulty">
+    <button type="button" id="diffEasy" class="on">Проста</button>
+    <button type="button" id="diffHard">Складна</button>
+  </div>
   <div id="toolbar">
     <div class="stat" id="darkStat"><span id="darkLbl">темрява</span> <b id="darkCount">18</b></div>
     <div class="stat" id="flagStat"><span id="flagLbl">мітки</span> <b id="flagCount">0</b></div>
@@ -80,7 +98,7 @@ h1{margin:0;font-size:clamp(15px,4.2vw,18px);font-weight:800;color:#1a2340;text-
   </div>
   <div id="hint"></div>
   <div id="boardWrap">
-    <div id="board" role="grid" aria-label="schedule"></div>
+    <div id="board" class="easy" role="grid" aria-label="schedule"></div>
   </div>
   <div id="legend"></div>
   <div id="status"></div>

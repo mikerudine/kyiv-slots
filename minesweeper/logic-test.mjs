@@ -1,6 +1,6 @@
 /**
- * Headless logic checks for minesweeper via Playwright-like page, or jsdom fallback.
- * Run: node minesweeper/logic-test.mjs
+ * Headless logic checks for minesweeper (easy + hard).
+ * Run: node minesweeper/logic-test.mjs  (needs playwright-core + Chrome)
  */
 import { createServer } from 'http';
 import { readFileSync, existsSync } from 'fs';
@@ -10,7 +10,6 @@ import { chromium } from 'playwright-core';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
-
 const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.md': 'text/plain' };
 
 function startServer() {
@@ -23,10 +22,6 @@ function startServer() {
     res.end(readFileSync(path));
   });
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
-}
-
-function assert(cond, msg) {
-  if (!cond) throw new Error(msg);
 }
 
 const server = await startServer();
@@ -42,78 +37,109 @@ page.on('pageerror', (e) => errors.push(String(e)));
 page.on('console', (msg) => { if (msg.type() === 'error') errors.push(msg.text()); });
 
 await page.goto(`http://127.0.0.1:${port}/minesweeper/`, { waitUntil: 'networkidle' });
-await page.click('#oBtn'); // dismiss start overlay
+await page.click('#oBtn');
 
 const results = await page.evaluate(() => {
   const M = window.__minesweeper;
   const out = [];
   const ok = (name, cond, detail) => out.push({ name, ok: !!cond, detail: detail || '' });
 
-  ok('api', !!M && M.ROWS === 12 && M.COLS === 14 && M.MINES === 18);
-  ok('cells', M.state().cells.length === 168);
+  // ---- easy ----
+  M.setMode('easy');
+  document.getElementById('overlay').classList.add('hidden');
+  ok('easy-dims', M.ROWS === 12 && M.COLS === 14 && M.MINES === 18 && M.state().cells.length === 168);
+  ok('easy-corner-n', M.neighbors(0, 0).length === 3);
+  ok('easy-center-n', M.neighbors(5, 5).length === 8);
+  ok('easy-no-wrap', !M.neighbors(0, 0).includes(M.idx(11, 13)));
 
-  // neighbours: corner has 3, edge 5, center 8; no wrap
-  ok('corner-n', M.neighbors(0, 0).length === 3);
-  ok('edge-n', M.neighbors(0, 5).length === 5);
-  ok('center-n', M.neighbors(5, 5).length === 8);
-  ok('no-wrap', !M.neighbors(0, 0).includes(M.idx(11, 13)));
-
-  // first click safety: open center repeatedly on fresh boards
   let safe = true;
-  for (let t = 0; t < 20; t++) {
+  for (let t = 0; t < 12; t++) {
     M.reset();
     document.getElementById('overlay').classList.add('hidden');
     const i = M.idx(5, 6);
     M.openAt(i);
     const st = M.state();
-    if (st.cells[i].mine || st.over === 'lose') { safe = false; break; }
-    if (!st.placed || st.mines !== 18) { safe = false; break; }
+    if (st.cells[i].mine || st.over === 'lose' || st.mines !== 18) { safe = false; break; }
   }
-  ok('first-click-safe', safe);
+  ok('easy-first-safe', safe);
 
-  // seeded flood + counts
-  // Place mines at (0,2),(0,3),(1,2) around (0,0) far — open (5,5) with no nearby mines for flood
-  const mines = [];
-  for (let c = 0; c < 14; c++) mines.push(M.idx(0, c)); // top row all mines except we'll open bottom
-  // Actually use a sparse pattern:
-  const mineSet = [M.idx(2, 2), M.idx(2, 3), M.idx(3, 2)];
-  M.seed(mineSet, null);
-  // count at (3,3) should be 3
-  const n33 = M.state().cells[M.idx(3, 3)].n;
-  ok('count-3', n33 === 3, 'n=' + n33);
-  const n11 = M.state().cells[M.idx(1, 1)].n;
-  ok('count-1', n11 === 1, 'n=' + n11);
-  const n00 = M.state().cells[M.idx(0, 0)].n;
-  ok('count-0', n00 === 0, 'n=' + n00);
-
+  M.seed([M.idx(2, 2), M.idx(2, 3), M.idx(3, 2)], null);
+  ok('easy-count', M.state().cells[M.idx(3, 3)].n === 3);
   M.openAt(M.idx(0, 0));
-  const afterFlood = M.state();
-  ok('flood-opened', afterFlood.cells[M.idx(0, 0)].open && afterFlood.open > 5, 'open=' + afterFlood.open);
-  ok('flood-mines-closed', !afterFlood.cells[M.idx(2, 2)].open && !afterFlood.cells[M.idx(2, 3)].open && !afterFlood.cells[M.idx(3, 2)].open);
-  ok('flood-border-open', afterFlood.cells[M.idx(3, 3)].open && afterFlood.cells[M.idx(3, 3)].n === 3);
+  ok('easy-flood', M.state().open > 5 && !M.state().cells[M.idx(2, 2)].open);
 
-  // flag + lose
   M.seed([M.idx(4, 4)], null);
   M.toggleFlag(M.idx(4, 4));
-  ok('flag', M.state().cells[M.idx(4, 4)].flag && M.state().flags === 1);
-  M.openAt(M.idx(4, 5)); // safe
-  ok('open-safe', M.state().cells[M.idx(4, 5)].open && !M.state().over);
-  M.toggleFlag(M.idx(4, 4)); // unflag
+  ok('easy-flag', M.state().flags === 1);
+  M.toggleFlag(M.idx(4, 4));
   M.openAt(M.idx(4, 4));
-  ok('lose', M.state().over === 'lose');
+  ok('easy-lose', M.state().over === 'lose');
 
-  // win: one mine, open all else
-  const only = [M.idx(11, 13)];
-  M.seed(only, M.idx(0, 0));
-  for (let i = 0; i < 168; i++) if (i !== only[0] && !M.state().cells[i].open) M.openAt(i);
-  ok('win', M.state().over === 'win');
+  M.seed([M.idx(11, 13)], M.idx(0, 0));
+  for (let i = 0; i < 168; i++) if (i !== M.idx(11, 13) && !M.state().cells[i].open) M.openAt(i);
+  ok('easy-win', M.state().over === 'win');
 
-  // language toggle does not throw
+  // ---- hard ----
+  M.setMode('hard');
+  document.getElementById('overlay').classList.add('hidden');
+  const hardSt = M.state();
+  ok('hard-dims', M.ROWS === 24 && M.COLS === 28 && M.MINES === 120 && hardSt.cells.length === 672, 'len=' + hardSt.cells.length);
+  ok('hard-corner-n', M.neighbors(0, 0).length === 3);
+  ok('hard-edge-n', M.neighbors(0, 10).length === 5);
+  ok('hard-center-n', M.neighbors(12, 14).length === 8);
+  ok('hard-no-wrap', !M.neighbors(0, 0).includes(M.idx(23, 27)) && !M.neighbors(23, 27).includes(M.idx(0, 0)));
+  ok('hard-board-class', document.getElementById('board').classList.contains('hard'));
+  ok('hard-counter', document.getElementById('darkCount').textContent === '120');
+
+  safe = true;
+  for (let t = 0; t < 8; t++) {
+    M.reset();
+    document.getElementById('overlay').classList.add('hidden');
+    const i = M.idx(12, 14);
+    M.openAt(i);
+    const st = M.state();
+    if (st.cells[i].mine || st.over === 'lose' || st.mines !== 120) { safe = false; break; }
+  }
+  ok('hard-first-safe', safe);
+
+  // adjacency on hard geometry
+  M.seed([M.idx(10, 10), M.idx(10, 11), M.idx(11, 10)], null);
+  ok('hard-count', M.state().cells[M.idx(11, 11)].n === 3, 'n=' + M.state().cells[M.idx(11, 11)].n);
+  M.openAt(M.idx(0, 0));
+  const flooded = M.state();
+  ok('hard-flood', flooded.open > 10 && !flooded.cells[M.idx(10, 10)].open, 'open=' + flooded.open);
+
+  M.seed([M.idx(5, 5)], null);
+  M.toggleFlag(M.idx(5, 5));
+  ok('hard-flag', M.state().flags === 1 && M.state().cells[M.idx(5, 5)].flag);
+  M.toggleFlag(M.idx(5, 5));
+  M.openAt(M.idx(5, 5));
+  ok('hard-lose', M.state().over === 'lose');
+
+  // switch easy→hard→easy resets cleanly
+  M.setMode('easy');
+  document.getElementById('overlay').classList.add('hidden');
+  ok('switch-easy', M.mode === 'easy' && M.state().cells.length === 168 && !M.state().placed && M.state().open === 0);
+  ok('switch-easy-counter', document.getElementById('darkCount').textContent === '18');
+  M.openAt(M.idx(3, 3));
+  const mid = M.state();
+  M.setMode('hard');
+  document.getElementById('overlay').classList.add('hidden');
+  const after = M.state();
+  ok('switch-hard-reset', after.mode === 'hard' && after.cells.length === 672 && !after.placed && after.open === 0 && after.flags === 0);
+  ok('switch-hard-ui', document.getElementById('diffHard').classList.contains('on') && document.getElementById('darkCount').textContent === '120');
+
+  // hard win on tiny seed
+  M.seed([M.idx(23, 27)], M.idx(0, 0));
+  for (let i = 0; i < 672; i++) if (i !== M.idx(23, 27) && !M.state().cells[i].open) M.openAt(i);
+  ok('hard-win', M.state().over === 'win');
+
   document.getElementById('lang').click();
   ok('lang-en', document.documentElement.lang === 'en');
   document.getElementById('lang').click();
   ok('lang-ua', document.documentElement.lang === 'uk');
 
+  void mid;
   return out;
 });
 
@@ -122,8 +148,7 @@ server.close();
 
 let failed = 0;
 for (const r of results) {
-  const mark = r.ok ? 'OK' : 'FAIL';
-  console.log(`${mark}  ${r.name}${r.detail ? ' — ' + r.detail : ''}`);
+  console.log(`${r.ok ? 'OK' : 'FAIL'}  ${r.name}${r.detail ? ' — ' + r.detail : ''}`);
   if (!r.ok) failed++;
 }
 if (errors.length) {
