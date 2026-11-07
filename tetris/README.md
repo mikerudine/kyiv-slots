@@ -2,7 +2,7 @@
 
 Ordinary Tetris for *One Day in Kyiv*, themed as an outage schedule.
 
-- Board: **12×14** — 7 weekdays × two half-days (`00–12` / `12–24`), with hour labels on rows.
+- Board: **12×14** — 7 weekdays × two half-days (`00–12` / `12–24`). Compact day + hour (`00`…`11`) labels on the grid; half-day meaning is in the shared legend (no cramped repeated `00–12`/`12–24` subheaders).
 - Pieces: standard seven tetrominoes, made of grey outage cells with a crossed lightning bolt.
 - Rules: move, rotate (with simple wall kicks), soft/hard drop, full-row clear, score, next preview, pause, game over, replay.
 - Pace: beginner gravity (~900 ms), speeds up each level (every 10 lines).

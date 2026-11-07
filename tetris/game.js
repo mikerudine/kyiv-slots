@@ -81,6 +81,8 @@
       again: 'Ще раз',
       halfAm: '00–12',
       halfPm: '12–24',
+      legendHalf: 'у дні: ліва 00–12, права 12–24',
+      legendHour: 'рядки = година ранку (+12 справа)',
       hard: '▼▼ Жорсткий',
       playing: 'Складаємо відключення…',
       paused: 'Пауза',
@@ -107,6 +109,8 @@
       again: 'Play again',
       halfAm: '00–12',
       halfPm: '12–24',
+      legendHalf: 'per day: left 00–12, right 12–24',
+      legendHour: 'rows = morning hour (+12 on right)',
       hard: '▼▼ Hard drop',
       playing: 'Stacking outages…',
       paused: 'Paused',
@@ -295,31 +299,30 @@
   }
 
   // ---- drawing ----
+  /** Compact row label: morning hour start (right column of each day is +12). */
   function hourLabel(row) {
-    const a0 = String(row).padStart(2, '0');
-    const a1 = String(row + 1).padStart(2, '0');
-    const p0 = String(row + 12).padStart(2, '0');
-    const p1 = String(row + 13 === 24 ? 24 : row + 13).padStart(2, '0');
-    return { am: a0 + '–' + a1, pm: p0 + '–' + p1 };
+    return String(row).padStart(2, '0');
   }
 
   function computeMetrics() {
-    const cssW = boardCv.clientWidth || boardCv.parentElement.clientWidth || 360;
-    const hourW = Math.max(40, Math.min(52, cssW * 0.12));
-    const usable = cssW - hourW;
-    const cell = Math.floor(usable / COLS);
-    const boardW = hourW + cell * COLS;
-    const dayH = 22;
-    const halfH = 18;
-    const oy = dayH + halfH;
-    const boardH = oy + cell * ROWS;
+    const card = $('boardCard');
+    const cssW = Math.max(200, (card && card.clientWidth) || boardCv.parentElement.clientWidth || 360);
+    const cssH = Math.max(180, (card && card.clientHeight) || 320);
+    // Single-line hour gutter — room for "00"/"11" without clipping
+    const hourW = cssW < 340 ? 28 : (cssW < 420 ? 32 : 38);
+    const dayH = cssW < 340 ? 20 : 24;
+    // Fill the card: width- and height-driven sizes may differ slightly (schedule rows can be taller)
+    const cellW = Math.max(16, Math.floor((cssW - hourW) / COLS));
+    const cellH = Math.max(18, Math.floor((cssH - dayH) / ROWS));
+    const boardW = hourW + cellW * COLS;
+    const boardH = dayH + cellH * ROWS;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     boardCv.width = Math.round(boardW * dpr);
     boardCv.height = Math.round(boardH * dpr);
     boardCv.style.width = boardW + 'px';
     boardCv.style.height = boardH + 'px';
     boardCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    metrics = { cell, ox: hourW, oy, dayH, halfH, hourW, boardW, boardH };
+    metrics = { cell: Math.min(cellW, cellH), cellW, cellH, ox: hourW, oy: dayH, dayH, hourW, boardW, boardH };
   }
 
   function drawBolt(ctx, x, y, s, color) {
@@ -368,97 +371,110 @@
   }
 
   function draw() {
-    const { cell, ox, oy, dayH, halfH, hourW, boardW, boardH } = metrics;
+    const { cellW, cellH, ox, oy, dayH, hourW, boardW, boardH } = metrics;
     const ctx = boardCtx;
     ctx.clearRect(0, 0, boardW, boardH);
 
-    // header background
+    // header background — day names only (half-day meaning lives in shared legend)
     ctx.fillStyle = '#f7f8fb';
     ctx.fillRect(0, 0, boardW, oy);
     ctx.fillStyle = '#eef1f6';
-    ctx.fillRect(ox, 0, cell * COLS, dayH);
+    ctx.fillRect(ox, 0, cellW * COLS, dayH);
 
-    // day labels (7 × 2 cols)
-    ctx.fillStyle = '#1a2340';
-    ctx.font = '800 12px system-ui,sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
+    const dayFont = cellW >= 26 ? 13 : (cellW >= 20 ? 12 : 11);
+    ctx.fillStyle = '#1a2340';
+    ctx.font = '800 ' + dayFont + 'px system-ui,sans-serif';
     const d = days();
     for (let i = 0; i < 7; i++) {
-      ctx.fillText(d[i], ox + (i * 2 + 1) * cell, dayH / 2);
+      ctx.fillText(d[i], ox + (i * 2 + 1) * cellW, dayH / 2);
     }
 
-    // half-day labels
-    ctx.font = '700 10px system-ui,sans-serif';
-    ctx.fillStyle = '#475569';
-    const LL = L();
-    for (let i = 0; i < 7; i++) {
-      ctx.fillText(LL.halfAm, ox + (i * 2 + 0.5) * cell, dayH + halfH / 2);
-      ctx.fillText(LL.halfPm, ox + (i * 2 + 1.5) * cell, dayH + halfH / 2);
-    }
-
-    // hour column
+    // hour column — one compact label per row (no stacked am/pm pair)
     ctx.fillStyle = '#f7f8fb';
-    ctx.fillRect(0, oy, hourW, cell * ROWS);
+    ctx.fillRect(0, oy, hourW, cellH * ROWS);
+    const hourFont = Math.max(10, Math.min(13, Math.floor(Math.min(cellH * 0.45, hourW * 0.42))));
+    ctx.font = '800 ' + hourFont + 'px system-ui,sans-serif';
+    ctx.fillStyle = '#1a2340';
     for (let r = 0; r < ROWS; r++) {
-      const h = hourLabel(r);
-      const cy = oy + r * cell + cell / 2;
-      ctx.fillStyle = '#1a2340';
-      ctx.font = '800 10px system-ui,sans-serif';
-      ctx.fillText(h.am, hourW / 2, cy - 5);
-      ctx.fillStyle = '#64748b';
-      ctx.font = '600 9px system-ui,sans-serif';
-      ctx.fillText(h.pm, hourW / 2, cy + 7);
+      const cy = oy + r * cellH + cellH / 2;
+      ctx.fillText(hourLabel(r), hourW / 2, cy);
     }
 
-    // corner label
-    ctx.fillStyle = '#1a2340';
-    ctx.font = '700 10px system-ui,sans-serif';
-    ctx.fillText(lang === 'ua' ? 'Час' : 'Time', hourW / 2, dayH / 2);
+    // corner
+    ctx.fillStyle = '#64748b';
+    ctx.font = '700 ' + Math.max(8, hourFont - 1) + 'px system-ui,sans-serif';
+    ctx.fillText(lang === 'ua' ? 'год' : 'hr', hourW / 2, dayH / 2);
 
     // playfield white + fine grid
     ctx.fillStyle = '#ffffff';
-    ctx.fillRect(ox, oy, cell * COLS, cell * ROWS);
+    ctx.fillRect(ox, oy, cellW * COLS, cellH * ROWS);
     ctx.strokeStyle = '#e4e7ee';
     ctx.lineWidth = 1;
     for (let r = 0; r <= ROWS; r++) {
       ctx.beginPath();
-      ctx.moveTo(ox, oy + r * cell + 0.5);
-      ctx.lineTo(ox + cell * COLS, oy + r * cell + 0.5);
+      ctx.moveTo(ox, oy + r * cellH + 0.5);
+      ctx.lineTo(ox + cellW * COLS, oy + r * cellH + 0.5);
       ctx.stroke();
     }
     for (let c = 0; c <= COLS; c++) {
       ctx.beginPath();
-      ctx.moveTo(ox + c * cell + 0.5, oy);
-      ctx.lineTo(ox + c * cell + 0.5, oy + cell * ROWS);
+      ctx.moveTo(ox + c * cellW + 0.5, oy);
+      ctx.lineTo(ox + c * cellW + 0.5, oy + cellH * ROWS);
       ctx.stroke();
     }
-    // stronger separators between days
+    // stronger separators between days; subtle mid-day split
     ctx.strokeStyle = '#d0d5de';
     for (let i = 0; i <= 7; i++) {
       ctx.beginPath();
-      ctx.moveTo(ox + i * 2 * cell + 0.5, 0);
-      ctx.lineTo(ox + i * 2 * cell + 0.5, oy + cell * ROWS);
+      ctx.moveTo(ox + i * 2 * cellW + 0.5, 0);
+      ctx.lineTo(ox + i * 2 * cellW + 0.5, oy + cellH * ROWS);
       ctx.stroke();
+    }
+    ctx.strokeStyle = '#eceff4';
+    for (let i = 0; i < 7; i++) {
+      ctx.beginPath();
+      ctx.moveTo(ox + (i * 2 + 1) * cellW + 0.5, oy);
+      ctx.lineTo(ox + (i * 2 + 1) * cellW + 0.5, oy + cellH * ROWS);
+      ctx.stroke();
+    }
+
+    const boltSize = Math.min(cellW, cellH);
+    const boltPadX = (cellW - boltSize) / 2;
+    const boltPadY = (cellH - boltSize) / 2;
+    function paintCell(c, r, ghost) {
+      const x = ox + c * cellW;
+      const y = oy + r * cellH;
+      if (ghost) {
+        ctx.strokeStyle = '#9aa3b2';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(x + 1.5, y + 1.5, cellW - 3, cellH - 3);
+        return;
+      }
+      ctx.fillStyle = '#9aa3b2';
+      ctx.fillRect(x, y, cellW, cellH);
+      const inset = Math.max(2, boltSize * 0.18);
+      drawBolt(ctx, x + boltPadX + inset, y + boltPadY + inset, boltSize - inset * 2, '#1a2340');
     }
 
     // locked cells
     for (let r = 0; r < ROWS; r++) {
       for (let c = 0; c < COLS; c++) {
-        if (grid[r][c]) drawOutageCell(ctx, ox + c * cell, oy + r * cell, cell, false);
+        if (grid[r][c]) paintCell(c, r, false);
       }
     }
 
-    // ghost
+    // ghost + active
     if (piece && running && !paused) {
       const g = ghostRow();
       if (g.r !== piece.r) {
         for (const [rr, cc] of cellsOf(g.type, g.rot, g.r, g.c)) {
-          if (rr >= 0) drawOutageCell(ctx, ox + cc * cell, oy + rr * cell, cell, true);
+          if (rr >= 0) paintCell(cc, rr, true);
         }
       }
       for (const [rr, cc] of cellsOf(piece.type, piece.rot, piece.r, piece.c)) {
-        if (rr >= 0) drawOutageCell(ctx, ox + cc * cell, oy + rr * cell, cell, false);
+        if (rr >= 0) paintCell(cc, rr, false);
       }
     }
   }
@@ -513,7 +529,9 @@
     $('status').textContent = over ? '' : (paused ? LL.paused : (running ? LL.playing : ''));
     $('legend').innerHTML =
       '<span><i class="sw light"></i><em>' + LL.legendLight + '</em></span>' +
-      '<span><i class="sw dark"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#1a2340" d="M13.2 2.2 6.4 13.1h4.3l-1.6 8.7 8.2-12.4h-4.5z"/><path stroke="#1a2340" stroke-width="2.4" stroke-linecap="round" d="M5 5.5 19 18.5"/></svg></i><em>' + LL.legendDark + '</em></span>';
+      '<span><i class="sw dark"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#1a2340" d="M13.2 2.2 6.4 13.1h4.3l-1.6 8.7 8.2-12.4h-4.5z"/><path stroke="#1a2340" stroke-width="2.4" stroke-linecap="round" d="M5 5.5 19 18.5"/></svg></i><em>' + LL.legendDark + '</em></span>' +
+      '<span><i class="sw half" aria-hidden="true"><i></i><i></i></i><em>' + LL.legendHalf + '</em></span>' +
+      '<span><em>' + LL.legendHour + '</em></span>';
   }
 
   function showOverlay() {
@@ -660,12 +678,12 @@
     if (!swipe.moved && Math.hypot(dx, dy) < 18) return;
     swipe.moved = true;
     if (Math.abs(dx) > Math.abs(dy)) {
-      if (Math.abs(dx) >= metrics.cell * 0.55) {
+      if (Math.abs(dx) >= metrics.cellW * 0.55) {
         tryMove(0, dx > 0 ? 1 : -1);
         swipe.x = e.clientX;
         draw();
       }
-    } else if (dy > metrics.cell * 0.55) {
+    } else if (dy > metrics.cellH * 0.55) {
       softStep();
       swipe.y = e.clientY;
       updateHud();
@@ -736,11 +754,17 @@
 
   window.addEventListener('keydown', onKey);
   window.addEventListener('keyup', onKeyUp);
-  window.addEventListener('resize', () => {
+  function relayout() {
     computeMetrics();
     drawNext();
     draw();
-  });
+  }
+  window.addEventListener('resize', relayout);
+  if (typeof ResizeObserver !== 'undefined') {
+    const ro = new ResizeObserver(() => relayout());
+    ro.observe($('boardCard'));
+    ro.observe($('wrap'));
+  }
 
   // test hooks
   window.__tetris = {
@@ -750,7 +774,10 @@
       grid: grid.map((r) => r.slice()),
       piece: piece ? { ...piece } : null,
       nextType, gravityMs: gravityMs(),
+      metrics: { ...metrics },
+      hourLabels: Array.from({ length: ROWS }, (_, r) => hourLabel(r)),
     }),
+    relayout: () => relayout(),
     reset: () => { hideOverlay(); resetGame(); },
     move: (dr, dc) => tryMove(dr, dc),
     rotate: () => tryRotate(),
@@ -768,5 +795,7 @@
   grid = emptyGrid();
   overlayMode = 'start';
   applyLang();
+  // second pass after flex layout settles so the board can grow into leftover height
+  requestAnimationFrame(() => { relayout(); showOverlay(); });
   animId = requestAnimationFrame(frame);
 })();
