@@ -21,34 +21,36 @@
       replay: 'Ще раз',
       easy: 'Проста',
       hard: 'Складна',
-      hint: 'Відкрий клітинку зі світлом. Сірі з блискавкою — темрява. Довге натискання або ПКМ — мітка.',
-      hintFlag: 'Режим мітки: торкнись клітинки, щоб позначити темряву.',
+      hint: 'Відкривай темні години. Білі з цифрами — години зі світлом (цифра = скільки відключень поруч).',
+      hintFlag: 'Режим мітки: познач підозрілу темну годину.',
       hintHard: 'Складна: 24 години × 28 днів. Гортай сітку в обидва боки.',
       startT: 'Графік світла',
-      startB: 'Це сапер у вигляді графіка відключень. Світлі клітинки безпечні; сірі з перекресленою блискавкою — темрява.',
+      startB: 'Сапер як графік відключень: відкриваєш темні клітинки; години зі світлом стають білими з цифрою. Наприкінці цифри зникають — лишається чистий графік.',
       rulesCommon: [
-        'Відкрий клітинку — побачиш, скільки темряви навколо (8 сусідів).',
-        'Нуль відкриває сусідні світлі клітинки автоматично.',
+        'Темні клітинки ще закриті. Відкрий — якщо там світло, клітинка стає білою й показує, скільки відключень навколо (8 сусідів).',
+        'Нуль відкриває сусідні години зі світлом автоматично.',
+        'Справжня година без світла (відключення) — програш.',
         'Перший хід завжди безпечний.',
         'Мітка: довге натискання / ПКМ / кнопка «Мітка».',
-        'Виграш — відкрити всі світлі клітинки.',
+        'Виграш — відкрити всі години зі світлом. Після гри сітка стає графіком: біле = світло, сіре з блискавкою = відключення (без цифр).',
         '«Проста» — тиждень (12×14). «Складна» — місяць по годинах (24×28).',
       ],
-      rulesEasy: 'Проста: 12×14 клітинок — 7 днів × дві половини доби (00–12 і 12–24), 18 темряви.',
-      rulesHard: 'Складна: 24×28 клітинок — година на рядок (00–01 … 23–24), день на колонку (28 днів), 120 темряви.',
+      rulesEasy: 'Проста: 12×14 клітинок — 7 днів × дві половини доби (00–12 і 12–24), 18 відключень.',
+      rulesHard: 'Складна: 24×28 клітинок — година на рядок (00–01 … 23–24), день на колонку (28 днів), 120 відключень.',
       go: 'Грати',
       win: 'Є світло! ⚡',
-      winB: 'Усі світлі клітинки відкрито. Темрява позначена або обійдена.',
-      lose: 'Темрява…',
-      loseB: 'Відкрив клітинку без світла. Спробуй ще раз.',
+      winB: 'Усі години зі світлом відкрито. Нижче — чистий графік без цифр.',
+      lose: 'Відключення…',
+      loseB: 'Потрапив на годину без світла. Нижче — повний графік.',
       again: 'Ще раз',
       halfAm: '00–12',
       halfPm: '12–24',
       week: (n) => 'Тиждень ' + n,
-      legendClosed: 'закрито',
+      legendClosed: 'закрито (темне)',
       legendLight: 'світло',
-      legendDark: 'темрява',
+      legendDark: 'відключення',
       legendFlag: 'мітка',
+      legendPlayNum: 'цифра = відключення поруч',
     },
     en: {
       title: 'Power schedule',
@@ -61,34 +63,36 @@
       replay: 'Replay',
       easy: 'Easy',
       hard: 'Hard',
-      hint: 'Open a lit cell. Grey with a crossed bolt is darkness. Long-press or right-click to flag.',
-      hintFlag: 'Flag mode: tap a cell to mark darkness.',
+      hint: 'Open dark hours. White cells with numbers are power-on (the digit is nearby outages).',
+      hintFlag: 'Flag mode: mark a suspected outage hour.',
       hintHard: 'Hard: 24 hours × 28 days. Scroll the grid both ways.',
       startT: 'Power schedule',
-      startB: 'Minesweeper as an outage timetable. Lit cells are safe; grey crossed-bolt cells are darkness.',
+      startB: 'Minesweeper as an outage timetable: open dark cells; power-on hours turn white with a count. At the end numbers vanish into a clean schedule.',
       rulesCommon: [
-        'Open a cell to see how many darkness cells are around it (8 neighbours).',
-        'A zero floods open neighbouring lit cells.',
+        'Dark cells are still closed. Open one — if it has power it turns white and shows how many outages are around it (8 neighbours).',
+        'A zero floods neighbouring power-on hours.',
+        'A true outage hour loses the round.',
         'The first click is always safe.',
         'Flag with long-press / right-click / Flag button.',
-        'Win by opening every lit cell.',
+        'Win by opening every power-on hour. Afterwards the grid is a clean schedule: white = power, grey + bolt = outage (no numbers).',
         'Easy is a week (12×14). Hard is a month by the hour (24×28).',
       ],
-      rulesEasy: 'Easy: 12×14 cells — 7 weekdays × two half-days (00–12 and 12–24), 18 darkness.',
-      rulesHard: 'Hard: 24×28 cells — one hour per row (00–01 … 23–24), one day per column (28 days), 120 darkness.',
+      rulesEasy: 'Easy: 12×14 cells — 7 weekdays × two half-days (00–12 and 12–24), 18 outages.',
+      rulesHard: 'Hard: 24×28 cells — one hour per row (00–01 … 23–24), one day per column (28 days), 120 outages.',
       go: 'Play',
       win: 'Lights on! ⚡',
-      winB: 'Every lit cell is open. Darkness flagged or avoided.',
-      lose: 'Blackout…',
-      loseB: 'You opened a dark cell. Try again.',
+      winB: 'Every power-on hour is open. Below — a clean schedule without numbers.',
+      lose: 'Outage…',
+      loseB: 'You hit an outage hour. Below — the full schedule.',
       again: 'Play again',
       halfAm: '00–12',
       halfPm: '12–24',
       week: (n) => 'Week ' + n,
-      legendClosed: 'closed',
+      legendClosed: 'closed (dark)',
       legendLight: 'power on',
       legendDark: 'outage',
       legendFlag: 'flag',
+      legendPlayNum: 'digit = nearby outages',
     },
   };
 
@@ -266,13 +270,29 @@
     return day + ' ' + half + ' ' + slot;
   }
 
+  function hideResult() {
+    const r = $('result');
+    r.classList.remove('show', 'win', 'lose');
+    $('resultTxt').textContent = '';
+  }
+
+  function showResult(kind) {
+    const L = T[lang];
+    const r = $('result');
+    r.classList.add('show', kind);
+    r.classList.remove(kind === 'win' ? 'lose' : 'win');
+    $('resultTxt').textContent = (kind === 'win' ? L.win : L.lose) + ' — ' + (kind === 'win' ? L.winB : L.loseB);
+    $('resultReplay').textContent = L.again;
+  }
+
   function resetGame() {
     applyModeDims();
-    cells = Array.from({ length: ROWS * COLS }, () => ({ mine: false, open: false, flag: false, n: 0 }));
+    cells = Array.from({ length: ROWS * COLS }, () => ({ mine: false, open: false, flag: false, n: 0, hit: false }));
     placed = false;
     over = false;
     flags = 0;
     flagMode = false;
+    hideResult();
     $('status').textContent = '';
     $('status').className = '';
     buildBoardSkeleton();
@@ -318,6 +338,19 @@
     const cell = cells[i];
     el.className = 'cell';
     el.innerHTML = '';
+    el.textContent = '';
+
+    // End of round: clean outage schedule — no numbers, flags, or hit marks
+    if (over) {
+      if (cell.mine) {
+        el.classList.add('outage');
+        el.innerHTML = BOLT_SVG;
+      } else {
+        el.classList.add('light');
+      }
+      return;
+    }
+
     if (cell.flag && !cell.open) {
       el.classList.add('flagged', 'closed');
       el.innerHTML = '<span class="flag" aria-hidden="true">⚑</span>';
@@ -327,13 +360,8 @@
       el.classList.add('closed');
       return;
     }
-    el.classList.add('open');
-    if (cell.mine) {
-      el.classList.add('mine', 'revealed');
-      if (cell.hit) el.classList.add('hit');
-      el.innerHTML = BOLT_SVG;
-      return;
-    }
+    // Play: opened power-on hours are white with adjacency counts
+    el.classList.add('open', 'light');
     if (cell.n === 0) {
       el.classList.add('zero');
       return;
@@ -348,8 +376,10 @@
   }
 
   function paintAll() {
+    $('board').classList.toggle('ended', !!over);
     for (let i = 0; i < cells.length; i++) paintCell(i);
     updateCounters();
+    renderLegend();
   }
 
   function updateCounters() {
@@ -375,30 +405,31 @@
     }
   }
 
-  function revealAllMines() {
-    for (const cell of cells) if (cell.mine) { cell.open = true; cell.flag = false; }
+  function clearPlayMarks() {
+    flags = 0;
+    for (const cell of cells) {
+      cell.flag = false;
+      cell.hit = false;
+      cell.open = true; // schedule view shows every hour
+    }
+  }
+
+  function endRound(kind) {
+    over = kind;
+    clearPlayMarks();
+    hideOverlay();
+    paintAll();
+    showResult(kind);
   }
 
   function checkWin() {
     const ok = cells.every((c) => c.mine || c.open);
     if (!ok) return;
-    over = 'win';
-    for (const c of cells) if (c.mine && !c.flag) { c.flag = true; }
-    flags = cells.filter((c) => c.flag).length;
-    paintAll();
-    $('status').textContent = T[lang].win;
-    $('status').className = 'win';
-    showOverlay('win');
+    endRound('win');
   }
 
-  function loseAt(i) {
-    over = 'lose';
-    cells[i].hit = true;
-    revealAllMines();
-    paintAll();
-    $('status').textContent = T[lang].lose;
-    $('status').className = 'lose';
-    showOverlay('lose');
+  function loseAt(/* i */) {
+    endRound('lose');
   }
 
   function openAt(i) {
@@ -490,6 +521,24 @@
     return [mode === 'hard' ? L.rulesHard : L.rulesEasy, ...L.rulesCommon];
   }
 
+  function renderLegend() {
+    const L = T[lang];
+    const miniBolt =
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#1a2340" d="M13.2 2.2 6.4 13.1h4.3l-1.6 8.7 8.2-12.4h-4.5z"/>' +
+      '<path stroke="#1a2340" stroke-width="2.4" stroke-linecap="round" d="M5 5.5 19 18.5"/></svg>';
+    if (over) {
+      $('legend').innerHTML =
+        '<span><i class="sw light"></i>' + L.legendLight + '</span>' +
+        '<span><i class="sw dark">' + miniBolt + '</i>' + L.legendDark + '</span>';
+      return;
+    }
+    $('legend').innerHTML =
+      '<span><i class="sw closed"></i>' + L.legendClosed + '</span>' +
+      '<span><i class="sw light"></i>' + L.legendLight + ' · ' + L.legendPlayNum + '</span>' +
+      '<span><i class="sw dark">' + miniBolt + '</i>' + L.legendDark + '</span>' +
+      '<span><i class="sw flag"></i>' + L.legendFlag + '</span>';
+  }
+
   function applyLang() {
     const L = T[lang];
     document.documentElement.lang = lang === 'ua' ? 'uk' : 'en';
@@ -503,19 +552,13 @@
     $('flagMode').classList.toggle('on', flagMode);
     $('rulesBtn').textContent = L.rules;
     $('replay').textContent = L.replay;
+    $('resultReplay').textContent = L.again;
     $('diffEasy').textContent = L.easy;
     $('diffHard').textContent = L.hard;
     $('diffEasy').classList.toggle('on', mode === 'easy');
     $('diffHard').classList.toggle('on', mode === 'hard');
     $('hint').textContent = flagMode ? L.hintFlag : (mode === 'hard' ? L.hintHard + ' ' + L.hint : L.hint);
-    const miniBolt =
-      '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#1a2340" d="M13.2 2.2 6.4 13.1h4.3l-1.6 8.7 8.2-12.4h-4.5z"/>' +
-      '<path stroke="#1a2340" stroke-width="2.4" stroke-linecap="round" d="M5 5.5 19 18.5"/></svg>';
-    $('legend').innerHTML =
-      '<span><i class="sw closed"></i>' + L.legendClosed + '</span>' +
-      '<span><i class="sw light"></i>' + L.legendLight + '</span>' +
-      '<span><i class="sw dark">' + miniBolt + '</i>' + L.legendDark + '</span>' +
-      '<span><i class="sw flag"></i>' + L.legendFlag + '</span>';
+    renderLegend();
 
     // refresh headers in place when language changes (same mode/geometry)
     if (mode === 'easy') {
@@ -535,8 +578,7 @@
     $('board').querySelectorAll('.cell').forEach((el) => {
       el.setAttribute('aria-label', cellAria(+el.dataset.r, +el.dataset.c));
     });
-    if (over === 'win') $('status').textContent = L.win;
-    if (over === 'lose') $('status').textContent = L.lose;
+    if (over === 'win' || over === 'lose') showResult(over);
     if (!$('overlay').classList.contains('hidden')) fillOverlay();
   }
 
@@ -544,24 +586,15 @@
     const L = T[lang];
     const rules = $('oRules');
     rules.innerHTML = '';
-    if (overlayMode === 'start' || overlayMode === 'rules') {
-      $('oTitle').textContent = overlayMode === 'rules' ? L.rules : L.startT;
-      $('oBody').textContent = L.startB;
-      rulesList().forEach((line) => {
-        const li = document.createElement('li');
-        li.textContent = line;
-        rules.appendChild(li);
-      });
-      $('oBtn').textContent = overlayMode === 'rules' ? (lang === 'ua' ? 'Зрозуміло' : 'Got it') : L.go;
-    } else if (overlayMode === 'win') {
-      $('oTitle').textContent = L.win;
-      $('oBody').textContent = L.winB;
-      $('oBtn').textContent = L.again;
-    } else {
-      $('oTitle').textContent = L.lose;
-      $('oBody').textContent = L.loseB;
-      $('oBtn').textContent = L.again;
-    }
+    // Overlay is only for start / rules — win/lose use the outside-grid result banner
+    $('oTitle').textContent = overlayMode === 'rules' ? L.rules : L.startT;
+    $('oBody').textContent = L.startB;
+    rulesList().forEach((line) => {
+      const li = document.createElement('li');
+      li.textContent = line;
+      rules.appendChild(li);
+    });
+    $('oBtn').textContent = overlayMode === 'rules' ? (lang === 'ua' ? 'Зрозуміло' : 'Got it') : L.go;
   }
 
   function showOverlay(modeName) {
@@ -585,12 +618,12 @@
   };
   $('rulesBtn').onclick = () => showOverlay('rules');
   $('replay').onclick = () => { hideOverlay(); resetGame(); };
+  $('resultReplay').onclick = () => { hideOverlay(); resetGame(); };
   $('diffEasy').onclick = () => setMode('easy');
   $('diffHard').onclick = () => setMode('hard');
   $('oBtn').onclick = () => {
-    if (overlayMode === 'rules') { hideOverlay(); return; }
     hideOverlay();
-    if (overlayMode === 'start') return;
+    if (overlayMode === 'start' || overlayMode === 'rules') return;
     resetGame();
   };
 
@@ -607,6 +640,12 @@
       mines: cells.filter((c) => c.mine).length,
       open: cells.filter((c) => c.open).length,
       cells: cells.map((c) => ({ mine: c.mine, open: c.open, flag: c.flag, n: c.n, hit: !!c.hit })),
+      /** DOM snapshot helpers for tests */
+      gridDigits: () => [...document.querySelectorAll('#board .cell')].filter((el) => /^\d+$/.test((el.textContent || '').trim())).length,
+      gridFlags: () => document.querySelectorAll('#board .cell .flag').length,
+      gridOutages: () => document.querySelectorAll('#board .cell.outage').length,
+      gridLights: () => document.querySelectorAll('#board .cell.light').length,
+      boardEnded: () => document.getElementById('board').classList.contains('ended'),
     }),
     openAt, toggleFlag, reset: resetGame, setMode,
     idx, neighbors, placeMines,

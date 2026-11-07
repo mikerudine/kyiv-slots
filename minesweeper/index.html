@@ -43,30 +43,41 @@ h1{margin:0;font-size:clamp(15px,4.2vw,18px);font-weight:800;color:#1a2340;text-
 .hour{position:sticky;left:0;z-index:2;flex-direction:column;gap:1px;font-variant-numeric:tabular-nums;min-height:40px;background:#f7f8fb}
 #board.hard .hour{min-height:36px;font-size:11px;font-weight:800}
 .hour .am{font-weight:800}.hour .pm{font-weight:600;color:#64748b;font-size:10px}
-.cell{min-height:40px;min-width:40px;border:0;border-bottom:1px solid #e4e7ee;border-right:1px solid #e4e7ee;border-radius:0;background:#e9edf3;display:flex;align-items:center;justify-content:center;cursor:pointer;font-weight:800;font-size:14px;color:#1a2340;position:relative;touch-action:manipulation;padding:0;-webkit-appearance:none;appearance:none}
+.cell{min-height:40px;min-width:40px;border:0;border-bottom:1px solid #d0d5de;border-right:1px solid #d0d5de;border-radius:0;background:#9aa3b2;display:flex;align-items:center;justify-content:center;cursor:pointer;font-weight:800;font-size:14px;color:#1a2340;position:relative;touch-action:manipulation;padding:0;-webkit-appearance:none;appearance:none}
 #board.hard .cell{min-height:36px;min-width:40px;font-size:13px}
 .cell:active{filter:brightness(.96)}
-.cell.closed{background:linear-gradient(180deg,#eef1f6 0%,#e2e6ee 100%);box-shadow:inset 0 1px 0 #fff8,inset 0 -1px 0 #0000000d}
-.cell.open{background:#fff;cursor:default}
+/* Play: unopened hours look dark; opened power-on hours are white with counts */
+.cell.closed{background:#9aa3b2;box-shadow:inset 0 1px 0 #ffffff22,inset 0 -1px 0 #00000018}
+.cell.open,.cell.light{background:#fff;cursor:default}
 .cell.open.zero{color:transparent}
-.cell.mine.revealed,.cell.mine.hit{background:#9aa3b2;color:#1a2340}
-.cell.hit{outline:2px solid #f5b400;outline-offset:-2px}
-.cell.flagged{background:#fff7cc}
+.cell.outage{background:#9aa3b2;color:#1a2340;cursor:default}
+.cell.flagged{background:#7d8799;box-shadow:inset 0 0 0 2px #f5b400}
+.cell.flagged .flag{color:#ffe566;filter:drop-shadow(0 1px 0 #1a2340)}
 .cell .bolt{width:18px;height:18px;display:block}
 #board.hard .cell .bolt{width:15px;height:15px}
 .cell .flag{font-size:15px;line-height:1}
+#board.ended .cell{cursor:default}
+#board.ended .cell.light{background:#fff}
+#board.ended .cell.outage{background:#9aa3b2}
 .n1{color:#1d4ed8}.n2{color:#15803d}.n3{color:#b45309}.n4{color:#7c3aed}
 .n5{color:#be123c}.n6{color:#0f766e}.n7{color:#1a2340}.n8{color:#64748b}
 #legend{display:flex;flex-wrap:wrap;gap:10px 14px;font-size:12px;color:#475569;padding:2px 2px 0}
 #legend span{display:inline-flex;align-items:center;gap:6px}
 .sw{width:16px;height:16px;border-radius:3px;border:1px solid #c9ced8;display:inline-block}
-.sw.closed{background:linear-gradient(180deg,#eef1f6,#e2e6ee)}
+.sw.closed{background:#9aa3b2}
 .sw.light{background:#fff}
 .sw.dark{background:#9aa3b2;display:inline-flex;align-items:center;justify-content:center}
 .sw.dark svg{width:12px;height:12px}
-.sw.flag{background:#fff7cc}
-#status{min-height:20px;font-size:14px;font-weight:700;text-align:center}
-#status.win{color:#15803d}#status.lose{color:#b91c1c}
+.sw.flag{background:#7d8799;box-shadow:inset 0 0 0 1px #f5b400}
+#result{display:none;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;background:#fff;border:1px solid #d7dbe3;border-radius:12px;padding:10px 12px}
+#result.show{display:flex}
+#result.win{border-color:#86efac;background:#f0fdf4}
+#result.lose{border-color:#fca5a5;background:#fef2f2}
+#resultTxt{font-size:14px;font-weight:800;flex:1;line-height:1.3}
+#result.win #resultTxt{color:#15803d}
+#result.lose #resultTxt{color:#b91c1c}
+#resultReplay{border:0;border-radius:999px;background:#1a2340;color:#fff;font-weight:800;font-size:13px;padding:10px 16px;min-height:40px;cursor:pointer}
+#status{display:none}
 .ov{position:fixed;inset:0;background:#1a2340cc;display:flex;align-items:center;justify-content:center;padding:20px;z-index:20}
 .ov.hidden{display:none}
 .panel{background:#fff;border-radius:16px;padding:20px 18px;max-width:360px;width:100%;box-shadow:0 12px 40px #0004;max-height:min(90dvh,640px);overflow:auto}
@@ -101,6 +112,10 @@ h1{margin:0;font-size:clamp(15px,4.2vw,18px);font-weight:800;color:#1a2340;text-
     <div id="board" class="easy" role="grid" aria-label="schedule"></div>
   </div>
   <div id="legend"></div>
+  <div id="result" aria-live="polite">
+    <div id="resultTxt"></div>
+    <button type="button" id="resultReplay"></button>
+  </div>
   <div id="status"></div>
 </div>
 <div class="ov" id="overlay">

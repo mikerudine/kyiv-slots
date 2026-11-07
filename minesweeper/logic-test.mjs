@@ -65,19 +65,37 @@ const results = await page.evaluate(() => {
 
   M.seed([M.idx(2, 2), M.idx(2, 3), M.idx(3, 2)], null);
   ok('easy-count', M.state().cells[M.idx(3, 3)].n === 3);
-  M.openAt(M.idx(0, 0));
-  ok('easy-flood', M.state().open > 5 && !M.state().cells[M.idx(2, 2)].open);
 
-  M.seed([M.idx(4, 4)], null);
-  M.toggleFlag(M.idx(4, 4));
-  ok('easy-flag', M.state().flags === 1);
-  M.toggleFlag(M.idx(4, 4));
-  M.openAt(M.idx(4, 4));
+  // Mine wall so flood from the left cannot clear the whole board / auto-win
+  const easyWall = [];
+  for (let r = 0; r < 12; r++) easyWall.push(M.idx(r, 5));
+  M.seed(easyWall, null);
+  M.openAt(M.idx(0, 0));
+  ok('easy-flood', M.state().over === false && M.state().open > 5 && !M.state().cells[M.idx(0, 5)].open && !M.state().cells[M.idx(0, 6)].open, 'open=' + M.state().open);
+
+  M.seed([M.idx(0, 0), M.idx(11, 13)], null);
+  M.toggleFlag(M.idx(0, 0));
+  ok('easy-flag', M.state().flags === 1 && document.querySelectorAll('#board .cell.flagged').length === 1);
+  // Mid-play: open a numbered neighbour — dark closed remain, white digit appears
+  M.openAt(M.idx(0, 1));
+  ok('easy-play-dark-closed', document.querySelectorAll('#board .cell.closed').length > 0);
+  ok('easy-play-light-open', document.querySelectorAll('#board .cell.open').length >= 1);
+  ok('easy-play-has-digits', M.state().gridDigits() >= 1 && M.state().over === false, 'digits=' + M.state().gridDigits());
+
+  M.toggleFlag(M.idx(0, 0));
+  M.openAt(M.idx(0, 0));
   ok('easy-lose', M.state().over === 'lose');
+  ok('easy-lose-schedule', M.state().boardEnded() && M.state().gridDigits() === 0 && M.state().gridFlags() === 0 && M.state().gridOutages() === 2 && M.state().gridLights() === 166);
+  ok('easy-lose-banner', document.getElementById('result').classList.contains('show'));
 
   M.seed([M.idx(11, 13)], M.idx(0, 0));
   for (let i = 0; i < 168; i++) if (i !== M.idx(11, 13) && !M.state().cells[i].open) M.openAt(i);
   ok('easy-win', M.state().over === 'win');
+  ok('easy-win-schedule', M.state().boardEnded() && M.state().gridDigits() === 0 && M.state().gridFlags() === 0 && M.state().gridOutages() === 1 && M.state().gridLights() === 167);
+
+  M.reset();
+  document.getElementById('overlay').classList.add('hidden');
+  ok('easy-replay-closed', !M.state().over && document.querySelectorAll('#board .cell.closed').length === 168 && !document.getElementById('result').classList.contains('show'));
 
   // ---- hard ----
   M.setMode('hard');
@@ -105,9 +123,12 @@ const results = await page.evaluate(() => {
   // adjacency on hard geometry
   M.seed([M.idx(10, 10), M.idx(10, 11), M.idx(11, 10)], null);
   ok('hard-count', M.state().cells[M.idx(11, 11)].n === 3, 'n=' + M.state().cells[M.idx(11, 11)].n);
+  const hardWall = [];
+  for (let r = 0; r < 24; r++) hardWall.push(M.idx(r, 10));
+  M.seed(hardWall, null);
   M.openAt(M.idx(0, 0));
   const flooded = M.state();
-  ok('hard-flood', flooded.open > 10 && !flooded.cells[M.idx(10, 10)].open, 'open=' + flooded.open);
+  ok('hard-flood', flooded.over === false && flooded.open > 10 && !flooded.cells[M.idx(0, 10)].open && !flooded.cells[M.idx(0, 11)].open, 'open=' + flooded.open);
 
   M.seed([M.idx(5, 5)], null);
   M.toggleFlag(M.idx(5, 5));
@@ -115,6 +136,7 @@ const results = await page.evaluate(() => {
   M.toggleFlag(M.idx(5, 5));
   M.openAt(M.idx(5, 5));
   ok('hard-lose', M.state().over === 'lose');
+  ok('hard-lose-schedule', M.state().boardEnded() && M.state().gridDigits() === 0 && M.state().gridFlags() === 0 && M.state().gridOutages() === 1 && M.state().gridLights() === 671);
 
   // switch easy→hard→easy resets cleanly
   M.setMode('easy');
@@ -133,6 +155,7 @@ const results = await page.evaluate(() => {
   M.seed([M.idx(23, 27)], M.idx(0, 0));
   for (let i = 0; i < 672; i++) if (i !== M.idx(23, 27) && !M.state().cells[i].open) M.openAt(i);
   ok('hard-win', M.state().over === 'win');
+  ok('hard-win-schedule', M.state().boardEnded() && M.state().gridDigits() === 0 && M.state().gridFlags() === 0 && M.state().gridOutages() === 1);
 
   document.getElementById('lang').click();
   ok('lang-en', document.documentElement.lang === 'en');
