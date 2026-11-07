@@ -1,14 +1,13 @@
 /* One Day in Kyiv — Outage Tetris ("Тетріс відключень")
-   Ordinary Tetris on a 12×14 outage-schedule board. No live outage data. */
+   Ordinary Tetris on a 24×10 outage-queue schedule. No live outage data. */
 (function () {
   'use strict';
 
-  const ROWS = 12;
-  const COLS = 14;
-  const DAYS_UA = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд'];
-  const DAYS_EN = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const ROWS = 24;
+  const COLS = 10;
+  const QUEUES = ['1.1', '1.2', '2.1', '2.2', '3.1', '3.2', '4.1', '4.2', '5.1', '5.2'];
 
-  // SRS-ish shapes: each is a list of rotations; each rotation is [r,c] cells in a 4×4 box
+  // SRS-ish shapes: each rotation is [r,c] cells in a 4×4 box
   const SHAPES = {
     I: [
       [[1, 0], [1, 1], [1, 2], [1, 3]],
@@ -55,8 +54,22 @@
   };
   const BAG = Object.keys(SHAPES);
   const LINE_SCORE = [0, 100, 300, 500, 800];
-  const BASE_MS = 900; // beginner gravity
+  const BASE_MS = 900;
   const MIN_MS = 120;
+
+  const COL = {
+    bg: '#0f141c',
+    header: '#161c26',
+    grid: '#2a3344',
+    gridSoft: '#1e2633',
+    label: '#c9d2e0',
+    labelDim: '#8b95a8',
+    settled: '#6b7380',
+    boltWhite: '#f2f5fa',
+    boltYellow: '#f5c518',
+    activeFill: '#1a2230',
+    ghost: '#4a5568',
+  };
 
   const T = {
     ua: {
@@ -67,11 +80,15 @@
       level: 'рівень',
       next: 'Далі',
       legend: 'Легенда',
-      legendLight: 'світло',
-      legendDark: 'темрява',
+      legendEmpty: 'світло',
+      legendSettled: 'темрява',
+      legendActive: 'фігура',
+      legendQueues: 'колонки = черги 1.1–5.2',
+      legendHours: 'рядки = години 00–24',
+      corner: 'Час/Гр.',
       hint: '◀▶ рух · ↻ оберт · ▼ м’який · ▼▼ жорсткий. Клавіші: стрілки, пробіл, P.',
       startT: 'Тетріс відключень',
-      startB: 'Звичайний тетріс на графіку відключень 12×14. Фігурки — сірі клітинки з перекресленою блискавкою. Це гра колекції, не офіційний сервіс.',
+      startB: 'Звичайний тетріс на графіку черг відключень 24×10. Жовта блискавка — активна фігура; сірі з білою перекресленою — вже вимкнені години. Це гра колекції, не офіційний сервіс.',
       go: 'Грати',
       pause: 'Пауза',
       pauseB: 'Натисни, щоб продовжити.',
@@ -79,10 +96,6 @@
       over: 'Графік заповнено',
       overB: (s, l) => `Рахунок ${s}. Ліній: ${l}. Спробуй ще раз.`,
       again: 'Ще раз',
-      halfAm: '00–12',
-      halfPm: '12–24',
-      legendHalf: 'у дні: ліва 00–12, права 12–24',
-      legendHour: 'рядки = година ранку (+12 справа)',
       hard: '▼▼ Жорсткий',
       playing: 'Складаємо відключення…',
       paused: 'Пауза',
@@ -95,11 +108,15 @@
       level: 'level',
       next: 'Next',
       legend: 'Legend',
-      legendLight: 'power on',
-      legendDark: 'outage',
+      legendEmpty: 'power on',
+      legendSettled: 'outage',
+      legendActive: 'active',
+      legendQueues: 'columns = queues 1.1–5.2',
+      legendHours: 'rows = hours 00–24',
+      corner: 'Time/Q.',
       hint: '◀▶ move · ↻ rotate · ▼ soft · ▼▼ hard. Keys: arrows, space, P.',
       startT: 'Outage Tetris',
-      startB: 'Ordinary Tetris on a 12×14 outage schedule. Pieces are grey cells with a crossed lightning bolt. A collection game — not an official service.',
+      startB: 'Ordinary Tetris on a 24×10 outage-queue schedule. Yellow bolt = falling piece; grey cells with a white crossed bolt = locked outages. A collection game — not an official service.',
       go: 'Play',
       pause: 'Paused',
       pauseB: 'Tap to resume.',
@@ -107,10 +124,6 @@
       over: 'Schedule full',
       overB: (s, l) => `Score ${s}. Lines: ${l}. Try again.`,
       again: 'Play again',
-      halfAm: '00–12',
-      halfPm: '12–24',
-      legendHalf: 'per day: left 00–12, right 12–24',
-      legendHour: 'rows = morning hour (+12 on right)',
       hard: '▼▼ Hard drop',
       playing: 'Stacking outages…',
       paused: 'Paused',
@@ -124,7 +137,7 @@
   const nextCtx = nextCv.getContext('2d');
 
   let lang = localStorage.getItem('tetris-lang') || 'ua';
-  let overlayMode = 'start'; // start | pause | over
+  let overlayMode = 'start';
   let running = false;
   let paused = false;
   let over = false;
@@ -140,13 +153,10 @@
   let dropAcc = 0;
   let lastTs = 0;
   let softDropping = false;
-  let animId = 0;
 
-  // layout metrics (recomputed on resize)
-  let metrics = { cell: 24, ox: 48, oy: 44, dayH: 22, halfH: 18, hourW: 44 };
+  let metrics = { cellW: 28, cellH: 24, ox: 44, oy: 22, hourW: 44, dayH: 22, boardW: 324, boardH: 598 };
 
   function L() { return T[lang]; }
-  function days() { return lang === 'ua' ? DAYS_UA : DAYS_EN; }
 
   function emptyGrid() {
     return Array.from({ length: ROWS }, () => Array(COLS).fill(0));
@@ -171,8 +181,7 @@
   }
 
   function fits(type, rot, r, c) {
-    const cells = cellsOf(type, rot, r, c);
-    for (const [rr, cc] of cells) {
+    for (const [rr, cc] of cellsOf(type, rot, r, c)) {
       if (rr < 0 || rr >= ROWS || cc < 0 || cc >= COLS) return false;
       if (grid[rr][cc]) return false;
     }
@@ -182,7 +191,6 @@
   function spawn() {
     const type = nextType || takeFromBag();
     nextType = takeFromBag();
-    // center horizontally in a 14-wide board; shapes use a 4-wide box
     const c = ((COLS - 4) / 2) | 0;
     const r = 0;
     if (!fits(type, 0, r, c)) {
@@ -210,8 +218,7 @@
   function tryRotate() {
     if (!piece || over || paused) return false;
     const nrot = (piece.rot + 1) & 3;
-    const kicks = [0, -1, 1, -2, 2];
-    for (const k of kicks) {
+    for (const k of [0, -1, 1, -2, 2]) {
       if (fits(piece.type, nrot, piece.r, piece.c + k)) {
         piece.rot = nrot;
         piece.c += k;
@@ -236,8 +243,7 @@
 
   function lockPiece(spawnFailed) {
     if (!piece) return;
-    const cells = cellsOf(piece.type, piece.rot, piece.r, piece.c);
-    for (const [rr, cc] of cells) {
+    for (const [rr, cc] of cellsOf(piece.type, piece.rot, piece.r, piece.c)) {
       if (rr >= 0 && rr < ROWS && cc >= 0 && cc < COLS) grid[rr][cc] = 1;
     }
     piece = null;
@@ -298,22 +304,21 @@
     draw();
   }
 
-  // ---- drawing ----
-  /** Compact row label: morning hour start (right column of each day is +12). */
   function hourLabel(row) {
-    return String(row).padStart(2, '0');
+    const a0 = String(row).padStart(2, '0');
+    const a1 = String(row + 1).padStart(2, '0');
+    return a0 + '–' + a1;
   }
 
   function computeMetrics() {
     const card = $('boardCard');
-    const cssW = Math.max(200, (card && card.clientWidth) || boardCv.parentElement.clientWidth || 360);
-    const cssH = Math.max(180, (card && card.clientHeight) || 320);
-    // Single-line hour gutter — room for "00"/"11" without clipping
-    const hourW = cssW < 340 ? 28 : (cssW < 420 ? 32 : 38);
-    const dayH = cssW < 340 ? 20 : 24;
-    // Fill the card: width- and height-driven sizes may differ slightly (schedule rows can be taller)
-    const cellW = Math.max(16, Math.floor((cssW - hourW) / COLS));
-    const cellH = Math.max(18, Math.floor((cssH - dayH) / ROWS));
+    const cssW = Math.max(260, (card && card.clientWidth) || boardCv.parentElement.clientWidth || 360);
+    // Prefer readable hour labels ("00–01") and queue headers ("1.1")
+    const hourW = cssW < 340 ? 40 : (cssW < 420 ? 46 : 52);
+    const dayH = cssW < 340 ? 20 : 22;
+    const cellW = Math.max(22, Math.floor((cssW - hourW) / COLS));
+    // Keep row height readable; allow natural page scroll rather than crushing 24 rows
+    const cellH = Math.max(22, Math.min(cellW + 2, 28));
     const boardW = hourW + cellW * COLS;
     const boardH = dayH + cellH * ROWS;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -322,10 +327,10 @@
     boardCv.style.width = boardW + 'px';
     boardCv.style.height = boardH + 'px';
     boardCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    metrics = { cell: Math.min(cellW, cellH), cellW, cellH, ox: hourW, oy: dayH, dayH, hourW, boardW, boardH };
+    metrics = { cellW, cellH, ox: hourW, oy: dayH, dayH, hourW, boardW, boardH };
   }
 
-  function drawBolt(ctx, x, y, s, color) {
+  function drawBolt(ctx, x, y, s, color, crossed) {
     const k = s / 24;
     ctx.save();
     ctx.translate(x, y);
@@ -340,27 +345,43 @@
     ctx.lineTo(12.8, 9.4);
     ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2.4;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(5, 5.5);
-    ctx.lineTo(19, 18.5);
-    ctx.stroke();
+    if (crossed) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2.4;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(5, 5.5);
+      ctx.lineTo(19, 18.5);
+      ctx.stroke();
+    }
     ctx.restore();
   }
 
-  function drawOutageCell(ctx, x, y, s, ghost) {
-    if (ghost) {
-      ctx.strokeStyle = '#9aa3b2';
+  function paintCell(ctx, c, r, kind) {
+    const { cellW, cellH, ox, oy } = metrics;
+    const x = ox + c * cellW;
+    const y = oy + r * cellH;
+    const boltSize = Math.min(cellW, cellH);
+    const bx = x + (cellW - boltSize) / 2;
+    const by = y + (cellH - boltSize) / 2;
+    const inset = Math.max(2, boltSize * 0.16);
+
+    if (kind === 'ghost') {
+      ctx.strokeStyle = COL.ghost;
       ctx.lineWidth = 1.5;
-      ctx.strokeRect(x + 1.5, y + 1.5, s - 3, s - 3);
+      ctx.strokeRect(x + 1.5, y + 1.5, cellW - 3, cellH - 3);
       return;
     }
-    ctx.fillStyle = '#9aa3b2';
-    ctx.fillRect(x, y, s, s);
-    const pad = Math.max(2, s * 0.18);
-    drawBolt(ctx, x + pad, y + pad, s - pad * 2, '#1a2340');
+    if (kind === 'settled') {
+      ctx.fillStyle = COL.settled;
+      ctx.fillRect(x, y, cellW, cellH);
+      drawBolt(ctx, bx + inset, by + inset, boltSize - inset * 2, COL.boltWhite, true);
+      return;
+    }
+    // active: dark cell + yellow (uncrossed) bolt
+    ctx.fillStyle = COL.activeFill;
+    ctx.fillRect(x, y, cellW, cellH);
+    drawBolt(ctx, bx + inset, by + inset, boltSize - inset * 2, COL.boltYellow, false);
   }
 
   function ghostRow() {
@@ -375,42 +396,38 @@
     const ctx = boardCtx;
     ctx.clearRect(0, 0, boardW, boardH);
 
-    // header background — day names only (half-day meaning lives in shared legend)
-    ctx.fillStyle = '#f7f8fb';
-    ctx.fillRect(0, 0, boardW, oy);
-    ctx.fillStyle = '#eef1f6';
-    ctx.fillRect(ox, 0, cellW * COLS, dayH);
+    ctx.fillStyle = COL.bg;
+    ctx.fillRect(0, 0, boardW, boardH);
+
+    // header band
+    ctx.fillStyle = COL.header;
+    ctx.fillRect(0, 0, boardW, dayH);
+    ctx.fillRect(0, 0, hourW, boardH);
 
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const dayFont = cellW >= 26 ? 13 : (cellW >= 20 ? 12 : 11);
-    ctx.fillStyle = '#1a2340';
-    ctx.font = '800 ' + dayFont + 'px system-ui,sans-serif';
-    const d = days();
-    for (let i = 0; i < 7; i++) {
-      ctx.fillText(d[i], ox + (i * 2 + 1) * cellW, dayH / 2);
-    }
-
-    // hour column — one compact label per row (no stacked am/pm pair)
-    ctx.fillStyle = '#f7f8fb';
-    ctx.fillRect(0, oy, hourW, cellH * ROWS);
-    const hourFont = Math.max(10, Math.min(13, Math.floor(Math.min(cellH * 0.45, hourW * 0.42))));
-    ctx.font = '800 ' + hourFont + 'px system-ui,sans-serif';
-    ctx.fillStyle = '#1a2340';
-    for (let r = 0; r < ROWS; r++) {
-      const cy = oy + r * cellH + cellH / 2;
-      ctx.fillText(hourLabel(r), hourW / 2, cy);
+    const qFont = cellW >= 28 ? 11 : (cellW >= 24 ? 10 : 9);
+    ctx.fillStyle = COL.label;
+    ctx.font = '700 ' + qFont + 'px system-ui,sans-serif';
+    for (let i = 0; i < COLS; i++) {
+      ctx.fillText(QUEUES[i], ox + (i + 0.5) * cellW, dayH / 2);
     }
 
     // corner
-    ctx.fillStyle = '#64748b';
-    ctx.font = '700 ' + Math.max(8, hourFont - 1) + 'px system-ui,sans-serif';
-    ctx.fillText(lang === 'ua' ? 'год' : 'hr', hourW / 2, dayH / 2);
+    ctx.fillStyle = COL.labelDim;
+    ctx.font = '700 ' + Math.max(8, qFont - 1) + 'px system-ui,sans-serif';
+    ctx.fillText(L().corner, hourW / 2, dayH / 2);
 
-    // playfield white + fine grid
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(ox, oy, cellW * COLS, cellH * ROWS);
-    ctx.strokeStyle = '#e4e7ee';
+    // hour labels — one range per row, never clipped (canvas height includes all 24)
+    const hFont = Math.max(9, Math.min(11, Math.floor(cellH * 0.42)));
+    ctx.font = '600 ' + hFont + 'px system-ui,sans-serif';
+    ctx.fillStyle = COL.label;
+    for (let r = 0; r < ROWS; r++) {
+      ctx.fillText(hourLabel(r), hourW / 2, oy + r * cellH + cellH / 2);
+    }
+
+    // playfield grid
+    ctx.strokeStyle = COL.gridSoft;
     ctx.lineWidth = 1;
     for (let r = 0; r <= ROWS; r++) {
       ctx.beginPath();
@@ -424,71 +441,44 @@
       ctx.lineTo(ox + c * cellW + 0.5, oy + cellH * ROWS);
       ctx.stroke();
     }
-    // stronger separators between days; subtle mid-day split
-    ctx.strokeStyle = '#d0d5de';
-    for (let i = 0; i <= 7; i++) {
+    // stronger separators between queue pairs (1.x, 2.x, …)
+    ctx.strokeStyle = COL.grid;
+    for (let i = 0; i <= 5; i++) {
       ctx.beginPath();
       ctx.moveTo(ox + i * 2 * cellW + 0.5, 0);
       ctx.lineTo(ox + i * 2 * cellW + 0.5, oy + cellH * ROWS);
       ctx.stroke();
     }
-    ctx.strokeStyle = '#eceff4';
-    for (let i = 0; i < 7; i++) {
-      ctx.beginPath();
-      ctx.moveTo(ox + (i * 2 + 1) * cellW + 0.5, oy);
-      ctx.lineTo(ox + (i * 2 + 1) * cellW + 0.5, oy + cellH * ROWS);
-      ctx.stroke();
-    }
 
-    const boltSize = Math.min(cellW, cellH);
-    const boltPadX = (cellW - boltSize) / 2;
-    const boltPadY = (cellH - boltSize) / 2;
-    function paintCell(c, r, ghost) {
-      const x = ox + c * cellW;
-      const y = oy + r * cellH;
-      if (ghost) {
-        ctx.strokeStyle = '#9aa3b2';
-        ctx.lineWidth = 1.5;
-        ctx.strokeRect(x + 1.5, y + 1.5, cellW - 3, cellH - 3);
-        return;
-      }
-      ctx.fillStyle = '#9aa3b2';
-      ctx.fillRect(x, y, cellW, cellH);
-      const inset = Math.max(2, boltSize * 0.18);
-      drawBolt(ctx, x + boltPadX + inset, y + boltPadY + inset, boltSize - inset * 2, '#1a2340');
-    }
-
-    // locked cells
     for (let r = 0; r < ROWS; r++) {
       for (let c = 0; c < COLS; c++) {
-        if (grid[r][c]) paintCell(c, r, false);
+        if (grid[r][c]) paintCell(ctx, c, r, 'settled');
       }
     }
 
-    // ghost + active
     if (piece && running && !paused) {
       const g = ghostRow();
       if (g.r !== piece.r) {
         for (const [rr, cc] of cellsOf(g.type, g.rot, g.r, g.c)) {
-          if (rr >= 0) paintCell(cc, rr, true);
+          if (rr >= 0) paintCell(ctx, cc, rr, 'ghost');
         }
       }
       for (const [rr, cc] of cellsOf(piece.type, piece.rot, piece.r, piece.c)) {
-        if (rr >= 0) paintCell(cc, rr, false);
+        if (rr >= 0) paintCell(ctx, cc, rr, 'active');
       }
     }
   }
 
   function drawNext() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const css = nextCv.clientWidth || 72;
+    const css = nextCv.clientWidth || 56;
     nextCv.width = Math.round(css * dpr);
     nextCv.height = Math.round(css * dpr);
     nextCv.style.width = css + 'px';
     nextCv.style.height = css + 'px';
     nextCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
     nextCtx.clearRect(0, 0, css, css);
-    nextCtx.fillStyle = '#fff';
+    nextCtx.fillStyle = COL.bg;
     nextCtx.fillRect(0, 0, css, css);
     if (!nextType) return;
     const cells = SHAPES[nextType][0];
@@ -503,11 +493,15 @@
     const ox = (css - bw * cell) / 2;
     const oy = (css - bh * cell) / 2;
     for (const [r, c] of cells) {
-      drawOutageCell(nextCtx, ox + (c - minC) * cell, oy + (r - minR) * cell, cell, false);
+      const x = ox + (c - minC) * cell;
+      const y = oy + (r - minR) * cell;
+      nextCtx.fillStyle = COL.activeFill;
+      nextCtx.fillRect(x, y, cell, cell);
+      const inset = Math.max(2, cell * 0.16);
+      drawBolt(nextCtx, x + inset, y + inset, cell - inset * 2, COL.boltYellow, false);
     }
   }
 
-  // ---- UI ----
   function updateHud() {
     const LL = L();
     document.documentElement.lang = lang === 'ua' ? 'uk' : 'en';
@@ -528,16 +522,16 @@
     $('pauseBtn').textContent = paused ? '▶' : '⏸';
     $('status').textContent = over ? '' : (paused ? LL.paused : (running ? LL.playing : ''));
     $('legend').innerHTML =
-      '<span><i class="sw light"></i><em>' + LL.legendLight + '</em></span>' +
-      '<span><i class="sw dark"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#1a2340" d="M13.2 2.2 6.4 13.1h4.3l-1.6 8.7 8.2-12.4h-4.5z"/><path stroke="#1a2340" stroke-width="2.4" stroke-linecap="round" d="M5 5.5 19 18.5"/></svg></i><em>' + LL.legendDark + '</em></span>' +
-      '<span><i class="sw half" aria-hidden="true"><i></i><i></i></i><em>' + LL.legendHalf + '</em></span>' +
-      '<span><em>' + LL.legendHour + '</em></span>';
+      '<span><i class="sw empty"></i><em>' + LL.legendEmpty + '</em></span>' +
+      '<span><i class="sw settled"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#f2f5fa" d="M13.2 2.2 6.4 13.1h4.3l-1.6 8.7 8.2-12.4h-4.5z"/><path stroke="#f2f5fa" stroke-width="2.4" stroke-linecap="round" d="M5 5.5 19 18.5"/></svg></i><em>' + LL.legendSettled + '</em></span>' +
+      '<span><i class="sw active"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#f5c518" d="M13.2 2.2 6.4 13.1h4.3l-1.6 8.7 8.2-12.4h-4.5z"/></svg></i><em>' + LL.legendActive + '</em></span>' +
+      '<span><em>' + LL.legendQueues + '</em></span>' +
+      '<span><em>' + LL.legendHours + '</em></span>';
   }
 
   function showOverlay() {
     const LL = L();
-    const ov = $('overlay');
-    ov.classList.remove('hidden');
+    $('overlay').classList.remove('hidden');
     if (overlayMode === 'start') {
       $('oTitle').textContent = LL.startT;
       $('oBody').textContent = LL.startB;
@@ -553,9 +547,7 @@
     }
   }
 
-  function hideOverlay() {
-    $('overlay').classList.add('hidden');
-  }
+  function hideOverlay() { $('overlay').classList.add('hidden'); }
 
   function startFromOverlay() {
     if (overlayMode === 'pause') {
@@ -583,64 +575,39 @@
     updateHud();
   }
 
-  // ---- loop ----
   function frame(ts) {
-    animId = requestAnimationFrame(frame);
-    if (!running || paused || over) {
-      draw();
-      return;
-    }
+    requestAnimationFrame(frame);
+    if (!running || paused || over) { draw(); return; }
     const dt = Math.min(50, ts - lastTs);
     lastTs = ts;
     dropAcc += dt;
     const step = softDropping ? Math.min(80, gravityMs() / 8) : gravityMs();
     while (dropAcc >= step) {
       dropAcc -= step;
-      if (!tryMove(1, 0)) {
-        lockPiece(false);
-        break;
-      } else if (softDropping) {
-        score += 1;
-      }
+      if (!tryMove(1, 0)) { lockPiece(false); break; }
+      else if (softDropping) score += 1;
     }
     updateHud();
     draw();
   }
 
-  // ---- input ----
   function onKey(e) {
     if (e.repeat && (e.code === 'Space' || e.code === 'ArrowUp')) return;
     const inOverlay = !$('overlay').classList.contains('hidden');
     if (inOverlay) {
-      if (e.code === 'Enter' || e.code === 'Space') {
-        e.preventDefault();
-        startFromOverlay();
-      }
+      if (e.code === 'Enter' || e.code === 'Space') { e.preventDefault(); startFromOverlay(); }
       return;
     }
     switch (e.code) {
-      case 'ArrowLeft':
-      case 'KeyA':
-        e.preventDefault(); tryMove(0, -1); draw(); break;
-      case 'ArrowRight':
-      case 'KeyD':
-        e.preventDefault(); tryMove(0, 1); draw(); break;
-      case 'ArrowDown':
-      case 'KeyS':
-        e.preventDefault(); softDropping = true; softStep(); updateHud(); draw(); break;
-      case 'ArrowUp':
-      case 'KeyW':
-      case 'KeyX':
-        e.preventDefault(); tryRotate(); draw(); break;
-      case 'Space':
-        e.preventDefault(); hardDrop(); updateHud(); draw(); break;
-      case 'KeyP':
-      case 'Escape':
-        e.preventDefault(); togglePause(); break;
+      case 'ArrowLeft': case 'KeyA': e.preventDefault(); tryMove(0, -1); draw(); break;
+      case 'ArrowRight': case 'KeyD': e.preventDefault(); tryMove(0, 1); draw(); break;
+      case 'ArrowDown': case 'KeyS': e.preventDefault(); softDropping = true; softStep(); updateHud(); draw(); break;
+      case 'ArrowUp': case 'KeyW': case 'KeyX': e.preventDefault(); tryRotate(); draw(); break;
+      case 'Space': e.preventDefault(); hardDrop(); updateHud(); draw(); break;
+      case 'KeyP': case 'Escape': e.preventDefault(); togglePause(); break;
       default: break;
     }
   }
-
   function onKeyUp(e) {
     if (e.code === 'ArrowDown' || e.code === 'KeyS') softDropping = false;
   }
@@ -655,16 +622,12 @@
   }
 
   let leftHold = 0, rightHold = 0, softHold = 0;
-
   function startRepeat(fn, assign) {
-    fn();
-    draw(); updateHud();
-    const id = setInterval(() => { fn(); draw(); updateHud(); }, 70);
-    assign(id);
+    fn(); draw(); updateHud();
+    assign(setInterval(() => { fn(); draw(); updateHud(); }, 70));
   }
   function stopRepeat(id) { if (id) clearInterval(id); }
 
-  // swipe on board
   let swipe = null;
   boardCv.addEventListener('pointerdown', (e) => {
     if (!running || paused || over) return;
@@ -694,21 +657,20 @@
     if (!swipe) return;
     const dx = e.clientX - swipe.x;
     const dy = e.clientY - swipe.y;
-    if (!swipe.moved && Math.hypot(dx, dy) < 12) {
-      tryRotate();
-      draw();
-    } else if (dy < -40 && Math.abs(dy) > Math.abs(dx)) {
-      hardDrop();
-      updateHud();
-      draw();
-    }
+    if (!swipe.moved && Math.hypot(dx, dy) < 12) { tryRotate(); draw(); }
+    else if (dy < -40 && Math.abs(dy) > Math.abs(dx)) { hardDrop(); updateHud(); draw(); }
     swipe = null;
   });
 
-  // ---- boot ----
   function applyLang() {
     updateHud();
     if (!$('overlay').classList.contains('hidden')) showOverlay();
+    computeMetrics();
+    drawNext();
+    draw();
+  }
+
+  function relayout() {
     computeMetrics();
     drawNext();
     draw();
@@ -754,11 +716,6 @@
 
   window.addEventListener('keydown', onKey);
   window.addEventListener('keyup', onKeyUp);
-  function relayout() {
-    computeMetrics();
-    drawNext();
-    draw();
-  }
   window.addEventListener('resize', relayout);
   if (typeof ResizeObserver !== 'undefined') {
     const ro = new ResizeObserver(() => relayout());
@@ -766,9 +723,8 @@
     ro.observe($('wrap'));
   }
 
-  // test hooks
   window.__tetris = {
-    ROWS, COLS, SHAPES, BAG,
+    ROWS, COLS, SHAPES, BAG, QUEUES,
     state: () => ({
       running, paused, over, score, lines, level,
       grid: grid.map((r) => r.slice()),
@@ -776,6 +732,7 @@
       nextType, gravityMs: gravityMs(),
       metrics: { ...metrics },
       hourLabels: Array.from({ length: ROWS }, (_, r) => hourLabel(r)),
+      queues: QUEUES.slice(),
     }),
     relayout: () => relayout(),
     reset: () => { hideOverlay(); resetGame(); },
@@ -785,7 +742,6 @@
     softDrop: () => softStep(),
     pause: () => togglePause(),
     setLang: (l) => { lang = l === 'en' ? 'en' : 'ua'; localStorage.setItem('tetris-lang', lang); applyLang(); },
-    // inject board for tests
     setGrid: (g) => { grid = g.map((r) => r.slice()); draw(); },
     setPiece: (p) => { piece = p; draw(); },
     clearLines: () => { clearLines(); updateHud(); draw(); },
@@ -795,7 +751,6 @@
   grid = emptyGrid();
   overlayMode = 'start';
   applyLang();
-  // second pass after flex layout settles so the board can grow into leftover height
   requestAnimationFrame(() => { relayout(); showOverlay(); });
-  animId = requestAnimationFrame(frame);
+  requestAnimationFrame(frame);
 })();
