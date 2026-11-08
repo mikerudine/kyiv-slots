@@ -13,7 +13,7 @@
     ua: {
       title: 'Графік світла',
       menu: '☰ Меню',
-      dark: 'темрява',
+      dark: 'пастки',
       flags: 'мітки',
       flagMode: '🏷 Мітка',
       flagOn: '🏷 Мітка ON',
@@ -21,41 +21,42 @@
       replay: 'Ще раз',
       easy: 'Проста',
       hard: 'Складна',
-      hint: 'Відкривай темні години. Білі з цифрами — години зі світлом (цифра = скільки відключень поруч).',
-      hintFlag: 'Режим мітки: познач підозрілу темну годину.',
+      hint: 'Відкривай темні години. Порожня зона — без світла (сіре з блискавкою). Білі з цифрами — зі світлом; цифра = пастки поруч.',
+      hintFlag: 'Режим мітки: познач підозрілу пастку-відключення.',
       hintHard: 'Складна: 24 години × 28 днів. Гортай сітку в обидва боки.',
       startT: 'Графік світла',
-      startB: 'Сапер як графік відключень: відкриваєш темні клітинки; години зі світлом стають білими з цифрою. Наприкінці цифри зникають — лишається чистий графік.',
+      startB: 'Сапер як графік: відкриваєш темне. Порожні клітинки — години без світла (сірі з блискавкою). Білі з цифрами — години зі світлом. Наприкінці цифри зникають — лишається графік.',
       rulesCommon: [
-        'Темні клітинки ще закриті. Відкрий — якщо там світло, клітинка стає білою й показує, скільки відключень навколо (8 сусідів).',
-        'Нуль відкриває сусідні години зі світлом автоматично.',
-        'Справжня година без світла (відключення) — програш.',
-        'Перший хід завжди безпечний.',
-        'Мітка: довге натискання / ПКМ / кнопка «Мітка».',
-        'Виграш — відкрити всі години зі світлом. Після гри сітка стає графіком: біле = світло, сіре з блискавкою = відключення (без цифр).',
+        'Темні клітинки ще закриті (невідомо).',
+        'Порожня відкрита зона (нуль) — немає світла: сіре з перекресленою блискавкою. Вона розливається на сусідні порожні години.',
+        'Біла клітинка з цифрою — є світло; цифра показує, скільки пасток-відключень поруч (8 сусідів).',
+        'Пастка-відключення (прихована) — якщо відкрити, програш. Лічильник «темрява» рахує саме їх.',
+        'Перший хід завжди безпечний. Мітка: довге натискання / ПКМ / «Мітка».',
+        'Виграш — відкрити всі безпечні години (і без світла, і зі світлом), не натрапивши на пастку.',
+        'Після гри цифри й мітки зникають; кольори ті самі: біле = світло, сіре з блискавкою = без світла (включно з пастками).',
         '«Проста» — тиждень (12×14). «Складна» — місяць по годинах (24×28).',
       ],
-      rulesEasy: 'Проста: 12×14 клітинок — 7 днів × дві половини доби (00–12 і 12–24), 18 відключень.',
-      rulesHard: 'Складна: 24×28 клітинок — година на рядок (00–01 … 23–24), день на колонку (28 днів), 120 відключень.',
+      rulesEasy: 'Проста: 12×14 клітинок — 7 днів × дві половини доби (00–12 і 12–24), 18 пасток.',
+      rulesHard: 'Складна: 24×28 клітинок — година на рядок (00–01 … 23–24), день на колонку (28 днів), 120 пасток.',
       go: 'Грати',
       win: 'Є світло! ⚡',
-      winB: 'Усі години зі світлом відкрито. Нижче — чистий графік без цифр.',
-      lose: 'Відключення…',
-      loseB: 'Потрапив на годину без світла. Нижче — повний графік.',
+      winB: 'Графік відкрито. Нижче — чистий розклад без цифр.',
+      lose: 'Пастка…',
+      loseB: 'Потрапив на приховане відключення. Нижче — повний графік.',
       again: 'Ще раз',
       halfAm: '00–12',
       halfPm: '12–24',
       week: (n) => 'Тиждень ' + n,
-      legendClosed: 'закрито (темне)',
-      legendLight: 'світло',
-      legendDark: 'відключення',
-      legendFlag: 'мітка',
-      legendPlayNum: 'цифра = відключення поруч',
+      legendClosed: 'закрито',
+      legendLight: 'світло (цифра)',
+      legendDark: 'без світла',
+      legendFlag: 'мітка пастки',
+      legendTrap: 'пастка (лічильник)',
     },
     en: {
       title: 'Power schedule',
       menu: '☰ Menu',
-      dark: 'darkness',
+      dark: 'traps',
       flags: 'flags',
       flagMode: '🏷 Flag',
       flagOn: '🏷 Flag ON',
@@ -63,36 +64,37 @@
       replay: 'Replay',
       easy: 'Easy',
       hard: 'Hard',
-      hint: 'Open dark hours. White cells with numbers are power-on (the digit is nearby outages).',
-      hintFlag: 'Flag mode: mark a suspected outage hour.',
+      hint: 'Open dark hours. Empty flood = no power (grey + bolt). White with digits = power on; digit = nearby traps.',
+      hintFlag: 'Flag mode: mark a suspected trap outage.',
       hintHard: 'Hard: 24 hours × 28 days. Scroll the grid both ways.',
       startT: 'Power schedule',
-      startB: 'Minesweeper as an outage timetable: open dark cells; power-on hours turn white with a count. At the end numbers vanish into a clean schedule.',
+      startB: 'Minesweeper as a timetable: open the dark. Empty cells are no-power hours (grey + bolt). White numbered cells have power. At the end digits vanish into a clean schedule.',
       rulesCommon: [
-        'Dark cells are still closed. Open one — if it has power it turns white and shows how many outages are around it (8 neighbours).',
-        'A zero floods neighbouring power-on hours.',
-        'A true outage hour loses the round.',
-        'The first click is always safe.',
-        'Flag with long-press / right-click / Flag button.',
-        'Win by opening every power-on hour. Afterwards the grid is a clean schedule: white = power, grey + bolt = outage (no numbers).',
+        'Dark cells are still closed (unknown).',
+        'An empty opened region (zero) means no power: grey with a crossed bolt. It floods through neighbouring empty hours.',
+        'A white cell with a digit has power; the digit counts adjacent trap outages (8 neighbours).',
+        'A hidden trap outage loses the round if opened. The “traps” counter tracks those.',
+        'First click is always safe. Flag with long-press / right-click / Flag.',
+        'Win by opening every safe hour (no-power empties and powered numbered cells) without hitting a trap.',
+        'Afterwards digits and flags disappear; colours stay: white = power, grey + bolt = no power (including traps).',
         'Easy is a week (12×14). Hard is a month by the hour (24×28).',
       ],
-      rulesEasy: 'Easy: 12×14 cells — 7 weekdays × two half-days (00–12 and 12–24), 18 outages.',
-      rulesHard: 'Hard: 24×28 cells — one hour per row (00–01 … 23–24), one day per column (28 days), 120 outages.',
+      rulesEasy: 'Easy: 12×14 cells — 7 weekdays × two half-days (00–12 and 12–24), 18 traps.',
+      rulesHard: 'Hard: 24×28 cells — one hour per row (00–01 … 23–24), one day per column (28 days), 120 traps.',
       go: 'Play',
       win: 'Lights on! ⚡',
-      winB: 'Every power-on hour is open. Below — a clean schedule without numbers.',
-      lose: 'Outage…',
-      loseB: 'You hit an outage hour. Below — the full schedule.',
+      winB: 'Schedule cleared. Below — a clean timetable without numbers.',
+      lose: 'Trap…',
+      loseB: 'You hit a hidden outage trap. Below — the full schedule.',
       again: 'Play again',
       halfAm: '00–12',
       halfPm: '12–24',
       week: (n) => 'Week ' + n,
-      legendClosed: 'closed (dark)',
-      legendLight: 'power on',
-      legendDark: 'outage',
-      legendFlag: 'flag',
-      legendPlayNum: 'digit = nearby outages',
+      legendClosed: 'closed',
+      legendLight: 'power (digit)',
+      legendDark: 'no power',
+      legendFlag: 'trap flag',
+      legendTrap: 'trap (counter)',
     },
   };
 
@@ -332,6 +334,9 @@
     placed = true;
   }
 
+  /** Power-on = safe numbered cell. No-power visual = zero flood OR trap mine. */
+  function isPowerOn(cell) { return !cell.mine && cell.n > 0; }
+
   function paintCell(i) {
     const el = cellEl(i);
     if (!el) return;
@@ -340,13 +345,13 @@
     el.innerHTML = '';
     el.textContent = '';
 
-    // End of round: clean outage schedule — no numbers, flags, or hit marks
+    // End: same power / no-power map as play — no digits, flags, or hit marks
     if (over) {
-      if (cell.mine) {
+      if (isPowerOn(cell)) {
+        el.classList.add('light');
+      } else {
         el.classList.add('outage');
         el.innerHTML = BOLT_SVG;
-      } else {
-        el.classList.add('light');
       }
       return;
     }
@@ -360,14 +365,14 @@
       el.classList.add('closed');
       return;
     }
-    // Play: opened power-on hours are white with adjacency counts
-    el.classList.add('open', 'light');
-    if (cell.n === 0) {
-      el.classList.add('zero');
+    // Play: empty (zero) = no power + bolt; numbered = power + digit
+    if (isPowerOn(cell)) {
+      el.classList.add('open', 'light', 'n' + cell.n);
+      el.textContent = String(cell.n);
       return;
     }
-    el.classList.add('n' + cell.n);
-    el.textContent = String(cell.n);
+    el.classList.add('open', 'outage');
+    el.innerHTML = BOLT_SVG;
   }
 
   function cellEl(i) {
@@ -528,14 +533,14 @@
       '<path stroke="#1a2340" stroke-width="2.4" stroke-linecap="round" d="M5 5.5 19 18.5"/></svg>';
     if (over) {
       $('legend').innerHTML =
-        '<span><i class="sw light"></i>' + L.legendLight + '</span>' +
+        '<span><i class="sw light"></i>' + L.legendLight.replace(/\s*\(.*\)/, '') + '</span>' +
         '<span><i class="sw dark">' + miniBolt + '</i>' + L.legendDark + '</span>';
       return;
     }
     $('legend').innerHTML =
       '<span><i class="sw closed"></i>' + L.legendClosed + '</span>' +
-      '<span><i class="sw light"></i>' + L.legendLight + ' · ' + L.legendPlayNum + '</span>' +
       '<span><i class="sw dark">' + miniBolt + '</i>' + L.legendDark + '</span>' +
+      '<span><i class="sw light"></i>' + L.legendLight + '</span>' +
       '<span><i class="sw flag"></i>' + L.legendFlag + '</span>';
   }
 
