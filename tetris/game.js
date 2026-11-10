@@ -629,13 +629,17 @@
   function stopRepeat(id) { if (id) clearInterval(id); }
 
   let swipe = null;
+  // Block mobile double-tap / gesture zoom on the playfield while keeping swipe + tap-rotate.
+  // touch-action:none alone is not enough on some WebKits when preventDefault is omitted.
   boardCv.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
     if (!running || paused || over) return;
     boardCv.setPointerCapture(e.pointerId);
     swipe = { x: e.clientX, y: e.clientY, moved: false };
   });
   boardCv.addEventListener('pointermove', (e) => {
     if (!swipe) return;
+    e.preventDefault();
     const dx = e.clientX - swipe.x;
     const dy = e.clientY - swipe.y;
     if (!swipe.moved && Math.hypot(dx, dy) < 18) return;
@@ -655,12 +659,20 @@
   });
   boardCv.addEventListener('pointerup', (e) => {
     if (!swipe) return;
+    e.preventDefault();
     const dx = e.clientX - swipe.x;
     const dy = e.clientY - swipe.y;
     if (!swipe.moved && Math.hypot(dx, dy) < 12) { tryRotate(); draw(); }
     else if (dy < -40 && Math.abs(dy) > Math.abs(dx)) { hardDrop(); updateHud(); draw(); }
     swipe = null;
   });
+  boardCv.addEventListener('pointercancel', () => { swipe = null; });
+  boardCv.addEventListener('dblclick', (e) => { e.preventDefault(); });
+  boardCv.addEventListener('contextmenu', (e) => { e.preventDefault(); });
+  // Older iOS Safari: suppress pinch/gesture zoom on the canvas only.
+  boardCv.addEventListener('gesturestart', (e) => { e.preventDefault(); });
+  boardCv.addEventListener('gesturechange', (e) => { e.preventDefault(); });
+  boardCv.addEventListener('touchstart', (e) => { e.preventDefault(); }, { passive: false });
 
   function applyLang() {
     updateHud();
