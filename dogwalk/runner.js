@@ -117,6 +117,8 @@
       el.querySelector('.app').textContent = L.notifApp;
       el.querySelector('.msg').textContent = lang === 'ua' ? el.dataset.ua : el.dataset.en;
       el.querySelector('.swipe').textContent = L.swipeHint;
+      const av = el.querySelector('.avatar');
+      if (av) av.textContent = lang === 'ua' ? 'РК' : 'RK';
     });
   }
 
@@ -148,26 +150,40 @@
   ];
   const pick = (a) => a[(Math.random() * a.length) | 0];
   const shahedUa = (n) => (n === 1 ? 'шахед' : n < 5 ? 'шахеди' : 'шахедів');
+  // Severity: red = air-raid / direct danger; yellow = threat/warning; green = all-clear / quiet
   const FLAVOR = [
-    () => { const d = pick(DISTRICTS), n = 1 + ((Math.random() * 7) | 0); return [`${n} ${shahedUa(n)} на ${d[1]}!`, `${n} Shahed${n > 1 ? 's' : ''} heading for ${d[2]}!`]; },
-    () => { const d = pick(DISTRICTS); return [`Шахед на ${d[1]}`, `Shahed toward ${d[2]}`]; },
-    () => { const d = pick(DISTRICTS); return [`${d[0]} — в укриттях`, `${d[2]} — take shelter`]; },
-    () => ['Йде низько!', 'Flying low!'],
-    () => ['Летять низько, погано фіксуються', 'Flying low, hard to track'],
-    () => ['Ховайтесь в жито 🌾', 'Hide in the rye 🌾'],
-    () => ['Балістика на Київ! В укриття', 'Ballistic missile on Kyiv! Take cover'],
-    () => ['Загроза балістики з Брянська', 'Ballistic threat from Bryansk'],
-    () => ['Циркон на Київ', 'Zircon heading for Kyiv'],
-    () => ['Працює ППО', 'Air defence working'],
-    () => ['Гучно', 'Loud'],
-    () => ['Вибухи', 'Explosions'],
-    () => ['Ще летить', 'Still incoming'],
-    () => ['Дорозвідка', 'Checking further'],
-    () => { const d = pick(['Васильків', 'Бровари', 'Вишгород']); const e = { 'Васильків': 'Vasylkiv', 'Бровари': 'Brovary', 'Вишгород': 'Vyshhorod' }[d]; return [`Реактивний БпЛА курсом на ${d}`, `Jet drone heading for ${e}`]; },
-    () => ['Без фіксації', 'Nothing tracked'],
+    () => { const d = pick(DISTRICTS), n = 1 + ((Math.random() * 7) | 0); return { ua: `${n} ${shahedUa(n)} на ${d[1]}!`, en: `${n} Shahed${n > 1 ? 's' : ''} heading for ${d[2]}!`, level: 'red' }; },
+    () => { const d = pick(DISTRICTS); return { ua: `Шахед на ${d[1]}`, en: `Shahed toward ${d[2]}`, level: 'red' }; },
+    () => { const d = pick(DISTRICTS); return { ua: `${d[0]} — в укриттях`, en: `${d[2]} — take shelter`, level: 'yellow' }; },
+    () => ({ ua: 'Йде низько!', en: 'Flying low!', level: 'yellow' }),
+    () => ({ ua: 'Летять низько, погано фіксуються', en: 'Flying low, hard to track', level: 'yellow' }),
+    () => ({ ua: 'Ховайтесь в жито 🌾', en: 'Hide in the rye 🌾', level: 'yellow' }),
+    () => ({ ua: 'Балістика на Київ! В укриття', en: 'Ballistic missile on Kyiv! Take cover', level: 'red' }),
+    () => ({ ua: 'Загроза балістики з Брянська', en: 'Ballistic threat from Bryansk', level: 'yellow' }),
+    () => ({ ua: 'Циркон на Київ', en: 'Zircon heading for Kyiv', level: 'red' }),
+    () => ({ ua: 'Працює ППО', en: 'Air defence working', level: 'yellow' }),
+    () => ({ ua: 'Гучно', en: 'Loud', level: 'yellow' }),
+    () => ({ ua: 'Вибухи', en: 'Explosions', level: 'red' }),
+    () => ({ ua: 'Ще летить', en: 'Still incoming', level: 'red' }),
+    () => ({ ua: 'Дорозвідка', en: 'Checking further', level: 'yellow' }),
+    () => { const d = pick(['Васильків', 'Бровари', 'Вишгород']); const e = { 'Васильків': 'Vasylkiv', 'Бровари': 'Brovary', 'Вишгород': 'Vyshhorod' }[d]; return { ua: `Реактивний БпЛА курсом на ${d}`, en: `Jet drone heading for ${e}`, level: 'red' }; },
+    () => ({ ua: 'Без фіксації', en: 'Nothing tracked', level: 'green' }),
   ];
-  const ALERT_ON = () => pick([['🚨 М. КИЇВ — ОГОЛОШЕНА ПОВІТРЯНА ТРИВОГА', '🚨 KYIV — AIR-RAID ALERT'], ['🚨 Тривога! Загроза БпЛА', '🚨 Alert! Drone threat'], ['🚨 Тривога. Балістична загроза', '🚨 Alert. Ballistic threat']]);
-  const ALERT_OFF = () => pick([['❎ М. КИЇВ — ВІДБІЙ ТРИВОГИ', '❎ KYIV — ALL CLEAR'], ['❎ Київ та область — відбій', '❎ Kyiv & region — all clear']]);
+  const ALERT_ON = () => pick([
+    { ua: '🚨 М. КИЇВ — ОГОЛОШЕНА ПОВІТРЯНА ТРИВОГА', en: '🚨 KYIV — AIR-RAID ALERT', level: 'red' },
+    { ua: '🚨 Тривога! Загроза БпЛА', en: '🚨 Alert! Drone threat', level: 'red' },
+    { ua: '🚨 Тривога. Балістична загроза', en: '🚨 Alert. Ballistic threat', level: 'red' },
+  ]);
+  const ALERT_OFF = () => pick([
+    { ua: '❎ М. КИЇВ — ВІДБІЙ ТРИВОГИ', en: '❎ KYIV — ALL CLEAR', level: 'green' },
+    { ua: '❎ Київ та область — відбій', en: '❎ Kyiv & region — all clear', level: 'green' },
+  ]);
+  const CALM_PUSH = () => pick([
+    { ua: 'Чисто', en: 'All clear so far', level: 'green' },
+    { ua: 'Не фіксується', en: 'Nothing on radar', level: 'green' },
+    { ua: 'Дорозвідка в області', en: 'Checking the region', level: 'yellow' },
+  ]);
+  const LEVEL_BADGE = { yellow: '⚠', red: '🚨', green: '✓' };
   let airAlert = false, airTimer = 10;
   let obstacles = [], scenery = [];
   let blackout = false, blackoutTimer = 0, nextBlackoutIn = 55;
@@ -724,17 +740,49 @@
     ctx.fillStyle = blackout ? '#14532d' : '#22c55e';
     ctx.beginPath(); ctx.arc(p.x - r * 0.3, p.y - r * 1.5, r * 0.35, 0, Math.PI * 2); ctx.fill();
   }
-  function spawnNotif(pair, icon) {
-    if (notifs.length >= 8) return;
+  function normalizePush(msg) {
+    if (!msg) return null;
+    if (Array.isArray(msg)) {
+      return { ua: msg[0], en: msg[1], level: msg[2] || 'yellow' };
+    }
+    const level = msg.level === 'red' || msg.level === 'green' || msg.level === 'yellow' ? msg.level : 'yellow';
+    return { ua: msg.ua, en: msg.en, level };
+  }
+
+  function pickFlavor(level) {
+    if (!level) return pick(FLAVOR)();
+    const tagged = [];
+    for (const fn of FLAVOR) {
+      const m = fn();
+      if (m.level === level) tagged.push(m);
+    }
+    return tagged.length ? pick(tagged) : pick(FLAVOR)();
+  }
+
+  function spawnNotif(pair, opts) {
+    if (notifs.length >= 8) return null;
     const L = t();
+    const options = typeof opts === 'string' ? { icon: opts } : (opts || {});
+    let m = normalizePush(pair);
+    if (!m) m = pickFlavor(options.level);
+    else if (options.level) m.level = options.level;
+    const level = m.level || 'yellow';
     const el = document.createElement('div');
-    el.className = 'notif';
-    const m = pair || pick(FLAVOR)();
-    el.dataset.ua = m[0]; el.dataset.en = m[1];
-    el.innerHTML = `<div class="icon">${icon || (airAlert ? '🚨' : '📢')}</div><div class="body"><div class="app"></div><div class="msg"></div><div class="swipe"></div></div>`;
+    el.className = `notif level-${level}`;
+    el.dataset.ua = m.ua;
+    el.dataset.en = m.en;
+    el.dataset.level = level;
+    // Channel-style avatar: initials from app name (Telegram notification layout)
+    const appName = L.notifApp;
+    const initials = lang === 'ua' ? 'РК' : 'RK';
+    const badge = options.icon || LEVEL_BADGE[level] || '';
+    el.innerHTML = `<div class="avatar" aria-hidden="true"></div><div class="body"><div class="app"></div><div class="msg"></div><div class="swipe"></div></div><div class="badge" aria-hidden="true"></div>`;
+    el.querySelector('.avatar').textContent = initials;
+    el.querySelector('.avatar').title = appName;
     el.querySelector('.app').textContent = L.notifApp;
-    el.querySelector('.msg').textContent = lang === 'ua' ? m[0] : m[1];
+    el.querySelector('.msg').textContent = lang === 'ua' ? m.ua : m.en;
     el.querySelector('.swipe').textContent = L.swipeHint;
+    el.querySelector('.badge').textContent = badge;
     const wrap = document.getElementById('wrap').getBoundingClientRect();
     let top = 56 + Math.random() * Math.max(40, wrap.height * 0.55);
     const overlap = notifs.filter((n) => Math.abs(parseFloat(n.el.style.top) - top) < 54);
@@ -743,11 +791,12 @@
     el.style.left = (4 + Math.random() * 4) + '%';
     notifRoot.appendChild(el);
     requestAnimationFrame(() => el.classList.add('show'));
-    const state = { el, startX: 0, dx: 0, dragging: false };
+    const state = { el, startX: 0, dx: 0, dragging: false, level };
     notifs.push(state);
     const dismiss = () => {
+      el.style.opacity = '0';
       el.style.transform = 'translateX(120%)';
-      setTimeout(() => { el.remove(); notifs = notifs.filter((n) => n !== state); score += 25; }, 160);
+      setTimeout(() => { el.remove(); notifs = notifs.filter((n) => n !== state); score += 25; }, 180);
     };
     const onDown = (e) => {
       e.preventDefault();
@@ -760,18 +809,20 @@
       const p = e.touches ? e.touches[0] : e;
       state.dx = p.clientX - state.startX;
       el.style.transform = `translateX(${state.dx}px)`;
+      el.style.opacity = String(Math.max(0.35, 1 - Math.abs(state.dx) / 220));
     };
     const onUp = () => {
       if (!state.dragging) return;
       state.dragging = false; el.classList.remove('swiping');
       if (Math.abs(state.dx) > 64) dismiss();
-      else { el.style.transform = 'translateX(0)'; el.classList.add('show'); }
+      else { el.style.transform = 'translateX(0)'; el.style.opacity = '1'; el.classList.add('show'); }
     };
     el.addEventListener('click', () => { if (Math.abs(state.dx) < 8) dismiss(); });
     el.addEventListener('pointerdown', onDown);
     el.addEventListener('pointermove', onMove);
     el.addEventListener('pointerup', onUp);
     el.addEventListener('pointercancel', onUp);
+    return state;
   }
 
   function tryLane(dir) {
@@ -1522,11 +1573,7 @@
     drawShopSigns();
     drawAngryDogEyesAboveDark();
     drawWeatherParticles();
-
-    if (notifs.length >= 4) {
-      ctx.fillStyle = 'rgba(127,29,29,0.14)';
-      ctx.fillRect(0, 0, W, H);
-    }
+    // Severity stays on Telegram cards only — no full-screen alert wash (motion-safe).
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
 
@@ -1677,12 +1724,12 @@
     if (airTimer <= 0) {
       airAlert = !airAlert;
       airTimer = airAlert ? 40 + Math.random() * 30 : 15 + Math.random() * 15;
-      spawnNotif(airAlert ? ALERT_ON() : ALERT_OFF(), airAlert ? '🚨' : '❎');
+      spawnNotif(airAlert ? ALERT_ON() : ALERT_OFF());
       notifAcc = 0;
     }
     const rate = airAlert ? notifRate : notifRate * 2.6;
     if (bushT > 0) notifAcc = 0;
-    if (notifAcc >= rate) { notifAcc = 0; spawnNotif(airAlert ? null : pick([['Чисто', 'All clear so far'], ['Не фіксується', 'Nothing on radar'], ['Дорозвідка в області', 'Checking the region']])); }
+    if (notifAcc >= rate) { notifAcc = 0; spawnNotif(airAlert ? null : CALM_PUSH()); }
     // a screen full of pushes/drops never stops or hurts the run — the dog keeps going
 
     document.getElementById('scoreLine').textContent = t().score(distance, score);
@@ -1703,7 +1750,31 @@
     },
     spawnLensSplat: (kind) => spawnLensSplat(kind),
     clearLensSplats: () => clearLensSplats(),
-    forceAlert: () => { spawnNotif(); },
+    forceAlert: (levelOrMsg) => {
+      if (levelOrMsg === 'red' || levelOrMsg === 'yellow' || levelOrMsg === 'green') {
+        return spawnNotif(null, { level: levelOrMsg });
+      }
+      if (levelOrMsg && typeof levelOrMsg === 'object') return spawnNotif(levelOrMsg);
+      return spawnNotif();
+    },
+    spawnNotifLevel: (level, msg) => spawnNotif(msg || null, { level }),
+    /** Place one or more severity samples at fixed tops (for QA / screenshots). */
+    demoNotifs: (levels) => {
+      clearNotifs();
+      const samples = {
+        yellow: { ua: 'Загроза балістики з Брянська', en: 'Ballistic threat from Bryansk', level: 'yellow' },
+        red: { ua: '🚨 М. КИЇВ — ОГОЛОШЕНА ПОВІТРЯНА ТРИВОГА', en: '🚨 KYIV — AIR-RAID ALERT', level: 'red' },
+        green: { ua: '❎ М. КИЇВ — ВІДБІЙ ТРИВОГИ', en: '❎ KYIV — ALL CLEAR', level: 'green' },
+      };
+      const order = levels && levels.length ? levels : ['yellow', 'red', 'green'];
+      order.forEach((lv, i) => {
+        const st = spawnNotif(samples[lv] || samples.yellow);
+        if (st) {
+          st.el.style.top = (72 + i * 92) + 'px';
+          st.el.style.left = '4%';
+        }
+      });
+    },
     bush: (s, side) => { bushT = s || 7; bushSide = side || -1; obstacles = []; },
     bushOff: () => bushOff,
     clearNotifs: () => clearNotifs(),
