@@ -59,7 +59,7 @@
       ],
       swipeHint: 'змахни / клік',
       blackout: '💡 Світла нема',
-      bush: (s) => `🐕 Під кущем… ${s} с`,
+      bush: (s) => `🐕 Під кущем… ${s} с · ❤×2`,
       growl: 'ГРРР!',
       pause: 'Пауза',
       pauseBody: 'Торкніться, щоб продовжити',
@@ -87,7 +87,7 @@
       ],
       swipeHint: 'swipe / click',
       blackout: '💡 Blackout',
-      bush: (s) => `🐕 Under a bush… ${s}s`,
+      bush: (s) => `🐕 Under a bush… ${s}s · ❤×2`,
       growl: 'GRRR!',
       pause: 'Paused',
       pauseBody: 'Tap to resume',
@@ -117,6 +117,8 @@
       el.querySelector('.app').textContent = L.notifApp;
       el.querySelector('.msg').textContent = lang === 'ua' ? el.dataset.ua : el.dataset.en;
       el.querySelector('.swipe').textContent = L.swipeHint;
+      const av = el.querySelector('.avatar');
+      if (av) av.textContent = lang === 'ua' ? 'РК' : 'RK';
     });
   }
 
@@ -138,6 +140,7 @@
   let running = false, dead = false, invuln = 0, shake = 0;
   let spawnAcc = 0, notifAcc = 0, notifRate = 6.5;
   let bushT = 0, nextBushAt = 1000, bushSide = -1, bushOff = 0; // bush stands at the roadside by the houses // every 1000 m the dog dives under a bush: calm break
+  let bushLiveBoost = 0; // extra lives granted while hidden (enter = ×2; leave removes remaining boost)
   // ---- «Реальний Київ»-style pushes (phrasing modelled on t.me/s/kievreal1, rewritten short) ----
   const DISTRICTS = [ // [nominative UA, accusative UA, EN]
     ['Оболонь', 'Оболонь', 'Obolon'], ['Троєщина', 'Троєщину', 'Troieshchyna'], ['Дарниця', 'Дарницю', 'Darnytsia'],
@@ -148,26 +151,40 @@
   ];
   const pick = (a) => a[(Math.random() * a.length) | 0];
   const shahedUa = (n) => (n === 1 ? 'шахед' : n < 5 ? 'шахеди' : 'шахедів');
+  // Severity: red = air-raid / direct danger; yellow = threat/warning; green = all-clear / quiet
   const FLAVOR = [
-    () => { const d = pick(DISTRICTS), n = 1 + ((Math.random() * 7) | 0); return [`${n} ${shahedUa(n)} на ${d[1]}!`, `${n} Shahed${n > 1 ? 's' : ''} heading for ${d[2]}!`]; },
-    () => { const d = pick(DISTRICTS); return [`Шахед на ${d[1]}`, `Shahed toward ${d[2]}`]; },
-    () => { const d = pick(DISTRICTS); return [`${d[0]} — в укриттях`, `${d[2]} — take shelter`]; },
-    () => ['Йде низько!', 'Flying low!'],
-    () => ['Летять низько, погано фіксуються', 'Flying low, hard to track'],
-    () => ['Ховайтесь в жито 🌾', 'Hide in the rye 🌾'],
-    () => ['Балістика на Київ! В укриття', 'Ballistic missile on Kyiv! Take cover'],
-    () => ['Загроза балістики з Брянська', 'Ballistic threat from Bryansk'],
-    () => ['Циркон на Київ', 'Zircon heading for Kyiv'],
-    () => ['Працює ППО', 'Air defence working'],
-    () => ['Гучно', 'Loud'],
-    () => ['Вибухи', 'Explosions'],
-    () => ['Ще летить', 'Still incoming'],
-    () => ['Дорозвідка', 'Checking further'],
-    () => { const d = pick(['Васильків', 'Бровари', 'Вишгород']); const e = { 'Васильків': 'Vasylkiv', 'Бровари': 'Brovary', 'Вишгород': 'Vyshhorod' }[d]; return [`Реактивний БпЛА курсом на ${d}`, `Jet drone heading for ${e}`]; },
-    () => ['Без фіксації', 'Nothing tracked'],
+    () => { const d = pick(DISTRICTS), n = 1 + ((Math.random() * 7) | 0); return { ua: `${n} ${shahedUa(n)} на ${d[1]}!`, en: `${n} Shahed${n > 1 ? 's' : ''} heading for ${d[2]}!`, level: 'red' }; },
+    () => { const d = pick(DISTRICTS); return { ua: `Шахед на ${d[1]}`, en: `Shahed toward ${d[2]}`, level: 'red' }; },
+    () => { const d = pick(DISTRICTS); return { ua: `${d[0]} — в укриттях`, en: `${d[2]} — take shelter`, level: 'yellow' }; },
+    () => ({ ua: 'Йде низько!', en: 'Flying low!', level: 'yellow' }),
+    () => ({ ua: 'Летять низько, погано фіксуються', en: 'Flying low, hard to track', level: 'yellow' }),
+    () => ({ ua: 'Ховайтесь в жито 🌾', en: 'Hide in the rye 🌾', level: 'yellow' }),
+    () => ({ ua: 'Балістика на Київ! В укриття', en: 'Ballistic missile on Kyiv! Take cover', level: 'red' }),
+    () => ({ ua: 'Загроза балістики з Брянська', en: 'Ballistic threat from Bryansk', level: 'yellow' }),
+    () => ({ ua: 'Циркон на Київ', en: 'Zircon heading for Kyiv', level: 'red' }),
+    () => ({ ua: 'Працює ППО', en: 'Air defence working', level: 'yellow' }),
+    () => ({ ua: 'Гучно', en: 'Loud', level: 'yellow' }),
+    () => ({ ua: 'Вибухи', en: 'Explosions', level: 'red' }),
+    () => ({ ua: 'Ще летить', en: 'Still incoming', level: 'red' }),
+    () => ({ ua: 'Дорозвідка', en: 'Checking further', level: 'yellow' }),
+    () => { const d = pick(['Васильків', 'Бровари', 'Вишгород']); const e = { 'Васильків': 'Vasylkiv', 'Бровари': 'Brovary', 'Вишгород': 'Vyshhorod' }[d]; return { ua: `Реактивний БпЛА курсом на ${d}`, en: `Jet drone heading for ${e}`, level: 'red' }; },
+    () => ({ ua: 'Без фіксації', en: 'Nothing tracked', level: 'green' }),
   ];
-  const ALERT_ON = () => pick([['🚨 М. КИЇВ — ОГОЛОШЕНА ПОВІТРЯНА ТРИВОГА', '🚨 KYIV — AIR-RAID ALERT'], ['🚨 Тривога! Загроза БпЛА', '🚨 Alert! Drone threat'], ['🚨 Тривога. Балістична загроза', '🚨 Alert. Ballistic threat']]);
-  const ALERT_OFF = () => pick([['❎ М. КИЇВ — ВІДБІЙ ТРИВОГИ', '❎ KYIV — ALL CLEAR'], ['❎ Київ та область — відбій', '❎ Kyiv & region — all clear']]);
+  const ALERT_ON = () => pick([
+    { ua: '🚨 М. КИЇВ — ОГОЛОШЕНА ПОВІТРЯНА ТРИВОГА', en: '🚨 KYIV — AIR-RAID ALERT', level: 'red' },
+    { ua: '🚨 Тривога! Загроза БпЛА', en: '🚨 Alert! Drone threat', level: 'red' },
+    { ua: '🚨 Тривога. Балістична загроза', en: '🚨 Alert. Ballistic threat', level: 'red' },
+  ]);
+  const ALERT_OFF = () => pick([
+    { ua: '❎ М. КИЇВ — ВІДБІЙ ТРИВОГИ', en: '❎ KYIV — ALL CLEAR', level: 'green' },
+    { ua: '❎ Київ та область — відбій', en: '❎ Kyiv & region — all clear', level: 'green' },
+  ]);
+  const CALM_PUSH = () => pick([
+    { ua: 'Чисто', en: 'All clear so far', level: 'green' },
+    { ua: 'Не фіксується', en: 'Nothing on radar', level: 'green' },
+    { ua: 'Дорозвідка в області', en: 'Checking the region', level: 'yellow' },
+  ]);
+  const LEVEL_BADGE = { yellow: '⚠', red: '🚨', green: '✓' };
   let airAlert = false, airTimer = 10;
   let obstacles = [], scenery = [];
   let blackout = false, blackoutTimer = 0, nextBlackoutIn = 55;
@@ -189,7 +206,7 @@
   function resetGame() {
     lane = 1; laneF = 1; dogLaneF = 1;
     speed = SPEED0; distance = 0; score = 0; lives = START_LIVES;
-    invuln = 0; spawnAcc = 0; notifAcc = 0; notifRate = 6.5; bushT = 0; nextBushAt = 1000; bushOff = 0; airAlert = false; airTimer = 6 + Math.random() * 6;
+    invuln = 0; spawnAcc = 0; notifAcc = 0; notifRate = 6.5; bushT = 0; nextBushAt = 1000; bushOff = 0; bushLiveBoost = 0; airAlert = false; airTimer = 6 + Math.random() * 6;
     obstacles = []; shake = 0; dead = false; time = 0;
     blackout = false; blackoutTimer = 0; nextBlackoutIn = 50 + Math.random() * 20;
     paused = false; hidePauseUI();
@@ -517,7 +534,27 @@
   function hit() {
     if (invuln > 0) return;
     lives -= 1; invuln = INVULN_HIT; shake = 12;
+    if (bushLiveBoost > 0) bushLiveBoost = Math.max(0, bushLiveBoost - 1);
     if (lives <= 0) gameOver();
+  }
+
+  function enterBush(seconds, side) {
+    const wasHidden = bushT > 0;
+    bushT = seconds;
+    if (side === -1 || side === 1) bushSide = side;
+    else bushSide = dogLaneF > 1 ? 1 : (dogLaneF < 1 ? -1 : (Math.random() < 0.5 ? -1 : 1));
+    obstacles = obstacles.filter((o) => o.z < Z_DOG - 1.5);
+    if (!wasHidden && bushLiveBoost <= 0) {
+      // ×2 lives while hidden: grant a boost equal to current lives
+      bushLiveBoost = Math.max(1, lives);
+      lives += bushLiveBoost;
+    }
+  }
+
+  function leaveBushBoost() {
+    if (bushLiveBoost <= 0) return;
+    lives = Math.max(1, lives - bushLiveBoost);
+    bushLiveBoost = 0;
   }
 
   function occupiedLanesNear(zMin, zMax) {
@@ -724,17 +761,49 @@
     ctx.fillStyle = blackout ? '#14532d' : '#22c55e';
     ctx.beginPath(); ctx.arc(p.x - r * 0.3, p.y - r * 1.5, r * 0.35, 0, Math.PI * 2); ctx.fill();
   }
-  function spawnNotif(pair, icon) {
-    if (notifs.length >= 8) return;
+  function normalizePush(msg) {
+    if (!msg) return null;
+    if (Array.isArray(msg)) {
+      return { ua: msg[0], en: msg[1], level: msg[2] || 'yellow' };
+    }
+    const level = msg.level === 'red' || msg.level === 'green' || msg.level === 'yellow' ? msg.level : 'yellow';
+    return { ua: msg.ua, en: msg.en, level };
+  }
+
+  function pickFlavor(level) {
+    if (!level) return pick(FLAVOR)();
+    const tagged = [];
+    for (const fn of FLAVOR) {
+      const m = fn();
+      if (m.level === level) tagged.push(m);
+    }
+    return tagged.length ? pick(tagged) : pick(FLAVOR)();
+  }
+
+  function spawnNotif(pair, opts) {
+    if (notifs.length >= 8) return null;
     const L = t();
+    const options = typeof opts === 'string' ? { icon: opts } : (opts || {});
+    let m = normalizePush(pair);
+    if (!m) m = pickFlavor(options.level);
+    else if (options.level) m.level = options.level;
+    const level = m.level || 'yellow';
     const el = document.createElement('div');
-    el.className = 'notif';
-    const m = pair || pick(FLAVOR)();
-    el.dataset.ua = m[0]; el.dataset.en = m[1];
-    el.innerHTML = `<div class="icon">${icon || (airAlert ? '🚨' : '📢')}</div><div class="body"><div class="app"></div><div class="msg"></div><div class="swipe"></div></div>`;
+    el.className = `notif level-${level}`;
+    el.dataset.ua = m.ua;
+    el.dataset.en = m.en;
+    el.dataset.level = level;
+    // Channel-style avatar: initials from app name (Telegram notification layout)
+    const appName = L.notifApp;
+    const initials = lang === 'ua' ? 'РК' : 'RK';
+    const badge = options.icon || LEVEL_BADGE[level] || '';
+    el.innerHTML = `<div class="avatar" aria-hidden="true"></div><div class="body"><div class="app"></div><div class="msg"></div><div class="swipe"></div></div><div class="badge" aria-hidden="true"></div>`;
+    el.querySelector('.avatar').textContent = initials;
+    el.querySelector('.avatar').title = appName;
     el.querySelector('.app').textContent = L.notifApp;
-    el.querySelector('.msg').textContent = lang === 'ua' ? m[0] : m[1];
+    el.querySelector('.msg').textContent = lang === 'ua' ? m.ua : m.en;
     el.querySelector('.swipe').textContent = L.swipeHint;
+    el.querySelector('.badge').textContent = badge;
     const wrap = document.getElementById('wrap').getBoundingClientRect();
     let top = 56 + Math.random() * Math.max(40, wrap.height * 0.55);
     const overlap = notifs.filter((n) => Math.abs(parseFloat(n.el.style.top) - top) < 54);
@@ -743,11 +812,12 @@
     el.style.left = (4 + Math.random() * 4) + '%';
     notifRoot.appendChild(el);
     requestAnimationFrame(() => el.classList.add('show'));
-    const state = { el, startX: 0, dx: 0, dragging: false };
+    const state = { el, startX: 0, dx: 0, dragging: false, level };
     notifs.push(state);
     const dismiss = () => {
+      el.style.opacity = '0';
       el.style.transform = 'translateX(120%)';
-      setTimeout(() => { el.remove(); notifs = notifs.filter((n) => n !== state); score += 25; }, 160);
+      setTimeout(() => { el.remove(); notifs = notifs.filter((n) => n !== state); score += 25; }, 180);
     };
     const onDown = (e) => {
       e.preventDefault();
@@ -760,18 +830,20 @@
       const p = e.touches ? e.touches[0] : e;
       state.dx = p.clientX - state.startX;
       el.style.transform = `translateX(${state.dx}px)`;
+      el.style.opacity = String(Math.max(0.35, 1 - Math.abs(state.dx) / 220));
     };
     const onUp = () => {
       if (!state.dragging) return;
       state.dragging = false; el.classList.remove('swiping');
       if (Math.abs(state.dx) > 64) dismiss();
-      else { el.style.transform = 'translateX(0)'; el.classList.add('show'); }
+      else { el.style.transform = 'translateX(0)'; el.style.opacity = '1'; el.classList.add('show'); }
     };
     el.addEventListener('click', () => { if (Math.abs(state.dx) < 8) dismiss(); });
     el.addEventListener('pointerdown', onDown);
     el.addEventListener('pointermove', onMove);
     el.addEventListener('pointerup', onUp);
     el.addEventListener('pointercancel', onUp);
+    return state;
   }
 
   function tryLane(dir) {
@@ -1522,11 +1594,7 @@
     drawShopSigns();
     drawAngryDogEyesAboveDark();
     drawWeatherParticles();
-
-    if (notifs.length >= 4) {
-      ctx.fillStyle = 'rgba(127,29,29,0.14)';
-      ctx.fillRect(0, 0, W, H);
-    }
+    // Severity stays on Telegram cards only — no full-screen alert wash (motion-safe).
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
 
@@ -1569,24 +1637,30 @@
     // Linear ramp: old mid/late difficulty only around 3 minutes
     const rampT = Math.min(1, time / RAMP_SECS);
     speed = SPEED0 + (SPEED_MAX - SPEED0) * rampT;
-    const dz = speed * dt;
-    distance += dz * 1.05;
-    score += dz * 0.55;
+    // Under the bush the world freezes — otherwise it looks like dog+bush are jogging together
+    const hiding = bushT > 0;
+    const dz = hiding ? 0 : speed * dt;
+    if (!hiding) {
+      distance += dz * 1.05;
+      score += dz * 0.55;
+    }
 
     for (const o of obstacles) {
-      o.z -= dz * (o.rush || 1);
-      if (o.kind === 'cat') {
+      if (!hiding) o.z -= dz * (o.rush || 1);
+      if (o.kind === 'cat' && !hiding) {
         o.x += o.dir * o.crossSpeed * dt;
         o.lane = laneFromX(o.x);
       }
     }
-    for (const s of scenery) {
-      s.z -= dz;
-      if (s.z < Z_NEAR - 1) s.z += (Z_FAR - Z_NEAR) + Math.random() * 4;
-    }
-    for (const c of crossings) {
-      c.z -= dz;
-      if (c.z < Z_NEAR - 2) c.z += (Z_FAR - Z_NEAR) + 45 + Math.random() * 25;
+    if (!hiding) {
+      for (const s of scenery) {
+        s.z -= dz;
+        if (s.z < Z_NEAR - 1) s.z += (Z_FAR - Z_NEAR) + Math.random() * 4;
+      }
+      for (const c of crossings) {
+        c.z -= dz;
+        if (c.z < Z_NEAR - 2) c.z += (Z_FAR - Z_NEAR) + 45 + Math.random() * 25;
+      }
     }
     obstacles = obstacles.filter((o) => {
       if (o.kind === 'cat') {
@@ -1598,9 +1672,8 @@
     });
 
     if (bushT <= 0 && distance >= nextBushAt) {
-      bushT = 5 + Math.random() * 5; nextBushAt += 1000;
-      bushSide = dogLaneF > 1 ? 1 : (dogLaneF < 1 ? -1 : (Math.random() < 0.5 ? -1 : 1));
-      obstacles = obstacles.filter((o) => o.z < Z_DOG - 1.5); // everything ahead is gone
+      nextBushAt += 1000;
+      enterBush(5 + Math.random() * 5);
     }
     {
       // run off sideways to the bush, hide, then come back to the lane in the last ~0.9 s
@@ -1608,20 +1681,28 @@
       bushOff += (target - bushOff) * Math.min(1, 4 * dt);
       if (bushT <= 0 && Math.abs(bushOff) < 0.01) bushOff = 0;
     }
-    if (bushT > 0) { bushT -= dt; spawnAcc = 0; update._catAcc = 0; }
-    spawnAcc += dt;
+    if (bushT > 0) {
+      bushT -= dt;
+      spawnAcc = 0;
+      update._catAcc = 0;
+      if (bushT <= 0) {
+        bushT = 0;
+        leaveBushBoost();
+      }
+    }
+    if (!hiding) spawnAcc += dt;
     // Wide gaps early; tighten only with ramp
     const every = 3.2 - rampT * 1.8; // 3.2s → ~1.4s over 3 min
-    if (spawnAcc >= every) {
+    if (!hiding && spawnAcc >= every) {
       spawnAcc = 0;
       spawnObstacle();
       if (rampT > 0.45 && Math.random() < 0.15 * rampT) spawnObstacle();
     }
     // cats: rare in first minute
     if (!update._catAcc) update._catAcc = 0;
-    update._catAcc += dt;
+    if (!hiding) update._catAcc += dt;
     const catEvery = time < 60 ? (5.5 + Math.random() * 2) : (3.2 + Math.random() * 1.8);
-    if (bushT <= 0 && update._catAcc > catEvery) {
+    if (!hiding && update._catAcc > catEvery) {
       update._catAcc = 0;
       if (time < 45) { if (Math.random() < 0.35) spawnCat(); }
       else if (Math.random() < 0.65) spawnCat();
@@ -1677,16 +1758,17 @@
     if (airTimer <= 0) {
       airAlert = !airAlert;
       airTimer = airAlert ? 40 + Math.random() * 30 : 15 + Math.random() * 15;
-      spawnNotif(airAlert ? ALERT_ON() : ALERT_OFF(), airAlert ? '🚨' : '❎');
+      spawnNotif(airAlert ? ALERT_ON() : ALERT_OFF());
       notifAcc = 0;
     }
     const rate = airAlert ? notifRate : notifRate * 2.6;
     if (bushT > 0) notifAcc = 0;
-    if (notifAcc >= rate) { notifAcc = 0; spawnNotif(airAlert ? null : pick([['Чисто', 'All clear so far'], ['Не фіксується', 'Nothing on radar'], ['Дорозвідка в області', 'Checking the region']])); }
+    if (notifAcc >= rate) { notifAcc = 0; spawnNotif(airAlert ? null : CALM_PUSH()); }
     // a screen full of pushes/drops never stops or hurts the run — the dog keeps going
 
     document.getElementById('scoreLine').textContent = t().score(distance, score);
-    document.getElementById('livesLine').textContent = t().lives(lives);
+    document.getElementById('livesLine').textContent =
+      bushLiveBoost > 0 ? `${t().lives(lives)} ×2` : t().lives(lives);
   }
 
   let last = performance.now();
@@ -1703,12 +1785,38 @@
     },
     spawnLensSplat: (kind) => spawnLensSplat(kind),
     clearLensSplats: () => clearLensSplats(),
-    forceAlert: () => { spawnNotif(); },
-    bush: (s, side) => { bushT = s || 7; bushSide = side || -1; obstacles = []; },
+    forceAlert: (levelOrMsg) => {
+      if (levelOrMsg === 'red' || levelOrMsg === 'yellow' || levelOrMsg === 'green') {
+        return spawnNotif(null, { level: levelOrMsg });
+      }
+      if (levelOrMsg && typeof levelOrMsg === 'object') return spawnNotif(levelOrMsg);
+      return spawnNotif();
+    },
+    spawnNotifLevel: (level, msg) => spawnNotif(msg || null, { level }),
+    /** Place one or more severity samples at fixed tops (for QA / screenshots). */
+    demoNotifs: (levels) => {
+      clearNotifs();
+      const samples = {
+        yellow: { ua: 'Загроза балістики з Брянська', en: 'Ballistic threat from Bryansk', level: 'yellow' },
+        red: { ua: '🚨 М. КИЇВ — ОГОЛОШЕНА ПОВІТРЯНА ТРИВОГА', en: '🚨 KYIV — AIR-RAID ALERT', level: 'red' },
+        green: { ua: '❎ М. КИЇВ — ВІДБІЙ ТРИВОГИ', en: '❎ KYIV — ALL CLEAR', level: 'green' },
+      };
+      const order = levels && levels.length ? levels : ['yellow', 'red', 'green'];
+      order.forEach((lv, i) => {
+        const st = spawnNotif(samples[lv] || samples.yellow);
+        if (st) {
+          st.el.style.top = (72 + i * 92) + 'px';
+          st.el.style.left = '4%';
+        }
+      });
+    },
+    bush: (s, side) => { enterBush(s || 7, side === 1 || side === -1 ? side : -1); },
     bushOff: () => bushOff,
     clearNotifs: () => clearNotifs(),
     setDistance: (d) => { distance = d; },
     bushT: () => bushT,
+    bushLiveBoost: () => bushLiveBoost,
+    leaveBushNow: () => { bushT = 0; leaveBushBoost(); },
     setAirAlert: (v) => { airAlert = !v; airTimer = 0; },
     airAlert: () => airAlert,
     spawnGenerators: () => { obstacles = obstacles.filter((o) => o.kind !== 'generator');
@@ -1758,6 +1866,7 @@
       obstacles: obstacles.length, blackout, weather,
       lensSplats: lensSplats.length, crossings: crossings.length, skyFx: skyFx.length,
       notifsActive: notifs.length,
+      bushT, bushLiveBoost, bushOff, hiding: bushT > 0, worldScroll: bushT <= 0,
       speed, time, perspective: true, dogOnly: true,
       lane, dogLaneF,
       dogs: obstacles.filter(o=>o.kind==='dog').map(o=>({lane:o.lane,z:o.z,rush:o.rush})),
