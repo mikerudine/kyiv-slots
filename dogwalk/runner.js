@@ -59,7 +59,7 @@
       ],
       swipeHint: 'змахни / клік',
       blackout: '💡 Світла нема',
-      bush: (s) => `🐕 Під кущем… ${s} с`,
+      bush: (s) => `🐕 Під кущем… ${s} с · ❤×2`,
       growl: 'ГРРР!',
       pause: 'Пауза',
       pauseBody: 'Торкніться, щоб продовжити',
@@ -87,7 +87,7 @@
       ],
       swipeHint: 'swipe / click',
       blackout: '💡 Blackout',
-      bush: (s) => `🐕 Under a bush… ${s}s`,
+      bush: (s) => `🐕 Under a bush… ${s}s · ❤×2`,
       growl: 'GRRR!',
       pause: 'Paused',
       pauseBody: 'Tap to resume',
@@ -140,6 +140,7 @@
   let running = false, dead = false, invuln = 0, shake = 0;
   let spawnAcc = 0, notifAcc = 0, notifRate = 6.5;
   let bushT = 0, nextBushAt = 1000, bushSide = -1, bushOff = 0; // bush stands at the roadside by the houses // every 1000 m the dog dives under a bush: calm break
+  let bushLiveBoost = 0; // extra lives granted while hidden (enter = ×2; leave removes remaining boost)
   // ---- «Реальний Київ»-style pushes (phrasing modelled on t.me/s/kievreal1, rewritten short) ----
   const DISTRICTS = [ // [nominative UA, accusative UA, EN]
     ['Оболонь', 'Оболонь', 'Obolon'], ['Троєщина', 'Троєщину', 'Troieshchyna'], ['Дарниця', 'Дарницю', 'Darnytsia'],
@@ -205,7 +206,7 @@
   function resetGame() {
     lane = 1; laneF = 1; dogLaneF = 1;
     speed = SPEED0; distance = 0; score = 0; lives = START_LIVES;
-    invuln = 0; spawnAcc = 0; notifAcc = 0; notifRate = 6.5; bushT = 0; nextBushAt = 1000; bushOff = 0; airAlert = false; airTimer = 6 + Math.random() * 6;
+    invuln = 0; spawnAcc = 0; notifAcc = 0; notifRate = 6.5; bushT = 0; nextBushAt = 1000; bushOff = 0; bushLiveBoost = 0; airAlert = false; airTimer = 6 + Math.random() * 6;
     obstacles = []; shake = 0; dead = false; time = 0;
     blackout = false; blackoutTimer = 0; nextBlackoutIn = 50 + Math.random() * 20;
     paused = false; hidePauseUI();
@@ -533,7 +534,27 @@
   function hit() {
     if (invuln > 0) return;
     lives -= 1; invuln = INVULN_HIT; shake = 12;
+    if (bushLiveBoost > 0) bushLiveBoost = Math.max(0, bushLiveBoost - 1);
     if (lives <= 0) gameOver();
+  }
+
+  function enterBush(seconds, side) {
+    const wasHidden = bushT > 0;
+    bushT = seconds;
+    if (side === -1 || side === 1) bushSide = side;
+    else bushSide = dogLaneF > 1 ? 1 : (dogLaneF < 1 ? -1 : (Math.random() < 0.5 ? -1 : 1));
+    obstacles = obstacles.filter((o) => o.z < Z_DOG - 1.5);
+    if (!wasHidden && bushLiveBoost <= 0) {
+      // ×2 lives while hidden: grant a boost equal to current lives
+      bushLiveBoost = Math.max(1, lives);
+      lives += bushLiveBoost;
+    }
+  }
+
+  function leaveBushBoost() {
+    if (bushLiveBoost <= 0) return;
+    lives = Math.max(1, lives - bushLiveBoost);
+    bushLiveBoost = 0;
   }
 
   function occupiedLanesNear(zMin, zMax) {
@@ -1616,24 +1637,30 @@
     // Linear ramp: old mid/late difficulty only around 3 minutes
     const rampT = Math.min(1, time / RAMP_SECS);
     speed = SPEED0 + (SPEED_MAX - SPEED0) * rampT;
-    const dz = speed * dt;
-    distance += dz * 1.05;
-    score += dz * 0.55;
+    // Under the bush the world freezes — otherwise it looks like dog+bush are jogging together
+    const hiding = bushT > 0;
+    const dz = hiding ? 0 : speed * dt;
+    if (!hiding) {
+      distance += dz * 1.05;
+      score += dz * 0.55;
+    }
 
     for (const o of obstacles) {
-      o.z -= dz * (o.rush || 1);
-      if (o.kind === 'cat') {
+      if (!hiding) o.z -= dz * (o.rush || 1);
+      if (o.kind === 'cat' && !hiding) {
         o.x += o.dir * o.crossSpeed * dt;
         o.lane = laneFromX(o.x);
       }
     }
-    for (const s of scenery) {
-      s.z -= dz;
-      if (s.z < Z_NEAR - 1) s.z += (Z_FAR - Z_NEAR) + Math.random() * 4;
-    }
-    for (const c of crossings) {
-      c.z -= dz;
-      if (c.z < Z_NEAR - 2) c.z += (Z_FAR - Z_NEAR) + 45 + Math.random() * 25;
+    if (!hiding) {
+      for (const s of scenery) {
+        s.z -= dz;
+        if (s.z < Z_NEAR - 1) s.z += (Z_FAR - Z_NEAR) + Math.random() * 4;
+      }
+      for (const c of crossings) {
+        c.z -= dz;
+        if (c.z < Z_NEAR - 2) c.z += (Z_FAR - Z_NEAR) + 45 + Math.random() * 25;
+      }
     }
     obstacles = obstacles.filter((o) => {
       if (o.kind === 'cat') {
@@ -1645,9 +1672,8 @@
     });
 
     if (bushT <= 0 && distance >= nextBushAt) {
-      bushT = 5 + Math.random() * 5; nextBushAt += 1000;
-      bushSide = dogLaneF > 1 ? 1 : (dogLaneF < 1 ? -1 : (Math.random() < 0.5 ? -1 : 1));
-      obstacles = obstacles.filter((o) => o.z < Z_DOG - 1.5); // everything ahead is gone
+      nextBushAt += 1000;
+      enterBush(5 + Math.random() * 5);
     }
     {
       // run off sideways to the bush, hide, then come back to the lane in the last ~0.9 s
@@ -1655,20 +1681,28 @@
       bushOff += (target - bushOff) * Math.min(1, 4 * dt);
       if (bushT <= 0 && Math.abs(bushOff) < 0.01) bushOff = 0;
     }
-    if (bushT > 0) { bushT -= dt; spawnAcc = 0; update._catAcc = 0; }
-    spawnAcc += dt;
+    if (bushT > 0) {
+      bushT -= dt;
+      spawnAcc = 0;
+      update._catAcc = 0;
+      if (bushT <= 0) {
+        bushT = 0;
+        leaveBushBoost();
+      }
+    }
+    if (!hiding) spawnAcc += dt;
     // Wide gaps early; tighten only with ramp
     const every = 3.2 - rampT * 1.8; // 3.2s → ~1.4s over 3 min
-    if (spawnAcc >= every) {
+    if (!hiding && spawnAcc >= every) {
       spawnAcc = 0;
       spawnObstacle();
       if (rampT > 0.45 && Math.random() < 0.15 * rampT) spawnObstacle();
     }
     // cats: rare in first minute
     if (!update._catAcc) update._catAcc = 0;
-    update._catAcc += dt;
+    if (!hiding) update._catAcc += dt;
     const catEvery = time < 60 ? (5.5 + Math.random() * 2) : (3.2 + Math.random() * 1.8);
-    if (bushT <= 0 && update._catAcc > catEvery) {
+    if (!hiding && update._catAcc > catEvery) {
       update._catAcc = 0;
       if (time < 45) { if (Math.random() < 0.35) spawnCat(); }
       else if (Math.random() < 0.65) spawnCat();
@@ -1733,7 +1767,8 @@
     // a screen full of pushes/drops never stops or hurts the run — the dog keeps going
 
     document.getElementById('scoreLine').textContent = t().score(distance, score);
-    document.getElementById('livesLine').textContent = t().lives(lives);
+    document.getElementById('livesLine').textContent =
+      bushLiveBoost > 0 ? `${t().lives(lives)} ×2` : t().lives(lives);
   }
 
   let last = performance.now();
@@ -1775,11 +1810,13 @@
         }
       });
     },
-    bush: (s, side) => { bushT = s || 7; bushSide = side || -1; obstacles = []; },
+    bush: (s, side) => { enterBush(s || 7, side === 1 || side === -1 ? side : -1); },
     bushOff: () => bushOff,
     clearNotifs: () => clearNotifs(),
     setDistance: (d) => { distance = d; },
     bushT: () => bushT,
+    bushLiveBoost: () => bushLiveBoost,
+    leaveBushNow: () => { bushT = 0; leaveBushBoost(); },
     setAirAlert: (v) => { airAlert = !v; airTimer = 0; },
     airAlert: () => airAlert,
     spawnGenerators: () => { obstacles = obstacles.filter((o) => o.kind !== 'generator');
@@ -1829,6 +1866,7 @@
       obstacles: obstacles.length, blackout, weather,
       lensSplats: lensSplats.length, crossings: crossings.length, skyFx: skyFx.length,
       notifsActive: notifs.length,
+      bushT, bushLiveBoost, bushOff, hiding: bushT > 0, worldScroll: bushT <= 0,
       speed, time, perspective: true, dogOnly: true,
       lane, dogLaneF,
       dogs: obstacles.filter(o=>o.kind==='dog').map(o=>({lane:o.lane,z:o.z,rush:o.rush})),
