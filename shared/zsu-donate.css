@@ -1,0 +1,78 @@
+/* Calm static donate banner for game-over / final-score screens.
+   No stripes, flashes, shake, or looping motion — short one-shot enter only. */
+a.zsu-donate {
+  display: block;
+  box-sizing: border-box;
+  width: fit-content;
+  max-width: 100%;
+  margin: 4px auto 12px;
+  padding: 9px 16px;
+  text-decoration: none;
+  text-align: center;
+  font: 800 14px/1.25 system-ui, -apple-system, "Segoe UI", sans-serif;
+  letter-spacing: 0.01em;
+  color: #fde047;
+  background: #1e293b;
+  border: 1px solid #475569;
+  border-radius: 10px;
+  pointer-events: auto;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+a.zsu-donate:hover,
+a.zsu-donate:focus-visible {
+  background: #243447;
+  border-color: #64748b;
+}
+
+a.zsu-donate:focus-visible {
+  outline: 2px solid #fde047;
+  outline-offset: 2px;
+}
+
+a.zsu-donate[hidden] {
+  display: none !important;
+}
+
+/* Light surfaces (dice, minesweeper) */
+a.zsu-donate.zsu-light {
+  color: #1a2340;
+  background: #fff8e7;
+  border-color: #e8c56a;
+}
+
+a.zsu-donate.zsu-light:hover,
+a.zsu-donate.zsu-light:focus-visible {
+  background: #fff1cc;
+  border-color: #d4a90c;
+}
+
+a.zsu-donate.zsu-light:focus-visible {
+  outline-color: #1a2340;
+}
+
+/* Full-width variant under result rows / panel overlays */
+a.zsu-donate.zsu-block {
+  width: 100%;
+  margin: 0 0 12px;
+}
+
+#result a.zsu-donate.zsu-block {
+  margin: 0;
+}
+
+@keyframes zsu-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+a.zsu-donate.zsu-in {
+  animation: zsu-in 0.35s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  a.zsu-donate.zsu-in {
+    animation: none;
+  }
+}

@@ -276,6 +276,7 @@
     const r = $('result');
     r.classList.remove('show', 'win', 'lose');
     $('resultTxt').textContent = '';
+    if (typeof setZsuDonateVisible === 'function') setZsuDonateVisible(false);
   }
 
   function showResult(kind) {
@@ -285,6 +286,9 @@
     r.classList.remove(kind === 'win' ? 'lose' : 'win');
     $('resultTxt').textContent = (kind === 'win' ? L.win : L.lose) + ' — ' + (kind === 'win' ? L.winB : L.loseB);
     $('resultReplay').textContent = L.again;
+    if (typeof setZsuDonateVisible === 'function') setZsuDonateVisible(true);
+    // Ensure result + donate stay reachable without hunting below the fold
+    requestAnimationFrame(() => { try { r.scrollIntoView({ block: 'nearest', behavior: 'instant' }); } catch (_) {} });
   }
 
   function resetGame() {

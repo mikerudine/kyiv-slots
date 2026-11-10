@@ -102,7 +102,13 @@
     $('list').innerHTML = ITEMS.map((it, i) => `<div class="${st && st.items[i].got ? 'got' : ''}">${st && st.items[i].got ? '✅' : '▫️'} ${it[lang]}</div>`).join('');
     $('hint').textContent = st && st.dark > 0 ? L.dark : L.hint;
   }
-  function overlay(t, b, btn) { $('oTitle').textContent = t; $('oBody').textContent = b; $('oBtn').textContent = btn; $('overlay').classList.remove('hidden'); }
+  function overlay(t, b, btn) {
+    $('oTitle').textContent = t;
+    $('oBody').textContent = b;
+    $('oBtn').textContent = btn;
+    $('overlay').classList.remove('hidden');
+    if (typeof setZsuDonateVisible === 'function') setZsuDonateVisible(!!(st && st.over));
+  }
   function toCanvas(e) { const r = cv.getBoundingClientRect(); // canvas is object-fit:contain
     const s = Math.min(r.width / W, r.height / H), ox = r.left + (r.width - W * s) / 2, oy = r.top + (r.height - H * s) / 2;
     return { x: (e.clientX - ox) / s, y: (e.clientY - oy) / s }; }

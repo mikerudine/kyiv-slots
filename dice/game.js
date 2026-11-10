@@ -35,6 +35,7 @@
   function reset() {
     cells.forEach((c) => { c.className = 'cell empty'; c.querySelector('.ic').textContent = ''; });
     $('result').textContent = ''; $('result').className = ''; $('meme').textContent = ''; $('wrap').classList.remove('done'); lastInfo = ''; $('rollInfo').textContent = ''; hour = 0;
+    if (typeof setZsuDonateVisible === 'function') setZsuDonateVisible(false);
     lightHours = 0;
   }
   async function rollDie(el, v) {
@@ -84,6 +85,7 @@
   }
   let lastGuess = 0;
   function showResult(g) {
+    if (typeof setZsuDonateVisible === 'function') setZsuDonateVisible(true);
     lastGuess = g;
     const r = $('result'), L = T[lang];
     if (lightHours === g) { r.textContent = L.win(lightHours); r.className = 'win'; }

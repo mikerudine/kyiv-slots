@@ -98,6 +98,7 @@
       document.getElementById('oTitle').textContent = dead ? L.overTitle : L.overlayTitle;
       document.getElementById('oBody').textContent = dead ? L.overBody(distance, score) : L.overlayBody;
       document.getElementById('oBtn').textContent = dead ? L.again : L.start;
+      if (typeof setZsuDonateVisible === 'function') setZsuDonateVisible(dead);
     }
   }
   document.getElementById('lang').addEventListener('click', () => {
