@@ -545,9 +545,13 @@
       $('oBody').textContent = LL.overB(score, lines);
       $('oBtn').textContent = LL.again;
     }
+    if (typeof setZsuDonateVisible === 'function') setZsuDonateVisible(overlayMode === 'over');
   }
 
-  function hideOverlay() { $('overlay').classList.add('hidden'); }
+  function hideOverlay() {
+    $('overlay').classList.add('hidden');
+    if (typeof setZsuDonateVisible === 'function') setZsuDonateVisible(false);
+  }
 
   function startFromOverlay() {
     if (overlayMode === 'pause') {

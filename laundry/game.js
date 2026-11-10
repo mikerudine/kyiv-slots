@@ -104,6 +104,7 @@
       document.getElementById('oTitle').textContent = dead ? (won ? L.winTitle : L.loseTitle) : L.overlayTitle;
       document.getElementById('oBody').textContent = dead ? L.overBody(score, target) : L.overlayBody;
       document.getElementById('oBtn').textContent = dead ? L.again : L.start;
+      if (typeof setZsuDonateVisible === 'function') setZsuDonateVisible(dead);
     }
     syncHud();
   }

@@ -402,7 +402,15 @@
     render(); setTimeout(render, 950);
     if (g.over) setTimeout(showEnd, 1100);
   }
-  function overlay(t, b, btn) { $('fullBtn').classList.toggle('hidden', !(started && g.over)); $('fullBtn').textContent = T[lang].full; $('oTitle').textContent = t; $('oBody').textContent = b; $('oBtn').textContent = btn; $('overlay').classList.remove('hidden'); }
+  function overlay(t, b, btn) {
+    $('fullBtn').classList.toggle('hidden', !(started && g.over));
+    $('fullBtn').textContent = T[lang].full;
+    $('oTitle').textContent = t;
+    $('oBody').textContent = b;
+    $('oBtn').textContent = btn;
+    $('overlay').classList.remove('hidden');
+    if (typeof setZsuDonateVisible === 'function') setZsuDonateVisible(started && g.over);
+  }
   function showEnd() { const L = T[lang]; g.won ? overlay(L.win, L.winB(g.t - START, g.money), L.again) : overlay(L.lose, L.loseB(nm(g.at)), L.again); }
   $('fullBtn').onclick = openFull; $('fullClose').onclick = () => $('full').classList.add('hidden');
   $('oBtn').onclick = () => { $('overlay').classList.add('hidden'); g = newGame(); offer(g); started = true; logStick = true; paused = false; render(); };
