@@ -30,7 +30,7 @@ body:has(#msg.super){animation:bg .3s infinite alternate}@keyframes bg{from{back
 </nav>
 <script>
 const S=[{e:"🚨",n:"Тривога"},{e:"💡",n:"Світла нема"},{e:"🌧️",n:"Дощ"}];
-const J=["🚨 ЛЕТИТЬ БЛЄДІНА 🚨","🕯️ ТЕМНО ЯК У СРАЦІ 🕯️","🌧️ ЛЬЄ ЯК З ВІДРА 🌧️"];
+const J=["🚨 ХОВАЙСЯ В ЖИТО 🚨","🕯️ ТЕМНО ЯК У ДУПІ 🕯️","🌧️ ЛЬЄ ЯК З ВІДРА 🌧️"];
 let spins=0,jp=0;const b=document.getElementById('b'),m=document.getElementById('msg');
 function show(i,s){const r=document.getElementById('r'+i);r.innerHTML=s.e+'<small>'+s.n+'</small>'}
 b.onclick=()=>{b.disabled=true;m.textContent='';m.className='';const res=[0,1,2].map(()=>Math.floor(Math.random()*3));
