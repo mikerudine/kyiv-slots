@@ -1,0 +1,316 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		8FF74BB6F35644849DF2642C /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22C3AFC3D3B04E4781319939 /* AppConfig.swift */; };
+		B1A10001CACHE000000000001 /* OfflineCacheManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C35737D860E7452899435F5C /* OfflineCacheManager.swift */; };
+		B1A10001CACHE000000000002 /* CacheSchemeHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7DA2F226BF44F81B3B3BCEE /* CacheSchemeHandler.swift */; };
+		B1A10001CACHE000000000003 /* SafariOpener.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE2B68A4B2324FC295498116 /* SafariOpener.swift */; };
+		B1A10001CACHE000000000004 /* RootViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C76538C3F114081A4FBB4D5 /* RootViewController.swift */; };
+		B1A10001CACHE000000000005 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95D49119E4EC4FF5A4FA20F4 /* AppDelegate.swift */; };
+		B1A10001CACHE000000000006 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4E112CF804E44E48BB20DB8 /* SceneDelegate.swift */; };
+		BE959D4AB1AD41F893795F85 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97E5A3652CE74808AB8AB782 /* Assets.xcassets */; };
+		B1A10001RES00000000000001 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 0D59E2AA11CB41BF85B25AE4 /* LaunchScreen.storyboard */; };
+		B1A10001RES00000000000002 /* cache-manifest.json in Resources */ = {isa = PBXBuildFile; fileRef = 8C99FA4EB5F74A5FA536C797 /* cache-manifest.json */; };
+		49830F9AFC364E6D8F74D373 /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 06BF9191543B4A83BDEE309A /* WebKit.framework */; };
+		B1A10001FW000000000000001 /* SafariServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 396FF7A671EE4584BFE72C91 /* SafariServices.framework */; };
+		B1A10001FW000000000000002 /* Network.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 05931AEC5935479298196FED /* Network.framework */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		DE600E1ECD924E17A99DF713 /* OneDayInKyiv.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OneDayInKyiv.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		22C3AFC3D3B04E4781319939 /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
+		C35737D860E7452899435F5C /* OfflineCacheManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineCacheManager.swift; sourceTree = "<group>"; };
+		E7DA2F226BF44F81B3B3BCEE /* CacheSchemeHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheSchemeHandler.swift; sourceTree = "<group>"; };
+		CE2B68A4B2324FC295498116 /* SafariOpener.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafariOpener.swift; sourceTree = "<group>"; };
+		6C76538C3F114081A4FBB4D5 /* RootViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootViewController.swift; sourceTree = "<group>"; };
+		95D49119E4EC4FF5A4FA20F4 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		A4E112CF804E44E48BB20DB8 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
+		454A2510524447929F5FE667 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		97E5A3652CE74808AB8AB782 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		0D59E2AA11CB41BF85B25AE4 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
+		8C99FA4EB5F74A5FA536C797 /* cache-manifest.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "cache-manifest.json"; sourceTree = "<group>"; };
+		06BF9191543B4A83BDEE309A /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
+		396FF7A671EE4584BFE72C91 /* SafariServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SafariServices.framework; path = System/Library/Frameworks/SafariServices.framework; sourceTree = SDKROOT; };
+		05931AEC5935479298196FED /* Network.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Network.framework; path = System/Library/Frameworks/Network.framework; sourceTree = SDKROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		E545A2E5CD0C49CCA2A2C5D4 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				49830F9AFC364E6D8F74D373 /* WebKit.framework in Frameworks */,
+				B1A10001FW000000000000001 /* SafariServices.framework in Frameworks */,
+				B1A10001FW000000000000002 /* Network.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		C8B4D391B9A64C7485F45466 /* Root */ = {
+			isa = PBXGroup;
+			children = (
+				B1A10001GRP0000000000001 /* OneDayInKyiv */,
+				37BE0D7EE6C44182A71AA6C5 /* Frameworks */,
+				4BB5710980F7402491221855 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		4BB5710980F7402491221855 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				DE600E1ECD924E17A99DF713 /* OneDayInKyiv.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		37BE0D7EE6C44182A71AA6C5 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				06BF9191543B4A83BDEE309A /* WebKit.framework */,
+				396FF7A671EE4584BFE72C91 /* SafariServices.framework */,
+				05931AEC5935479298196FED /* Network.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		B1A10001GRP0000000000001 /* OneDayInKyiv */ = {
+			isa = PBXGroup;
+			children = (
+				DFE8830B8B234DDF86139075 /* Sources */,
+				39FB39F98A514DE6AE9E9B19 /* Resources */,
+				97E5A3652CE74808AB8AB782 /* Assets.xcassets */,
+				0D59E2AA11CB41BF85B25AE4 /* LaunchScreen.storyboard */,
+				454A2510524447929F5FE667 /* Info.plist */,
+			);
+			path = OneDayInKyiv;
+			sourceTree = "<group>";
+		};
+		DFE8830B8B234DDF86139075 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				95D49119E4EC4FF5A4FA20F4 /* AppDelegate.swift */,
+				A4E112CF804E44E48BB20DB8 /* SceneDelegate.swift */,
+				6C76538C3F114081A4FBB4D5 /* RootViewController.swift */,
+				22C3AFC3D3B04E4781319939 /* AppConfig.swift */,
+				C35737D860E7452899435F5C /* OfflineCacheManager.swift */,
+				E7DA2F226BF44F81B3B3BCEE /* CacheSchemeHandler.swift */,
+				CE2B68A4B2324FC295498116 /* SafariOpener.swift */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		39FB39F98A514DE6AE9E9B19 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				8C99FA4EB5F74A5FA536C797 /* cache-manifest.json */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		EB22DC73CA6642B487849618 /* OneDayInKyiv */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 839C26701C7645ADB172E6D9 /* Build configuration list for PBXNativeTarget "OneDayInKyiv" */;
+			buildPhases = (
+				C288C694398D4628B8E05899 /* Sources */,
+				E545A2E5CD0C49CCA2A2C5D4 /* Frameworks */,
+				90E7635B71104ED4A7B72771 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = OneDayInKyiv;
+			productName = OneDayInKyiv;
+			productReference = DE600E1ECD924E17A99DF713 /* OneDayInKyiv.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		0B7D2E5E34334481A2BBD90B /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					EB22DC73CA6642B487849618 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = E095628F95604A69B5484B46 /* Build configuration list for PBXProject "OneDayInKyiv" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = uk;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				uk,
+				Base,
+			);
+			mainGroup = C8B4D391B9A64C7485F45466 /* Root */;
+			productRefGroup = 4BB5710980F7402491221855 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				EB22DC73CA6642B487849618 /* OneDayInKyiv */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		90E7635B71104ED4A7B72771 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BE959D4AB1AD41F893795F85 /* Assets.xcassets in Resources */,
+				B1A10001RES00000000000001 /* LaunchScreen.storyboard in Resources */,
+				B1A10001RES00000000000002 /* cache-manifest.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		C288C694398D4628B8E05899 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B1A10001CACHE000000000005 /* AppDelegate.swift in Sources */,
+				B1A10001CACHE000000000006 /* SceneDelegate.swift in Sources */,
+				B1A10001CACHE000000000004 /* RootViewController.swift in Sources */,
+				8FF74BB6F35644849DF2642C /* AppConfig.swift in Sources */,
+				B1A10001CACHE000000000001 /* OfflineCacheManager.swift in Sources */,
+				B1A10001CACHE000000000002 /* CacheSchemeHandler.swift in Sources */,
+				B1A10001CACHE000000000003 /* SafariOpener.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		5567352425E44B86AC8B3BBB /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				GCC_DYNAMIC_NO_PIC = NO;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		E2F40F24C6F04FE0931DC662 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		AB2350A03BEB42D5A4C1BF23 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = OneDayInKyiv/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "One Day in Kyiv";
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mikerudine.onedayinkyiv;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		9F35ADB7DFD64FB68D672F1E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = OneDayInKyiv/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "One Day in Kyiv";
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mikerudine.onedayinkyiv;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		E095628F95604A69B5484B46 /* Build configuration list for PBXProject "OneDayInKyiv" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5567352425E44B86AC8B3BBB /* Debug */,
+				E2F40F24C6F04FE0931DC662 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		839C26701C7645ADB172E6D9 /* Build configuration list for PBXNativeTarget "OneDayInKyiv" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AB2350A03BEB42D5A4C1BF23 /* Debug */,
+				9F35ADB7DFD64FB68D672F1E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 0B7D2E5E34334481A2BBD90B /* Project object */;
+}

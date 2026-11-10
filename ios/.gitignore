@@ -1,0 +1,11 @@
+# Xcode user state / build products (never commit secrets or local signing)
+xcuserdata/
+*.xcuserstate
+DerivedData/
+build/
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+.swiftpm/
