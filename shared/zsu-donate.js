@@ -10,12 +10,30 @@
 
   window.ZSU_DONATE_URL = ZSU_DONATE_URL;
 
+  function openDonateExternally(href) {
+    // iOS shell injects KYIV_OPEN_EXTERNAL / webkit messageHandlers.openExternal.
+    // Regular browsers ignore this and keep normal target=_blank behavior.
+    try {
+      if (typeof window.KYIV_OPEN_EXTERNAL === 'function' && window.KYIV_OPEN_EXTERNAL(href)) {
+        return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+
   function patchLinks(root) {
     (root || document).querySelectorAll('[data-zsu-donate]').forEach(function (a) {
       a.href = ZSU_DONATE_URL;
       a.target = '_blank';
       a.rel = 'noopener noreferrer';
       if (!a.textContent.trim()) a.textContent = ZSU_DONATE_LABEL;
+      if (a.dataset.zsuShellBound === '1') return;
+      a.dataset.zsuShellBound = '1';
+      a.addEventListener('click', function (ev) {
+        if (openDonateExternally(a.href)) {
+          ev.preventDefault();
+        }
+      });
     });
   }
 
