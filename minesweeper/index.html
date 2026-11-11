@@ -11,9 +11,9 @@
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 html,body{margin:0;min-height:100%;background:#e8ebf0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#1a2340}
-#wrap{margin:0 auto;max-width:720px;min-height:100dvh;padding:10px 12px calc(14px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:8px;background:#f4f5f8}
+#wrap{margin:0 auto;max-width:720px;min-height:100dvh;padding:calc(10px + env(safe-area-inset-top,0px)) 12px calc(14px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:8px;background:#f4f5f8}
 header{display:flex;align-items:center;justify-content:space-between;gap:8px}
-header a{color:#64748b;text-decoration:none;font-size:13px;font-weight:600;white-space:nowrap}
+header a{color:#64748b;text-decoration:none;font-size:13px;font-weight:600;white-space:nowrap;padding:6px 2px}
 h1{margin:0;font-size:clamp(15px,4.2vw,18px);font-weight:800;color:#1a2340;text-align:center;flex:1;line-height:1.2}
 #lang{border:0;border-radius:999px;background:#1a2340;color:#fff;font-weight:800;padding:6px 12px;font-size:12px}
 #diff{display:flex;gap:6px;background:#fff;border:1px solid #d7dbe3;border-radius:999px;padding:3px}
@@ -31,7 +31,7 @@ h1{margin:0;font-size:clamp(15px,4.2vw,18px);font-weight:800;color:#1a2340;text-
 #hint{font-size:12px;color:#64748b;line-height:1.35;min-height:16px}
 #boardWrap{background:#fff;border:1px solid #d0d5de;border-radius:14px;overflow:auto;-webkit-overflow-scrolling:touch;flex:1;min-height:280px;box-shadow:0 1px 2px #0000000a}
 /* Keep win/lose + donate banner on-screen: board scrolls inside, result stays pinned */
-#wrap:has(#result.show){height:100dvh;max-height:100dvh;min-height:0;overflow:hidden}
+#wrap:has(#result.show){height:100dvh;max-height:100dvh;min-height:0;overflow:hidden;padding-top:calc(10px + env(safe-area-inset-top,0px))}
 #wrap:has(#result.show) #boardWrap{flex:1 1 0;min-height:120px}
 #board{display:grid;border-collapse:collapse}
 #board.easy{grid-template-columns:56px repeat(14,minmax(40px,1fr));width:max(100%,620px);min-width:620px}
@@ -84,7 +84,7 @@ h1{margin:0;font-size:clamp(15px,4.2vw,18px);font-weight:800;color:#1a2340;text-
 #result.lose #resultTxt{color:#b91c1c}
 #resultReplay{border:0;border-radius:999px;background:#1a2340;color:#fff;font-weight:800;font-size:13px;padding:10px 16px;min-height:40px;cursor:pointer}
 #status{display:none}
-.ov{position:fixed;inset:0;background:#1a2340cc;display:flex;align-items:center;justify-content:center;padding:20px;z-index:20}
+.ov{position:fixed;inset:0;background:#1a2340cc;display:flex;align-items:center;justify-content:center;padding:calc(20px + env(safe-area-inset-top,0px)) 20px calc(20px + env(safe-area-inset-bottom,0px));z-index:20}
 .ov.hidden{display:none}
 .panel{background:#fff;border-radius:16px;padding:20px 18px;max-width:360px;width:100%;box-shadow:0 12px 40px #0004;max-height:min(90dvh,640px);overflow:auto}
 .panel h2{margin:0 0 10px;font-size:20px;color:#1a2340}

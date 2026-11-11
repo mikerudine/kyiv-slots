@@ -14,7 +14,7 @@
 html,body{margin:0;height:100%;background:#02040c;color:#f1f5f9;font-family:system-ui,-apple-system,sans-serif;overflow:hidden;display:flex;align-items:center;justify-content:center}
 #wrap{position:relative;width:min(100vw,calc(100dvh*9/16),480px);height:min(100dvh,calc(100vw*16/9));aspect-ratio:9/16;margin:0 auto;background:#010208;flex:0 0 auto}
 canvas#game{display:block;width:100%;height:100%;background:#05040a}
-#hud{position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;padding:10px 12px calc(12px + env(safe-area-inset-bottom));z-index:3}
+#hud{position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;padding:calc(48px + env(safe-area-inset-top,0px)) 12px calc(12px + env(safe-area-inset-bottom,0px));z-index:3}
 #hud .row{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
 #hud .title{font-weight:800;font-size:15px;text-shadow:0 1px 2px #000}
 #hud .meta{text-align:right;font-size:12px;opacity:.9;text-shadow:0 1px 2px #000}
@@ -32,14 +32,15 @@ canvas#game{display:block;width:100%;height:100%;background:#05040a}
 #pauseOverlay h1{font-size:2rem;font-weight:900}
 #overlay p,#pauseOverlay p{margin:0 0 16px;opacity:.85;line-height:1.4;max-width:320px}
 #overlay button{pointer-events:auto;border:0;border-radius:999px;background:#facc15;color:#111;font-weight:800;font-size:1.05rem;padding:12px 28px}
-#nav{position:absolute;top:48px;left:12px;z-index:4;pointer-events:auto}
-#nav a{color:#94a3b8;font-size:11px;text-decoration:none;background:#0f172acc;padding:3px 8px;border-radius:999px}
+#nav{position:fixed;top:calc(8px + env(safe-area-inset-top,0px));left:max(8px,env(safe-area-inset-left,0px));right:max(8px,env(safe-area-inset-right,0px));z-index:50;pointer-events:auto;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+#nav a{color:#e2e8f0;font-size:12px;text-decoration:none;background:#0f172add;padding:7px 10px;border-radius:999px;font-weight:600}
+#nav a.menu{background:#facc15;color:#111;font-weight:800}
 </style>
 </head>
 <body>
 <div id="wrap">
   <canvas id="game" width="360" height="640"></canvas>
-  <div id="nav"><a href="../menu/">☰ Меню</a> · <a href="../">Слоти</a> · <a href="../dogwalk/">Прогулянка</a> · <a href="../scooter/">Самокат</a></div>
+  <div id="nav"><a class="menu" href="../menu/">☰ Меню</a><a href="../">Слоти</a><a href="../dogwalk/">Прогулянка</a><a href="../scooter/">Самокат</a></div>
   <div id="hud">
     <div class="row">
       <div>
