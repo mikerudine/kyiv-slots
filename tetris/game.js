@@ -316,13 +316,12 @@
     // Prefer readable hour labels ("00–01") and queue headers ("1.1")
     const hourW = cssW < 300 ? 34 : (cssW < 340 ? 40 : (cssW < 420 ? 46 : 52));
     const dayH = cssW < 340 ? 18 : 22;
-    // Fit all 24 rows inside the flex board card so pieces never fall under the pad.
+    // Fit all 24 rows inside the flex board card; use full card height after chrome removal.
     const cssH = Math.max(160, (card && card.clientHeight) || 0);
-    const maxCellH = Math.max(10, Math.floor((cssH - dayH) / ROWS));
     const maxCellW = Math.max(10, Math.floor((cssW - hourW) / COLS));
-    const cell = Math.max(10, Math.min(maxCellW, maxCellH, 28));
-    const cellW = cell;
-    const cellH = Math.min(cell + (maxCellH > cell ? 1 : 0), maxCellH, 28);
+    // Width and height can differ so the playfield claims leftover vertical space on phones.
+    const cellW = Math.max(10, Math.min(maxCellW, 36));
+    const cellH = Math.max(10, Math.min(40, Math.floor((cssH - dayH) / ROWS)));
     const boardW = hourW + cellW * COLS;
     const boardH = dayH + cellH * ROWS;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -506,6 +505,16 @@
     }
   }
 
+  function legendHtml(LL) {
+    return (
+      '<span><i class="sw empty"></i><em>' + LL.legendEmpty + '</em></span>' +
+      '<span><i class="sw settled"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#f2f5fa" d="M13.2 2.2 6.4 13.1h4.3l-1.6 8.7 8.2-12.4h-4.5z"/><path stroke="#f2f5fa" stroke-width="2.4" stroke-linecap="round" d="M5 5.5 19 18.5"/></svg></i><em>' + LL.legendSettled + '</em></span>' +
+      '<span><i class="sw active"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#f5c518" d="M13.2 2.2 6.4 13.1h4.3l-1.6 8.7 8.2-12.4h-4.5z"/></svg></i><em>' + LL.legendActive + '</em></span>' +
+      '<span><em>' + LL.legendQueues + '</em></span>' +
+      '<span><em>' + LL.legendHours + '</em></span>'
+    );
+  }
+
   function updateHud() {
     const LL = L();
     document.documentElement.lang = lang === 'ua' ? 'uk' : 'en';
@@ -522,32 +531,32 @@
     $('nextLbl').textContent = LL.next;
     $('legTitle').textContent = LL.legend;
     $('hint').textContent = LL.hint;
-    $('btnHard').textContent = LL.hard;
     $('pauseBtn').textContent = paused ? '▶' : '⏸';
-    $('status').textContent = over ? '' : (paused ? LL.paused : (running ? LL.playing : ''));
-    $('legend').innerHTML =
-      '<span><i class="sw empty"></i><em>' + LL.legendEmpty + '</em></span>' +
-      '<span><i class="sw settled"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#f2f5fa" d="M13.2 2.2 6.4 13.1h4.3l-1.6 8.7 8.2-12.4h-4.5z"/><path stroke="#f2f5fa" stroke-width="2.4" stroke-linecap="round" d="M5 5.5 19 18.5"/></svg></i><em>' + LL.legendSettled + '</em></span>' +
-      '<span><i class="sw active"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#f5c518" d="M13.2 2.2 6.4 13.1h4.3l-1.6 8.7 8.2-12.4h-4.5z"/></svg></i><em>' + LL.legendActive + '</em></span>' +
-      '<span><em>' + LL.legendQueues + '</em></span>' +
-      '<span><em>' + LL.legendHours + '</em></span>';
+    $('legend').innerHTML = legendHtml(LL);
   }
 
   function showOverlay() {
     const LL = L();
     $('overlay').classList.remove('hidden');
+    const startExtra = $('startExtra');
     if (overlayMode === 'start') {
       $('oTitle').textContent = LL.startT;
       $('oBody').textContent = LL.startB;
       $('oBtn').textContent = LL.go;
+      $('legTitle').textContent = LL.legend;
+      $('legend').innerHTML = legendHtml(LL);
+      $('hint').textContent = LL.hint;
+      startExtra.classList.remove('hidden');
     } else if (overlayMode === 'pause') {
       $('oTitle').textContent = LL.pause;
       $('oBody').textContent = LL.pauseB;
       $('oBtn').textContent = LL.resume;
+      startExtra.classList.add('hidden');
     } else {
       $('oTitle').textContent = LL.over;
       $('oBody').textContent = LL.overB(score, lines);
       $('oBtn').textContent = LL.again;
+      startExtra.classList.add('hidden');
     }
     if (typeof setZsuDonateVisible === 'function') setZsuDonateVisible(overlayMode === 'over');
   }
@@ -620,22 +629,6 @@
     if (e.code === 'ArrowDown' || e.code === 'KeyS') softDropping = false;
   }
 
-  function bindHold(btn, downFn, upFn) {
-    const down = (ev) => { ev.preventDefault(); downFn(); };
-    const up = (ev) => { ev.preventDefault(); if (upFn) upFn(); };
-    btn.addEventListener('pointerdown', down);
-    btn.addEventListener('pointerup', up);
-    btn.addEventListener('pointercancel', up);
-    btn.addEventListener('pointerleave', up);
-  }
-
-  let leftHold = 0, rightHold = 0, softHold = 0;
-  function startRepeat(fn, assign) {
-    fn(); draw(); updateHud();
-    assign(setInterval(() => { fn(); draw(); updateHud(); }, 70));
-  }
-  function stopRepeat(id) { if (id) clearInterval(id); }
-
   let swipe = null;
   // Block mobile double-tap / gesture zoom on the playfield while keeping swipe + tap-rotate.
   // touch-action:none alone is not enough on some WebKits when preventDefault is omitted.
@@ -703,36 +696,6 @@
   };
   $('pauseBtn').onclick = () => togglePause();
   $('oBtn').onclick = () => startFromOverlay();
-
-  bindHold($('btnLeft'), () => {
-    if (!running || paused || over) return;
-    stopRepeat(leftHold);
-    startRepeat(() => tryMove(0, -1), (id) => { leftHold = id; });
-  }, () => { stopRepeat(leftHold); leftHold = 0; });
-  bindHold($('btnRight'), () => {
-    if (!running || paused || over) return;
-    stopRepeat(rightHold);
-    startRepeat(() => tryMove(0, 1), (id) => { rightHold = id; });
-  }, () => { stopRepeat(rightHold); rightHold = 0; });
-  bindHold($('btnSoft'), () => {
-    if (!running || paused || over) return;
-    softDropping = true;
-    stopRepeat(softHold);
-    startRepeat(() => softStep(), (id) => { softHold = id; });
-  }, () => { softDropping = false; stopRepeat(softHold); softHold = 0; });
-  $('btnRot').addEventListener('pointerdown', (e) => {
-    e.preventDefault();
-    if (!running || paused || over) return;
-    tryRotate();
-    draw();
-  });
-  $('btnHard').addEventListener('pointerdown', (e) => {
-    e.preventDefault();
-    if (!running || paused || over) return;
-    hardDrop();
-    updateHud();
-    draw();
-  });
 
   window.addEventListener('keydown', onKey);
   window.addEventListener('keyup', onKeyUp);
