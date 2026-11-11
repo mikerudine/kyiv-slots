@@ -8,6 +8,6 @@ Ordinary Tetris for *One Day in Kyiv*, themed as an outage-queue schedule.
 - Dark navy/charcoal schedule aesthetic, subtle grey grid, light labels.
 - Rules: move, rotate (wall kicks), soft/hard drop, full-row clear, score, next preview, pause, game over, replay.
 - Pace: beginner gravity (~900 ms), speeds up each level (every 10 lines).
-- Controls: on-screen pad + swipe; keyboard arrows / WASD / Space / P.
-- UA/EN, ☰ Menu. Tall board may scroll naturally on short viewports rather than crushing cells. No TikTok chrome, flashes, or shake.
+- Controls: board swipe / tap + keyboard arrows / WASD / Space / P. Legend + control hint live on the start overlay; play HUD is a compact right column (score / lines / level / next / pause).
+- UA/EN, ☰ Menu. Board fills remaining viewport height with all 24 rows visible. No TikTok chrome, flashes, or shake.
 - Test API: `window.__tetris` (`state`, `reset`, `move`, `rotate`, `hardDrop`, `pause`, `setLang`, `QUEUES`, …).
