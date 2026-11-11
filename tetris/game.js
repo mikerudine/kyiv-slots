@@ -312,13 +312,17 @@
 
   function computeMetrics() {
     const card = $('boardCard');
-    const cssW = Math.max(260, (card && card.clientWidth) || boardCv.parentElement.clientWidth || 360);
+    const cssW = Math.max(200, (card && card.clientWidth) || boardCv.parentElement.clientWidth || 360);
     // Prefer readable hour labels ("00–01") and queue headers ("1.1")
-    const hourW = cssW < 340 ? 40 : (cssW < 420 ? 46 : 52);
-    const dayH = cssW < 340 ? 20 : 22;
-    const cellW = Math.max(22, Math.floor((cssW - hourW) / COLS));
-    // Keep row height readable; allow natural page scroll rather than crushing 24 rows
-    const cellH = Math.max(22, Math.min(cellW + 2, 28));
+    const hourW = cssW < 300 ? 34 : (cssW < 340 ? 40 : (cssW < 420 ? 46 : 52));
+    const dayH = cssW < 340 ? 18 : 22;
+    // Fit all 24 rows inside the flex board card so pieces never fall under the pad.
+    const cssH = Math.max(160, (card && card.clientHeight) || 0);
+    const maxCellH = Math.max(10, Math.floor((cssH - dayH) / ROWS));
+    const maxCellW = Math.max(10, Math.floor((cssW - hourW) / COLS));
+    const cell = Math.max(10, Math.min(maxCellW, maxCellH, 28));
+    const cellW = cell;
+    const cellH = Math.min(cell + (maxCellH > cell ? 1 : 0), maxCellH, 28);
     const boardW = hourW + cellW * COLS;
     const boardH = dayH + cellH * ROWS;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);

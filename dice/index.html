@@ -11,9 +11,9 @@
 <style>
 *{box-sizing:border-box;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;background:#e9ecf1;font-family:system-ui,-apple-system,sans-serif;color:#1c2742}
-#wrap{position:relative;margin:0 auto;width:min(100vw,calc(100dvh*9/16),480px);height:100dvh;background:#f2f3f6;display:flex;flex-direction:column;padding:10px 14px calc(10px + env(safe-area-inset-bottom));overflow:hidden}
+#wrap{position:relative;margin:0 auto;width:min(100vw,calc(100dvh*9/16),480px);height:100dvh;background:#f2f3f6;display:flex;flex-direction:column;padding:calc(10px + env(safe-area-inset-top,0px)) 14px calc(10px + env(safe-area-inset-bottom,0px));overflow:hidden}
 header{display:flex;align-items:center;justify-content:space-between;gap:8px}
-header a{color:#64748b;text-decoration:none;font-size:13px}
+header a{color:#64748b;text-decoration:none;font-size:13px;padding:4px 2px}
 h1{font-size:18px;margin:0;font-weight:800}
 #lang{border:0;border-radius:999px;background:#1c2742;color:#fff;font-weight:800;padding:6px 12px;font-size:12px}
 .card{background:#fff;border-radius:16px;padding:10px 12px;margin-top:8px;box-shadow:0 1px 3px #0001}
