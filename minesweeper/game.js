@@ -2,12 +2,13 @@
 (function () {
   'use strict';
 
+  // Same outage queues as Tetris (no 6.x). Hard repeats the set under day groups.
+  const QUEUES = ['1.1', '1.2', '2.1', '2.2', '3.1', '3.2', '4.1', '4.2', '5.1', '5.2'];
+  const HARD_DAYS = 3; // 3 × 10 queues = 30 columns
   const MODES = {
-    easy: { rows: 12, cols: 14, mines: 18 },   // ~10.7% — beginner week
-    hard: { rows: 24, cols: 28, mines: 120 },  // ~17.9% — challenging month
+    easy: { rows: 24, cols: 10, mines: 26 },   // ~10.8% — hour × queue (like Tetris)
+    hard: { rows: 24, cols: 30, mines: 130 },  // ~18.1% — 3 days × queues 1.1–5.2
   };
-  const DAYS_UA = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд'];
-  const DAYS_EN = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
   const T = {
     ua: {
@@ -21,11 +22,11 @@
       replay: 'Ще раз',
       easy: 'Проста',
       hard: 'Складна',
-      hint: 'Відкривай темні години. Порожня зона — без світла (сіре з блискавкою). Білі з цифрами — зі світлом; цифра = пастки поруч.',
+      hint: 'Відкривай темні години. Порожня зона — без світла (сіре з блискавкою). Білі з цифрами — зі світлом; цифра = пастки поруч. Колонки = черги 1.1–5.2.',
       hintFlag: 'Режим мітки: познач підозрілу пастку-відключення.',
-      hintHard: 'Складна: 24 години × 28 днів. Гортай сітку в обидва боки.',
+      hintHard: 'Складна: 24 години × 3 дні черг (1.1–5.2). Гортай сітку в обидва боки.',
       startT: 'Графік світла',
-      startB: 'Сапер як графік: відкриваєш темне. Порожні клітинки — години без світла (сірі з блискавкою). Білі з цифрами — години зі світлом. Наприкінці цифри зникають — лишається графік.',
+      startB: 'Сапер як графік черг: рядки — години, колонки — черги 1.1–5.2. Відкриваєш темне. Порожні клітинки — години без світла (сірі з блискавкою). Білі з цифрами — години зі світлом. Наприкінці цифри зникають — лишається графік.',
       rulesCommon: [
         'Темні клітинки ще закриті (невідомо).',
         'Порожня відкрита зона (нуль) — немає світла: сіре з перекресленою блискавкою. Вона розливається на сусідні порожні години.',
@@ -34,19 +35,18 @@
         'Перший хід завжди безпечний. Мітка: довге натискання / ПКМ / «Мітка».',
         'Виграш — відкрити всі безпечні години (і без світла, і зі світлом), не натрапивши на пастку.',
         'Після гри цифри й мітки зникають; кольори ті самі: біле = світло, сіре з блискавкою = без світла (включно з пастками).',
-        '«Проста» — тиждень (12×14). «Складна» — місяць по годинах (24×28).',
+        '«Проста» — 24 години × черги 1.1–5.2. «Складна» — те саме під трьома днями (більша сітка).',
       ],
-      rulesEasy: 'Проста: 12×14 клітинок — 7 днів × дві половини доби (00–12 і 12–24), 18 пасток.',
-      rulesHard: 'Складна: 24×28 клітинок — година на рядок (00–01 … 23–24), день на колонку (28 днів), 120 пасток.',
+      rulesEasy: 'Проста: 24×10 — година на рядок (00–01 … 23–24), черга на колонку (1.1–5.2), 26 пасток.',
+      rulesHard: 'Складна: 24×30 — година на рядок, три дні × черги 1.1–5.2 (без вигаданих черг), 130 пасток.',
       go: 'Грати',
       win: 'Є світло! ⚡',
       winB: 'Графік відкрито. Нижче — чистий розклад без цифр.',
       lose: 'Пастка…',
       loseB: 'Потрапив на приховане відключення. Нижче — повний графік.',
       again: 'Ще раз',
-      halfAm: '00–12',
-      halfPm: '12–24',
-      week: (n) => 'Тиждень ' + n,
+      day: (n) => 'День ' + n,
+      corner: 'Час/Гр.',
       legendClosed: 'закрито',
       legendLight: 'світло (цифра)',
       legendDark: 'без світла',
@@ -64,11 +64,11 @@
       replay: 'Replay',
       easy: 'Easy',
       hard: 'Hard',
-      hint: 'Open dark hours. Empty flood = no power (grey + bolt). White with digits = power on; digit = nearby traps.',
+      hint: 'Open dark hours. Empty flood = no power (grey + bolt). White with digits = power on; digit = nearby traps. Columns = queues 1.1–5.2.',
       hintFlag: 'Flag mode: mark a suspected trap outage.',
-      hintHard: 'Hard: 24 hours × 28 days. Scroll the grid both ways.',
+      hintHard: 'Hard: 24 hours × 3 days of queues (1.1–5.2). Scroll the grid both ways.',
       startT: 'Power schedule',
-      startB: 'Minesweeper as a timetable: open the dark. Empty cells are no-power hours (grey + bolt). White numbered cells have power. At the end digits vanish into a clean schedule.',
+      startB: 'Minesweeper as a queue timetable: rows are hours, columns are queues 1.1–5.2. Open the dark. Empty cells are no-power hours (grey + bolt). White numbered cells have power. At the end digits vanish into a clean schedule.',
       rulesCommon: [
         'Dark cells are still closed (unknown).',
         'An empty opened region (zero) means no power: grey with a crossed bolt. It floods through neighbouring empty hours.',
@@ -77,19 +77,18 @@
         'First click is always safe. Flag with long-press / right-click / Flag.',
         'Win by opening every safe hour (no-power empties and powered numbered cells) without hitting a trap.',
         'Afterwards digits and flags disappear; colours stay: white = power, grey + bolt = no power (including traps).',
-        'Easy is a week (12×14). Hard is a month by the hour (24×28).',
+        'Easy is 24 hours × queues 1.1–5.2. Hard repeats those queues under three days (larger grid).',
       ],
-      rulesEasy: 'Easy: 12×14 cells — 7 weekdays × two half-days (00–12 and 12–24), 18 traps.',
-      rulesHard: 'Hard: 24×28 cells — one hour per row (00–01 … 23–24), one day per column (28 days), 120 traps.',
+      rulesEasy: 'Easy: 24×10 — one hour per row (00–01 … 23–24), one queue per column (1.1–5.2), 26 traps.',
+      rulesHard: 'Hard: 24×30 — one hour per row, three days × queues 1.1–5.2 (no invented queues), 130 traps.',
       go: 'Play',
       win: 'Lights on! ⚡',
       winB: 'Schedule cleared. Below — a clean timetable without numbers.',
       lose: 'Trap…',
       loseB: 'You hit a hidden outage trap. Below — the full schedule.',
       again: 'Play again',
-      halfAm: '00–12',
-      halfPm: '12–24',
-      week: (n) => 'Week ' + n,
+      day: (n) => 'Day ' + n,
+      corner: 'Time/Q.',
       legendClosed: 'closed',
       legendLight: 'power (digit)',
       legendDark: 'no power',
@@ -143,23 +142,18 @@
     return out;
   }
 
-  function hourLabelEasy(row) {
-    const a0 = String(row).padStart(2, '0');
-    const a1 = String(row + 1).padStart(2, '0');
-    const p0 = String(row + 12).padStart(2, '0');
-    const p1 = String(row + 13).padStart(2, '0');
-    return { am: a0 + '–' + a1, pm: p0 + '–' + p1 };
-  }
-
-  function hourLabelHard(row) {
+  function hourLabel(row) {
     const a0 = String(row).padStart(2, '0');
     const a1 = String(row + 1).padStart(2, '0');
     return a0 + '–' + a1;
   }
 
-  function dayName(dayIndex) {
-    const days = lang === 'ua' ? DAYS_UA : DAYS_EN;
-    return days[dayIndex % 7];
+  function queueLabel(c) {
+    return QUEUES[c % QUEUES.length];
+  }
+
+  function dayIndex(c) {
+    return (c / QUEUES.length) | 0;
   }
 
   function buildBoardSkeleton() {
@@ -173,42 +167,24 @@
   }
 
   function buildEasyBoard(board) {
-    const days = lang === 'ua' ? DAYS_UA : DAYS_EN;
     const L = T[lang];
 
     const corner = document.createElement('div');
     corner.className = 'corner';
-    corner.textContent = lang === 'ua' ? 'Час' : 'Time';
+    corner.textContent = L.corner;
     board.appendChild(corner);
 
-    for (let d = 0; d < 7; d++) {
-      const day = document.createElement('div');
-      day.className = 'day';
-      day.textContent = days[d];
-      board.appendChild(day);
-    }
-
-    const corner2 = document.createElement('div');
-    corner2.className = 'corner half-spacer';
-    corner2.setAttribute('aria-hidden', 'true');
-    board.appendChild(corner2);
-
-    for (let d = 0; d < 7; d++) {
-      const am = document.createElement('div');
-      am.className = 'half';
-      am.textContent = L.halfAm;
-      board.appendChild(am);
-      const pm = document.createElement('div');
-      pm.className = 'half';
-      pm.textContent = L.halfPm;
-      board.appendChild(pm);
+    for (let q = 0; q < QUEUES.length; q++) {
+      const el = document.createElement('div');
+      el.className = 'queue';
+      el.textContent = QUEUES[q];
+      board.appendChild(el);
     }
 
     for (let r = 0; r < ROWS; r++) {
-      const h = hourLabelEasy(r);
       const lab = document.createElement('div');
       lab.className = 'hour';
-      lab.innerHTML = '<span class="am">' + h.am + '</span><span class="pm">' + h.pm + '</span>';
+      lab.textContent = hourLabel(r);
       board.appendChild(lab);
       for (let c = 0; c < COLS; c++) appendCell(board, r, c);
     }
@@ -219,32 +195,32 @@
 
     const corner = document.createElement('div');
     corner.className = 'corner';
-    corner.textContent = lang === 'ua' ? 'Час' : 'Time';
+    corner.textContent = L.corner;
     board.appendChild(corner);
 
-    for (let w = 0; w < 4; w++) {
-      const week = document.createElement('div');
-      week.className = 'week';
-      week.textContent = L.week(w + 1);
-      board.appendChild(week);
+    for (let d = 0; d < HARD_DAYS; d++) {
+      const day = document.createElement('div');
+      day.className = 'dayg';
+      day.textContent = L.day(d + 1);
+      board.appendChild(day);
     }
 
     const corner2 = document.createElement('div');
-    corner2.className = 'corner day-spacer';
+    corner2.className = 'corner queue-spacer';
     corner2.setAttribute('aria-hidden', 'true');
     board.appendChild(corner2);
 
-    for (let d = 0; d < 28; d++) {
+    for (let c = 0; c < COLS; c++) {
       const el = document.createElement('div');
-      el.className = 'dayn';
-      el.innerHTML = '<span class="wd">' + dayName(d) + '</span><span class="dn">' + (d + 1) + '</span>';
+      el.className = 'queue';
+      el.textContent = queueLabel(c);
       board.appendChild(el);
     }
 
     for (let r = 0; r < ROWS; r++) {
       const lab = document.createElement('div');
       lab.className = 'hour';
-      lab.textContent = hourLabelHard(r);
+      lab.textContent = hourLabel(r);
       board.appendChild(lab);
       for (let c = 0; c < COLS; c++) appendCell(board, r, c);
     }
@@ -261,15 +237,12 @@
   }
 
   function cellAria(r, c) {
+    const q = queueLabel(c);
+    const h = hourLabel(r);
     if (mode === 'hard') {
-      return dayName(c) + ' ' + (c + 1) + ' ' + hourLabelHard(r);
+      return T[lang].day(dayIndex(c) + 1) + ' ' + q + ' ' + h;
     }
-    const days = lang === 'ua' ? DAYS_UA : DAYS_EN;
-    const day = days[(c / 2) | 0];
-    const half = c % 2 === 0 ? T[lang].halfAm : T[lang].halfPm;
-    const h = hourLabelEasy(r);
-    const slot = c % 2 === 0 ? h.am : h.pm;
-    return day + ' ' + half + ' ' + slot;
+    return q + ' ' + h;
   }
 
   function hideResult() {
@@ -570,20 +543,14 @@
     renderLegend();
 
     // refresh headers in place when language changes (same mode/geometry)
-    if (mode === 'easy') {
-      const days = lang === 'ua' ? DAYS_UA : DAYS_EN;
-      $('board').querySelectorAll('.day').forEach((el, i) => { el.textContent = days[i]; });
-      $('board').querySelectorAll('.half').forEach((el, i) => {
-        el.textContent = i % 2 === 0 ? L.halfAm : L.halfPm;
-      });
-    } else {
-      $('board').querySelectorAll('.week').forEach((el, i) => { el.textContent = L.week(i + 1); });
-      $('board').querySelectorAll('.dayn').forEach((el, i) => {
-        el.innerHTML = '<span class="wd">' + dayName(i) + '</span><span class="dn">' + (i + 1) + '</span>';
-      });
+    const corner = $('board').querySelector('.corner:not(.queue-spacer)');
+    if (corner) corner.textContent = L.corner;
+    if (mode === 'hard') {
+      $('board').querySelectorAll('.dayg').forEach((el, i) => { el.textContent = L.day(i + 1); });
     }
-    const corner = $('board').querySelector('.corner');
-    if (corner) corner.textContent = lang === 'ua' ? 'Час' : 'Time';
+    $('board').querySelectorAll('.queue').forEach((el, i) => {
+      el.textContent = mode === 'hard' ? queueLabel(i) : QUEUES[i];
+    });
     $('board').querySelectorAll('.cell').forEach((el) => {
       el.setAttribute('aria-label', cellAria(+el.dataset.r, +el.dataset.c));
     });
@@ -644,6 +611,8 @@
     get MINES() { return MINES; },
     get mode() { return mode; },
     MODES,
+    QUEUES: QUEUES.slice(),
+    HARD_DAYS,
     state: () => ({
       mode, placed, over, flags, flagMode, lang, rows: ROWS, cols: COLS, minesTarget: MINES,
       mines: cells.filter((c) => c.mine).length,
@@ -655,6 +624,14 @@
       gridOutages: () => document.querySelectorAll('#board .cell.outage').length,
       gridLights: () => document.querySelectorAll('#board .cell.light').length,
       boardEnded: () => document.getElementById('board').classList.contains('ended'),
+      headerQueues: () => [...document.querySelectorAll('#board .queue')].map((el) => el.textContent.trim()),
+      headerDays: () => [...document.querySelectorAll('#board .dayg')].map((el) => el.textContent.trim()),
+      cornerText: () => {
+        const el = document.querySelector('#board .corner:not(.queue-spacer)');
+        return el ? el.textContent.trim() : '';
+      },
+      leftoverWeekdayHeaders: () =>
+        document.querySelectorAll('#board .day, #board .half, #board .week, #board .dayn').length,
     }),
     openAt, toggleFlag, reset: resetGame, setMode,
     idx, neighbors, placeMines,

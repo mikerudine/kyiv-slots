@@ -1,9 +1,9 @@
 # Графік світла (minesweeper)
 
-Outage-schedule Minesweeper for *One Day in Kyiv*. Difficulty selector:
+Outage-schedule Minesweeper for *One Day in Kyiv*. Columns are outage queues (same labels as Tetris). Difficulty selector:
 
-- **Easy:** 12×14 — 7 weekdays × 00–12 / 12–24 half-days, 18 traps (~10.7%).
-- **Hard:** 24×28 — one hour row (00–01 … 23–24) × 28 day columns, 120 traps (~17.9%). Two-axis scroll on phone.
+- **Easy:** 24×10 — hour rows `00–01` … `23–24` × queues `1.1, 1.2, … 5.2`, 26 traps (~10.8%). Corner: `Час/Гр.` / `Time/Q.`
+- **Hard:** 24×30 — same hour rows × three day groups, each repeating queues `1.1–5.2` (no invented 6.x IDs), 130 traps (~18.1%). Sticky day + queue headers; two-axis scroll on phone.
 
 ## Visual meaning
 
@@ -15,5 +15,5 @@ Outage-schedule Minesweeper for *One Day in Kyiv*. Difficulty selector:
 - On win **or** loss: strip digits and flags; keep the same power / no-power colours. Result banner sits outside the grid.
 
 - UA/EN, ☰ Меню, rules overlay, replay. No official logos or live outage data — it's a game.
-- Test API: `window.__minesweeper` (`state`, `setMode`, `openAt`, `toggleFlag`, `seed`, `reset`).
+- Test API: `window.__minesweeper` (`state`, `setMode`, `openAt`, `toggleFlag`, `seed`, `reset`, `QUEUES`).
 - Headless checks: `node minesweeper/logic-test.mjs` (needs `playwright-core` + Chrome).
