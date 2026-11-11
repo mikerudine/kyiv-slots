@@ -31,11 +31,11 @@ header button{border:2px solid #fde047;background:#1a1f33;color:#fde047;font:700
 .opt:active{transform:translate(1px,1px);box-shadow:1px 1px 0 #000}
 #log{margin-top:6px;font-size:11px;line-height:1.35;flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;border-top:2px dashed #2a3150;padding-top:4px}
 #log span{color:#fde047}
-.ov{position:absolute;inset:0;background:#0b1020e6;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;gap:12px}
+.ov{position:absolute;inset:0;background:#0b1020e6;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:calc(24px + env(safe-area-inset-top,0px)) 24px calc(24px + env(safe-area-inset-bottom,0px));text-align:center;gap:12px}
 .ov.hidden{display:none}
 #fullBtn.hidden{display:none}
 #fullBtn{background:#1e2540!important;color:#fde047!important;border-color:#fde047!important;font-size:13px!important}
-#full{justify-content:flex-start;padding:12px;text-align:left;z-index:5}
+#full{justify-content:flex-start;padding:calc(12px + env(safe-area-inset-top,0px)) 12px calc(12px + env(safe-area-inset-bottom,0px));text-align:left;z-index:5}
 #full .hd{display:flex;width:100%;justify-content:space-between;align-items:center}
 #fullLog{flex:1;min-height:0;width:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;font-size:12px;line-height:1.45}
 #fullLog span,#log span{color:#fde047}
