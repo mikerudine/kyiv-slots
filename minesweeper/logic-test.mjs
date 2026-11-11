@@ -1,5 +1,5 @@
 /**
- * Headless logic checks for minesweeper (easy + hard).
+ * Headless logic checks for minesweeper (easy + hard, queue columns).
  * Run: node minesweeper/logic-test.mjs  (needs playwright-core + Chrome)
  */
 import { createServer } from 'http';
@@ -11,6 +11,7 @@ import { chromium } from 'playwright-core';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
 const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.md': 'text/plain' };
+const QUEUES = ['1.1', '1.2', '2.1', '2.2', '3.1', '3.2', '4.1', '4.2', '5.1', '5.2'];
 
 function startServer() {
   const server = createServer((req, res) => {
@@ -39,7 +40,7 @@ page.on('console', (msg) => { if (msg.type() === 'error') errors.push(msg.text()
 await page.goto(`http://127.0.0.1:${port}/minesweeper/`, { waitUntil: 'networkidle' });
 await page.click('#oBtn');
 
-const results = await page.evaluate(() => {
+const results = await page.evaluate((QUEUES) => {
   const M = window.__minesweeper;
   const out = [];
   const ok = (name, cond, detail) => out.push({ name, ok: !!cond, detail: detail || '' });
@@ -53,22 +54,31 @@ const results = await page.evaluate(() => {
     return { lights, outages };
   };
 
+  const sameQueues = (arr, times) => {
+    if (arr.length !== QUEUES.length * times) return false;
+    for (let i = 0; i < arr.length; i++) if (arr[i] !== QUEUES[i % QUEUES.length]) return false;
+    return true;
+  };
+
   // ---- easy ----
   M.setMode('easy');
   document.getElementById('overlay').classList.add('hidden');
-  ok('easy-dims', M.ROWS === 12 && M.COLS === 14 && M.MINES === 18 && M.state().cells.length === 168);
+  ok('easy-dims', M.ROWS === 24 && M.COLS === 10 && M.MINES === 26 && M.state().cells.length === 240);
+  ok('easy-queues', sameQueues(M.state().headerQueues(), 1), JSON.stringify(M.state().headerQueues()));
+  ok('easy-corner', M.state().cornerText() === 'Час/Гр.');
+  ok('easy-no-weekday-headers', M.state().leftoverWeekdayHeaders() === 0);
   ok('easy-corner-n', M.neighbors(0, 0).length === 3);
-  ok('easy-center-n', M.neighbors(5, 5).length === 8);
-  ok('easy-no-wrap', !M.neighbors(0, 0).includes(M.idx(11, 13)));
+  ok('easy-center-n', M.neighbors(12, 5).length === 8);
+  ok('easy-no-wrap', !M.neighbors(0, 0).includes(M.idx(23, 9)));
 
   let safe = true;
   for (let t = 0; t < 12; t++) {
     M.reset();
     document.getElementById('overlay').classList.add('hidden');
-    const i = M.idx(5, 6);
+    const i = M.idx(12, 5);
     M.openAt(i);
     const st = M.state();
-    if (st.cells[i].mine || st.over === 'lose' || st.mines !== 18) { safe = false; break; }
+    if (st.cells[i].mine || st.over === 'lose' || st.mines !== 26) { safe = false; break; }
   }
   ok('easy-first-safe', safe);
 
@@ -77,11 +87,11 @@ const results = await page.evaluate(() => {
 
   // Mine wall so flood from the left cannot clear the whole board / auto-win
   const easyWall = [];
-  for (let r = 0; r < 12; r++) easyWall.push(M.idx(r, 5));
+  for (let r = 0; r < 24; r++) easyWall.push(M.idx(r, 4));
   M.seed(easyWall, null);
   M.openAt(M.idx(0, 0));
   const flood = M.state();
-  ok('easy-flood', flood.over === false && flood.open > 5 && !flood.cells[M.idx(0, 5)].open && !flood.cells[M.idx(0, 6)].open, 'open=' + flood.open);
+  ok('easy-flood', flood.over === false && flood.open > 5 && !flood.cells[M.idx(0, 4)].open && !flood.cells[M.idx(0, 5)].open, 'open=' + flood.open);
   // Zero flood region = outage grey+bolt; boundary = white digits; closed has no bolt
   const outageOpened = document.querySelectorAll('#board .cell.open.outage').length;
   const outageBolts = document.querySelectorAll('#board .cell.open.outage .bolt').length;
@@ -91,7 +101,7 @@ const results = await page.evaluate(() => {
   ok('easy-flood-power-boundary', powerOpened > 0 && flood.gridDigits() > 0, 'power=' + powerOpened + ' digits=' + flood.gridDigits());
   ok('easy-closed-no-bolt', closedNoBolt && document.querySelectorAll('#board .cell.closed').length > 0);
 
-  M.seed([M.idx(0, 0), M.idx(11, 13)], null);
+  M.seed([M.idx(0, 0), M.idx(23, 9)], null);
   M.toggleFlag(M.idx(0, 0));
   ok('easy-flag', M.state().flags === 1 && document.querySelectorAll('#board .cell.flagged').length === 1);
   M.openAt(M.idx(0, 1));
@@ -111,8 +121,8 @@ const results = await page.evaluate(() => {
   }
   ok('easy-lose-banner', document.getElementById('result').classList.contains('show'));
 
-  M.seed([M.idx(11, 13)], M.idx(0, 0));
-  for (let i = 0; i < 168; i++) if (i !== M.idx(11, 13) && !M.state().cells[i].open) M.openAt(i);
+  M.seed([M.idx(23, 9)], M.idx(0, 0));
+  for (let i = 0; i < 240; i++) if (i !== M.idx(23, 9) && !M.state().cells[i].open) M.openAt(i);
   ok('easy-win', M.state().over === 'win');
   {
     const st = M.state();
@@ -123,19 +133,23 @@ const results = await page.evaluate(() => {
 
   M.reset();
   document.getElementById('overlay').classList.add('hidden');
-  ok('easy-replay-closed', !M.state().over && document.querySelectorAll('#board .cell.closed').length === 168 && !document.getElementById('result').classList.contains('show'));
+  ok('easy-replay-closed', !M.state().over && document.querySelectorAll('#board .cell.closed').length === 240 && !document.getElementById('result').classList.contains('show'));
 
   // ---- hard ----
   M.setMode('hard');
   document.getElementById('overlay').classList.add('hidden');
   const hardSt = M.state();
-  ok('hard-dims', M.ROWS === 24 && M.COLS === 28 && M.MINES === 120 && hardSt.cells.length === 672, 'len=' + hardSt.cells.length);
+  ok('hard-dims', M.ROWS === 24 && M.COLS === 30 && M.MINES === 130 && hardSt.cells.length === 720, 'len=' + hardSt.cells.length);
+  ok('hard-queues', sameQueues(hardSt.headerQueues(), 3), JSON.stringify(hardSt.headerQueues()));
+  ok('hard-days', hardSt.headerDays().length === 3 && hardSt.headerDays()[0] === 'День 1');
+  ok('hard-corner', hardSt.cornerText() === 'Час/Гр.');
+  ok('hard-no-weekday-headers', hardSt.leftoverWeekdayHeaders() === 0);
   ok('hard-corner-n', M.neighbors(0, 0).length === 3);
   ok('hard-edge-n', M.neighbors(0, 10).length === 5);
   ok('hard-center-n', M.neighbors(12, 14).length === 8);
-  ok('hard-no-wrap', !M.neighbors(0, 0).includes(M.idx(23, 27)) && !M.neighbors(23, 27).includes(M.idx(0, 0)));
+  ok('hard-no-wrap', !M.neighbors(0, 0).includes(M.idx(23, 29)) && !M.neighbors(23, 29).includes(M.idx(0, 0)));
   ok('hard-board-class', document.getElementById('board').classList.contains('hard'));
-  ok('hard-counter', document.getElementById('darkCount').textContent === '120');
+  ok('hard-counter', document.getElementById('darkCount').textContent === '130');
 
   safe = true;
   for (let t = 0; t < 8; t++) {
@@ -144,7 +158,7 @@ const results = await page.evaluate(() => {
     const i = M.idx(12, 14);
     M.openAt(i);
     const st = M.state();
-    if (st.cells[i].mine || st.over === 'lose' || st.mines !== 120) { safe = false; break; }
+    if (st.cells[i].mine || st.over === 'lose' || st.mines !== 130) { safe = false; break; }
   }
   ok('hard-first-safe', safe);
 
@@ -173,18 +187,18 @@ const results = await page.evaluate(() => {
 
   M.setMode('easy');
   document.getElementById('overlay').classList.add('hidden');
-  ok('switch-easy', M.mode === 'easy' && M.state().cells.length === 168 && !M.state().placed && M.state().open === 0);
-  ok('switch-easy-counter', document.getElementById('darkCount').textContent === '18');
+  ok('switch-easy', M.mode === 'easy' && M.state().cells.length === 240 && !M.state().placed && M.state().open === 0);
+  ok('switch-easy-counter', document.getElementById('darkCount').textContent === '26');
   M.openAt(M.idx(3, 3));
   const mid = M.state();
   M.setMode('hard');
   document.getElementById('overlay').classList.add('hidden');
   const after = M.state();
-  ok('switch-hard-reset', after.mode === 'hard' && after.cells.length === 672 && !after.placed && after.open === 0 && after.flags === 0);
-  ok('switch-hard-ui', document.getElementById('diffHard').classList.contains('on') && document.getElementById('darkCount').textContent === '120');
+  ok('switch-hard-reset', after.mode === 'hard' && after.cells.length === 720 && !after.placed && after.open === 0 && after.flags === 0);
+  ok('switch-hard-ui', document.getElementById('diffHard').classList.contains('on') && document.getElementById('darkCount').textContent === '130');
 
-  M.seed([M.idx(23, 27)], M.idx(0, 0));
-  for (let i = 0; i < 672; i++) if (i !== M.idx(23, 27) && !M.state().cells[i].open) M.openAt(i);
+  M.seed([M.idx(23, 29)], M.idx(0, 0));
+  for (let i = 0; i < 720; i++) if (i !== M.idx(23, 29) && !M.state().cells[i].open) M.openAt(i);
   ok('hard-win', M.state().over === 'win');
   {
     const st = M.state();
@@ -194,12 +208,14 @@ const results = await page.evaluate(() => {
 
   document.getElementById('lang').click();
   ok('lang-en', document.documentElement.lang === 'en' && document.getElementById('darkLbl').textContent === 'traps');
+  ok('lang-en-corner', M.state().cornerText() === 'Time/Q.');
+  ok('lang-en-day', M.state().headerDays()[0] === 'Day 1');
   document.getElementById('lang').click();
   ok('lang-ua', document.documentElement.lang === 'uk' && document.getElementById('darkLbl').textContent === 'пастки');
 
   void mid;
   return out;
-});
+}, QUEUES);
 
 await browser.close();
 server.close();
