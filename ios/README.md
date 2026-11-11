@@ -32,10 +32,33 @@ its offline cache. After that, Airplane Mode still opens the last cached copy.
 
 ### Signing / TestFlight / App Store
 
-Apple Developer Program enrollment was started on 2026-11-10; activation may
-still be pending. This project contains **no** certificates, provisioning
-profiles, or secrets. TestFlight and App Store submission are intentionally
-left for later once the team/account is ready.
+This project contains **no** certificates, provisioning profiles, or secrets.
+CI archives the shell on GitHub-hosted `macos-latest` runners and uploads the
+IPA to TestFlight with automatic signing via an App Store Connect API key.
+
+#### GitHub Actions → TestFlight
+
+Workflow: [`.github/workflows/ios-testflight.yml`](../.github/workflows/ios-testflight.yml)
+
+**Trigger manually:** GitHub → **Actions** → **iOS TestFlight** → **Run workflow**.
+
+It also runs on pushes to `main` that touch `ios/**` or that workflow file (not
+on ordinary game/content-only changes; GitHub Pages remains the content source
+of truth).
+
+**Repository secrets** (Settings → Secrets and variables → Actions). Use these
+exact names; paste the real values in the GitHub UI only — never commit them:
+
+| Secret | What to paste |
+| --- | --- |
+| `APP_STORE_CONNECT_KEY_ID` | App Store Connect API Key ID |
+| `APP_STORE_CONNECT_ISSUER_ID` | App Store Connect Issuer ID |
+| `APP_STORE_CONNECT_API_KEY` | Full `.p8` PEM text, including the `BEGIN` / `END PRIVATE KEY` lines (multiline secret, not base64) |
+| `APP_STORE_CONNECT_TEAM_ID` | Apple Team ID |
+
+The workflow sets `CFBundleVersion` / `CURRENT_PROJECT_VERSION` at build time
+(latest TestFlight build + 1, or a `github.run_number`-based fallback). It does
+**not** submit for App Store review or notify external testers.
 
 ## Update & offline model
 
