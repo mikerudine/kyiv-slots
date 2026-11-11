@@ -21,7 +21,7 @@ header button{border:2px solid #fde047;background:#1a1f33;color:#fde047;font:700
 #list{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;font-size:13px;margin-top:6px}
 #list div.got{color:#4ade80;text-decoration:line-through}
 #hint{font-size:11px;color:#94a3b8;text-align:center;margin-top:4px;min-height:14px}
-.ov{position:absolute;inset:0;background:#0b1020e6;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;gap:12px}
+.ov{position:absolute;inset:0;background:#0b1020e6;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:calc(24px + env(safe-area-inset-top,0px)) 24px calc(24px + env(safe-area-inset-bottom,0px));text-align:center;gap:12px}
 .ov.hidden{display:none}
 .ov h2{margin:0;color:#fde047;font-size:22px}.ov p{margin:0;font-size:14px;line-height:1.4}
 .ov button{border:3px solid #000;background:#fde047;color:#0b1020;font:900 16px inherit;padding:10px 22px;box-shadow:3px 3px 0 #000}
