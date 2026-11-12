@@ -1,13 +1,17 @@
 /**
- * Pure match-3 laundry logic (colour-only matching, baskets, timed rounds).
+ * Pure match-3 laundry logic (colour+type matching, per-colour baskets, timed rounds).
  * Tunable constants live at the top — adjust after sim/tests.
+ *
+ * Matching: same COLOUR and same ITEM TYPE (sock/briefs/tee).
+ * Baskets: per colour only — any matched red items fill the red basket.
  */
 
 // ---- tunable constants ----
-export const COLS = 7;
-export const ROWS = 7;
+/** Board size — larger helps when kinds = colours × 3. */
+export let COLS = 8;
+export let ROWS = 8;
 
-/** Visual item kinds — matching ignores these; colour alone counts. */
+/** Item types — matching requires colour AND kind. */
 export const ITEM_KINDS = ['sock', 'briefs', 'tee'];
 
 /**
@@ -24,7 +28,8 @@ export const COLOURS = [
   { id: 'cyan', ua: 'блакитний', en: 'cyan', hex: '#0891b2', dark: '#0e7490', mark: 'diamond' },
 ];
 
-export const START_COLOURS = 4;
+/** Start with 3 colours (= 9 tile kinds); +1 colour every COLOUR_EVERY_N_ROUNDS rounds. */
+export let START_COLOURS = 3;
 export const MAX_COLOURS = COLOURS.length; // 7
 /** New colour (+ basket) at the start of rounds 4, 7, 10… */
 export const COLOUR_EVERY_N_ROUNDS = 3;
@@ -38,19 +43,51 @@ export const QUICK_WASH_BONUS = 50;
 export const POINTS_PER_ITEM = 1;
 
 /**
- * Base basket capacity at START_COLOURS. Scales down as more colours appear
- * so a single basket stays fillable in ~30–50s of reasonable play.
- * Tuned via `simulateCapacity()` in logic-test.mjs.
+ * Extra weight given to a neighbour’s (colour, kind) when refilling / dealing.
+ * 0 = uniform; higher = more cascades and faster basket fill.
  */
-export const BASKET_CAPACITY_BASE = 36;
+/**
+ * Extra weight for a neighbour’s (colour, kind) when dealing/refilling.
+ * Tuned: 1.0 keeps boards lively without melting cascades too fast.
+ */
+export let REFILL_NEIGHBOR_BIAS = 1.0;
+
+/**
+ * Base basket capacity at START_COLOURS. Scales with colour count.
+ * Tuned via greedy sim for ~30–50s to first full basket (see logic-test.mjs).
+ */
+export let BASKET_CAPACITY_BASE = 36;
+
+/** Floor so late rounds with many colours stay reachable. */
+export let BASKET_CAPACITY_MIN = 12;
+
+/** Apply a tune profile (used by the capacity sweep / tests). */
+export function applyTune(opts = {}) {
+  if (opts.rows != null) ROWS = opts.rows | 0;
+  if (opts.cols != null) COLS = opts.cols | 0;
+  if (opts.startColours != null) START_COLOURS = opts.startColours | 0;
+  if (opts.refillBias != null) REFILL_NEIGHBOR_BIAS = +opts.refillBias;
+  if (opts.capacityBase != null) BASKET_CAPACITY_BASE = opts.capacityBase | 0;
+  if (opts.capacityMin != null) BASKET_CAPACITY_MIN = opts.capacityMin | 0;
+}
+
+export function kindCount() {
+  return ITEM_KINDS.length;
+}
+
+export function tileKinds(colourCount) {
+  return colourCount * kindCount();
+}
 
 export function basketCapacity(colourCount) {
   const n = Math.max(1, colourCount | 0);
-  return Math.max(12, Math.round(BASKET_CAPACITY_BASE * (START_COLOURS / n)));
+  return Math.max(
+    BASKET_CAPACITY_MIN,
+    Math.round(BASKET_CAPACITY_BASE * (START_COLOURS / n)),
+  );
 }
 
 export function coloursForRound(round) {
-  // round 1–3: 4, 4–6: 5, 7–9: 6, 10+: 7
   const extra = Math.floor(Math.max(0, round - 1) / COLOUR_EVERY_N_ROUNDS);
   return Math.min(MAX_COLOURS, START_COLOURS + extra);
 }
@@ -72,6 +109,10 @@ function randInt(rng, n) {
   return (rng() * n) | 0;
 }
 
+export function tilesEqual(a, b) {
+  return !!a && !!b && a.colour === b.colour && a.kind === b.kind;
+}
+
 export function createTile(colour, kind, id) {
   return { colour, kind, id };
 }
@@ -80,12 +121,63 @@ export function createEmptyBoard() {
   return Array.from({ length: ROWS }, () => Array(COLS).fill(null));
 }
 
-function wouldMatchColour(board, r, c, colour) {
-  if (c >= 2 && board[r][c - 1] && board[r][c - 2] &&
-      board[r][c - 1].colour === colour && board[r][c - 2].colour === colour) return true;
-  if (r >= 2 && board[r - 1][c] && board[r - 2][c] &&
-      board[r - 1][c].colour === colour && board[r - 2][c].colour === colour) return true;
+function wouldMatchAt(board, r, c, colour, kind) {
+  // horizontal: two identical to the left
+  if (c >= 2) {
+    const a = board[r][c - 1]; const b = board[r][c - 2];
+    if (a && b && a.colour === colour && a.kind === kind && b.colour === colour && b.kind === kind) {
+      return true;
+    }
+  }
+  // vertical: two identical above
+  if (r >= 2) {
+    const a = board[r - 1][c]; const b = board[r - 2][c];
+    if (a && b && a.colour === colour && a.kind === kind && b.colour === colour && b.kind === kind) {
+      return true;
+    }
+  }
   return false;
+}
+
+function neighborWeight(board, r, c, colour, kind) {
+  let w = 1;
+  const dirs = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+  for (const [dr, dc] of dirs) {
+    const rr = r + dr; const cc = c + dc;
+    if (rr < 0 || cc < 0 || rr >= ROWS || cc >= COLS) continue;
+    const t = board[rr][cc];
+    if (t && t.colour === colour && t.kind === kind) w += REFILL_NEIGHBOR_BIAS;
+  }
+  return w;
+}
+
+/** Weighted pick of (colour, kind); optionally avoid creating an immediate match. */
+export function pickTileSpec(board, r, c, colourCount, rng, avoidMatch) {
+  const kinds = kindCount();
+  const opts = [];
+  let total = 0;
+  for (let colour = 0; colour < colourCount; colour++) {
+    for (let kind = 0; kind < kinds; kind++) {
+      if (avoidMatch && wouldMatchAt(board, r, c, colour, kind)) continue;
+      const w = neighborWeight(board, r, c, colour, kind);
+      opts.push({ colour, kind, w });
+      total += w;
+    }
+  }
+  // Fallback if every option would match (dense board)
+  if (!opts.length) {
+    return {
+      colour: randInt(rng, colourCount),
+      kind: randInt(rng, kinds),
+    };
+  }
+  let roll = rng() * total;
+  for (const o of opts) {
+    roll -= o.w;
+    if (roll <= 0) return { colour: o.colour, kind: o.kind };
+  }
+  const last = opts[opts.length - 1];
+  return { colour: last.colour, kind: last.kind };
 }
 
 export function fillBoard(colourCount, rng, nextId) {
@@ -93,18 +185,25 @@ export function fillBoard(colourCount, rng, nextId) {
   let id = nextId || 1;
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
-      let colour; let guard = 0;
+      let spec; let guard = 0;
       do {
-        colour = randInt(rng, colourCount);
+        spec = pickTileSpec(board, r, c, colourCount, rng, true);
         guard++;
-      } while (guard < 50 && wouldMatchColour(board, r, c, colour));
-      board[r][c] = createTile(colour, randInt(rng, ITEM_KINDS.length), id++);
+        // if bias keeps proposing matches, fall back to uniform avoid
+        if (guard > 20) {
+          spec = {
+            colour: randInt(rng, colourCount),
+            kind: randInt(rng, kindCount()),
+          };
+        }
+      } while (guard < 60 && wouldMatchAt(board, r, c, spec.colour, spec.kind));
+      board[r][c] = createTile(spec.colour, spec.kind, id++);
     }
   }
   return { board, nextId: id };
 }
 
-/** Find all cells in runs of 3+ same colour (rows + cols). Matching is by colour only. */
+/** Runs of 3+ identical tiles (same colour AND kind). */
 export function findMatches(board) {
   const marked = Array.from({ length: ROWS }, () => Array(COLS).fill(false));
   const runs = [];
@@ -112,8 +211,7 @@ export function findMatches(board) {
   for (let r = 0; r < ROWS; r++) {
     let run = 1;
     for (let c = 1; c <= COLS; c++) {
-      const same = c < COLS && board[r][c] && board[r][c - 1] &&
-        board[r][c].colour === board[r][c - 1].colour;
+      const same = c < COLS && tilesEqual(board[r][c], board[r][c - 1]);
       if (same) run++;
       else {
         if (run >= 3) {
@@ -132,8 +230,7 @@ export function findMatches(board) {
   for (let c = 0; c < COLS; c++) {
     let run = 1;
     for (let r = 1; r <= ROWS; r++) {
-      const same = r < ROWS && board[r][c] && board[r - 1][c] &&
-        board[r][c].colour === board[r - 1][c].colour;
+      const same = r < ROWS && tilesEqual(board[r][c], board[r - 1][c]);
       if (same) run++;
       else {
         if (run >= 3) {
@@ -207,27 +304,31 @@ export function shuffleBoard(board, rng) {
   }
 }
 
+/** Reshuffle / redeal until no ready matches and at least one move exists. */
 export function ensurePlayable(board, colourCount, rng, nextIdRef) {
   let tries = 0;
-  while (findMatches(board).cells.length && tries++ < 40) {
-    const filled = fillBoard(colourCount, rng, nextIdRef.v);
-    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) board[r][c] = filled.board[r][c];
-    nextIdRef.v = filled.nextId;
-  }
-  tries = 0;
-  while (!hasAnyMove(board) && tries++ < 60) {
-    shuffleBoard(board, rng);
+  while (tries++ < 80) {
     if (findMatches(board).cells.length) {
       const filled = fillBoard(colourCount, rng, nextIdRef.v);
       for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) board[r][c] = filled.board[r][c];
       nextIdRef.v = filled.nextId;
+      continue;
     }
+    if (hasAnyMove(board)) return true;
+    shuffleBoard(board, rng);
+    if (findMatches(board).cells.length) continue;
+    if (hasAnyMove(board)) return true;
+    // shuffle alone stuck — full redeal
+    const filled = fillBoard(colourCount, rng, nextIdRef.v);
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) board[r][c] = filled.board[r][c];
+    nextIdRef.v = filled.nextId;
   }
+  return hasAnyMove(board);
 }
 
 /**
- * Clear matched cells, gravity + refill. Returns per-colour item counts collected.
- * Cascades until stable. Mutates board.
+ * Clear matched cells, gravity + biased refill. Returns per-colour item counts.
+ * Cascades until stable. Reshuffles if no moves remain.
  */
 export function resolveMatches(board, colourCount, rng, nextIdRef) {
   const collected = Array(colourCount).fill(0);
@@ -245,7 +346,6 @@ export function resolveMatches(board, colourCount, rng, nextIdRef) {
       board[r][c] = null;
     }
 
-    // gravity
     for (let c = 0; c < COLS; c++) {
       let write = ROWS - 1;
       for (let r = ROWS - 1; r >= 0; r--) {
@@ -258,11 +358,10 @@ export function resolveMatches(board, colourCount, rng, nextIdRef) {
         }
       }
       for (let r = write; r >= 0; r--) {
-        board[r][c] = createTile(
-          randInt(rng, colourCount),
-          randInt(rng, ITEM_KINDS.length),
-          nextIdRef.v++,
-        );
+        // During cascade refill, allow matches (they continue the cascade).
+        // Soft bias toward neighbours so boards stay lively with many kinds.
+        const spec = pickTileSpec(board, r, c, colourCount, rng, false);
+        board[r][c] = createTile(spec.colour, spec.kind, nextIdRef.v++);
       }
     }
   }
@@ -311,8 +410,8 @@ export function createGame(opts = {}) {
     timeLeft: ROUND_DURATION_START,
     roundElapsed: 0,
     baskets: [],
-    washQueue: [], // colour indices waiting to be washed at next round end
-    roundLoaded: false, // true once a basket was loaded this round
+    washQueue: [],
+    roundLoaded: false,
     score: 0,
     itemsCollected: 0,
     itemsWashed: 0,
@@ -332,7 +431,7 @@ export function createGame(opts = {}) {
     if (dur <= 0) {
       state.over = true;
       state.running = false;
-      state.endReason = 'power'; // «Світло скінчилось»
+      state.endReason = 'power';
       return false;
     }
     state.round = round;
@@ -343,7 +442,6 @@ export function createGame(opts = {}) {
     state.roundElapsed = 0;
     state.roundLoaded = false;
 
-    // Keep basket counts when adding colours; clamp to new capacity
     const prev = state.baskets;
     resetBaskets(state.colourCount);
     for (let i = 0; i < Math.min(prev.length, state.baskets.length); i++) {
@@ -384,16 +482,10 @@ export function createGame(opts = {}) {
     state.basketsWashed += 1;
     b.count = 0;
     b.full = false;
-    // remove from washQueue
     state.washQueue = state.washQueue.filter((c) => c !== colourIndex);
     return items;
   }
 
-  /**
-   * Load a full basket into the washer. Ends the round.
-   * Previously deferred baskets (washQueue) are washed with this load.
-   * Extra baskets that filled in the same moment are deferred to the *next* round end.
-   */
   function loadBasket(colourIndex, deferExtras = []) {
     if (state.over || !state.running) return { ok: false };
     const b = state.baskets[colourIndex];
@@ -405,12 +497,10 @@ export function createGame(opts = {}) {
       state.quickBonuses += 1;
     }
 
-    // Wash primary + anything already queued from earlier rounds
     const deferred = state.washQueue.filter((c) => c !== colourIndex);
     washBasket(colourIndex);
     for (const ci of deferred) washBasket(ci);
 
-    // Extras that filled alongside the primary wait until the next round ends
     state.washQueue = [];
     for (const ci of deferExtras) {
       if (ci === colourIndex) continue;
@@ -437,7 +527,6 @@ export function createGame(opts = {}) {
     };
   }
 
-  /** After matches: auto-load the first newly full basket; queue the rest for next round. */
   function handleFills(newlyFull) {
     if (!newlyFull.length) return null;
     if (state.roundLoaded) {
@@ -460,7 +549,6 @@ export function createGame(opts = {}) {
     return { ...res, newlyFull, wash };
   }
 
-  /** Advance clock by `dt` seconds. Returns end event if timer expired. */
   function tick(dt) {
     if (!state.running || state.over) return null;
     state.timeLeft -= dt;
@@ -470,10 +558,9 @@ export function createGame(opts = {}) {
       if (!state.roundLoaded) {
         state.over = true;
         state.running = false;
-        state.endReason = 'shutdown'; // «Екстрене відключення»
+        state.endReason = 'shutdown';
         return { type: 'shutdown' };
       }
-      // Should not happen if loadBasket starts the next round immediately
       return null;
     }
     return null;
@@ -529,7 +616,6 @@ export function createGame(opts = {}) {
     snapshot,
     rng,
     nextIdRef,
-    // expose for tests / UI helpers
     addToBaskets,
     handleFills,
     setupRound,
@@ -544,12 +630,13 @@ export function createGame(opts = {}) {
 export function simulateCapacity(opts = {}) {
   const colourCount = opts.colourCount || START_COLOURS;
   const capacity = opts.capacity != null ? opts.capacity : basketCapacity(colourCount);
-  const secondsPerMove = opts.secondsPerMove || 1.6;
-  const maxMoves = opts.maxMoves || 200;
+  const secondsPerMove = opts.secondsPerMove || 1.8; // slightly slower — harder matches
+  const maxMoves = opts.maxMoves || 250;
   const trials = opts.trials || 40;
   const seed0 = opts.seed || 42;
 
   const times = [];
+  let reshuffles = 0;
   for (let t = 0; t < trials; t++) {
     const rng = makeRng(seed0 + t * 9973);
     const nextIdRef = { v: 1 };
@@ -561,10 +648,12 @@ export function simulateCapacity(opts = {}) {
     let moves = 0;
     let filledAt = null;
     while (moves < maxMoves) {
-      const m = findMove(board);
+      let m = findMove(board);
       if (!m) {
+        reshuffles++;
         ensurePlayable(board, colourCount, rng, nextIdRef);
-        continue;
+        m = findMove(board);
+        if (!m) break;
       }
       const res = trySwap(board, m.r1, m.c1, m.r2, m.c2, colourCount, rng, nextIdRef);
       moves++;
@@ -588,10 +677,15 @@ export function simulateCapacity(opts = {}) {
   const p80 = times.length ? times[Math.floor(times.length * 0.8)] : Infinity;
   return {
     colourCount,
+    kinds: tileKinds(colourCount),
+    rows: ROWS,
+    cols: COLS,
+    bias: REFILL_NEIGHBOR_BIAS,
     capacity,
     secondsPerMove,
     trials,
     filledTrials: times.length,
+    reshuffles,
     avgSec: +avg.toFixed(1),
     medianSec: +med.toFixed(1),
     p20Sec: +p20.toFixed(1),

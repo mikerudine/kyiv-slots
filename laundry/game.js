@@ -18,9 +18,9 @@ const WASH_MS = reduceMotion ? 0.15 : 0.9;
 // Board left, baskets right
 const MARGIN_L = 10;
 const MARGIN_R = 10;
-const BASKET_W = 72;
-const TOP_UI = 100;
-const BOTTOM_PAD = 12;
+const BASKET_W = 68;
+const TOP_UI = 96;
+const BOTTOM_PAD = 10;
 const BOARD_GAP = 8;
 const CELL = Math.floor(Math.min(
   (W - MARGIN_L - MARGIN_R - BASKET_W - BOARD_GAP) / COLS,
@@ -36,12 +36,12 @@ const BASKET_TOP = BOARD_Y;
 const I18N = {
   ua: {
     title: 'Стирка',
-    hint: '3+ одного кольору в ряд → у кошик. Заповни кошик, поки є світло.',
+    hint: '3+ однакових (тип+колір) → у кошик кольору. Заповни кошик, поки є світло.',
     round: (n) => `Раунд ${n}`,
     timer: (s) => `${Math.ceil(s)} с`,
     score: (s) => `рахунок ${s | 0}`,
     overlayTitle: 'Стирка',
-    overlayBody: 'Збирай білизну за кольором у кошики праворуч. Заповнений кошик — у пральну машину, новий таймер. Кожен 3-й раунд важчий: новий колір і менше часу. Не встиг — екстрене відключення.',
+    overlayBody: 'Збирай 3+ однакових речей (той самий тип і колір). У кошик іде колір: червоні шкарпетки й футболки — в один кошик. Заповнений кошик — у пральну, новий таймер. Кожен 3-й раунд: новий колір і менше часу.',
     start: 'Старт', again: 'Ще раз',
     powerTitle: 'Світло скінчилось',
     shutdownTitle: 'Екстрене відключення',
@@ -55,12 +55,12 @@ const I18N = {
   },
   en: {
     title: 'Laundry',
-    hint: 'Match 3+ same colour → basket. Fill a basket while the power lasts.',
+    hint: 'Match 3+ same type+colour → colour basket. Fill a basket while the power lasts.',
     round: (n) => `Round ${n}`,
     timer: (s) => `${Math.ceil(s)} s`,
     score: (s) => `score ${s | 0}`,
     overlayTitle: 'Laundry',
-    overlayBody: 'Sort laundry by colour into the baskets. A full basket goes into the washer and a new timer starts. Every 3rd round gets harder: a new colour and less time. Miss the timer — emergency shutdown.',
+    overlayBody: 'Match 3+ identical items (same type and colour). Baskets are per colour: red socks and red tees share the red basket. A full basket goes into the washer and a new timer starts. Every 3rd round: a new colour and less time.',
     start: 'Start', again: 'Again',
     powerTitle: 'Power ran out',
     shutdownTitle: 'Emergency shutdown',
