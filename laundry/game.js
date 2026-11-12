@@ -2,36 +2,92 @@
 import {
   COLS, ROWS, ITEM_KINDS, COLOURS,
   QUICK_WASH_WINDOW, QUICK_WASH_BONUS,
+  coloursForRound, durationForRound,
   createGame, findMatches, adjacent,
 } from './logic.mjs';
 
-const W = 360, H = 640;
 const canvas = document.getElementById('game');
+const wrapEl = document.getElementById('wrap');
 const ctx = canvas.getContext('2d', { alpha: true });
 
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const SWAP_MS = reduceMotion ? 0.01 : 0.12;
 const FALL_MS = reduceMotion ? 0.01 : 0.16;
-const CLEAR_MS = reduceMotion ? 0.01 : 0.12;
 const WASH_MS = reduceMotion ? 0.15 : 0.9;
 
-// Board left, baskets right
-const MARGIN_L = 10;
-const MARGIN_R = 10;
-const BASKET_W = 68;
-const TOP_UI = 96;
-const BOTTOM_PAD = 10;
-const BOARD_GAP = 8;
-const CELL = Math.floor(Math.min(
-  (W - MARGIN_L - MARGIN_R - BASKET_W - BOARD_GAP) / COLS,
-  (H - TOP_UI - BOTTOM_PAD) / ROWS,
-));
-const BOARD_W = COLS * CELL;
-const BOARD_H = ROWS * CELL;
-const BOARD_X = MARGIN_L;
-const BOARD_Y = TOP_UI + Math.floor((H - TOP_UI - BOTTOM_PAD - BOARD_H) / 2);
-const BASKET_X = BOARD_X + BOARD_W + BOARD_GAP;
-const BASKET_TOP = BOARD_Y;
+// Layout is recomputed from the wrap’s CSS box so the 8×8 board can use
+// full width and grow with the phone’s height (no fixed 9:16 letterbox).
+let W = 360;
+let H = 640;
+let CELL = 40;
+let BOARD_W = 320;
+let BOARD_H = 320;
+let BOARD_X = 20;
+let BOARD_Y = 52;
+let BASKET_STRIP_X = 6;
+let BASKET_STRIP_Y = 400;
+let BASKET_STRIP_W = 348;
+let BASKET_STRIP_H = 96;
+
+const MARGIN_X = 6;
+const BOARD_BASKET_GAP = 6;
+const BOTTOM_PAD = 8;
+/** Reserved for ≤7 colours in 2 chip rows (board size stays stable). */
+const BASKET_STRIP_H_MAX = 100;
+
+function topUiPx() {
+  // Compact header under the fixed nav; include safe-area already on #wrap/#hud.
+  return 48;
+}
+
+function relayout() {
+  const rect = wrapEl.getBoundingClientRect();
+  W = Math.max(280, Math.round(rect.width) || 360);
+  H = Math.max(420, Math.round(rect.height) || 640);
+
+  const top = topUiPx();
+  CELL = Math.max(28, Math.floor(Math.min(
+    (W - MARGIN_X * 2) / COLS,
+    (H - top - BOTTOM_PAD - BOARD_BASKET_GAP - BASKET_STRIP_H_MAX) / ROWS,
+  )));
+  BOARD_W = COLS * CELL;
+  BOARD_H = ROWS * CELL;
+  BOARD_X = Math.floor((W - BOARD_W) / 2);
+  BASKET_STRIP_W = W - MARGIN_X * 2;
+  BASKET_STRIP_X = MARGIN_X;
+  // Pack board from the header; let the basket strip grow into leftover height
+  // (up to a cap) so tall phones don’t show a big empty void under the chips.
+  BOARD_Y = top;
+  BASKET_STRIP_Y = BOARD_Y + BOARD_H + BOARD_BASKET_GAP;
+  const remaining = H - BASKET_STRIP_Y - BOTTOM_PAD;
+  BASKET_STRIP_H = Math.max(BASKET_STRIP_H_MAX, Math.min(remaining, 128));
+}
+
+/** Horizontal chip grid under the board (1 row if ≤4, else 2 rows). */
+function basketLayout(n) {
+  const count = Math.max(1, n | 0);
+  const cols = count <= 4 ? count : Math.ceil(count / 2);
+  const rows = Math.ceil(count / cols);
+  const gap = 4;
+  const chipW = (BASKET_STRIP_W - gap * (cols - 1)) / cols;
+  const chipH = Math.min(56, (BASKET_STRIP_H - gap * (rows - 1)) / rows);
+  const usedH = rows * chipH + (rows - 1) * gap;
+  // Pack chips toward the top of the strip (closer to the board).
+  const originY = BASKET_STRIP_Y + Math.max(2, Math.floor((BASKET_STRIP_H - usedH) * 0.15));
+  return { cols, rows, gap, chipW, chipH, originY, originX: BASKET_STRIP_X, usedH };
+}
+
+function basketRect(i, n) {
+  const L = basketLayout(n);
+  const col = i % L.cols;
+  const row = (i / L.cols) | 0;
+  return {
+    x: L.originX + col * (L.chipW + L.gap),
+    y: L.originY + row * (L.chipH + L.gap),
+    w: L.chipW,
+    h: L.chipH,
+  };
+}
 
 const I18N = {
   ua: {
@@ -91,6 +147,7 @@ const pauseOverlay = document.getElementById('pauseOverlay');
 const washOverlay = document.getElementById('washOverlay');
 
 function resizeCanvas() {
+  relayout();
   const dpr = Math.min(3, window.devicePixelRatio || 1);
   canvas.width = Math.round(W * dpr);
   canvas.height = Math.round(H * dpr);
@@ -101,6 +158,8 @@ function resizeCanvas() {
 }
 resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
+// Relayout once fonts/nav settle
+requestAnimationFrame(resizeCanvas);
 
 function applyLang() {
   const L = t();
@@ -124,7 +183,8 @@ document.getElementById('lang').addEventListener('click', () => {
 function syncHud() {
   const s = game.state;
   const L = t();
-  document.getElementById('roundLine').textContent = s.running || s.over ? L.round(s.round) : '';
+  const live = s.running || s.over;
+  document.getElementById('roundLine').textContent = live ? L.round(s.round) : '';
   const tl = document.getElementById('timerLine');
   if (s.running && !s.over) {
     tl.textContent = L.timer(Math.max(0, s.timeLeft));
@@ -134,7 +194,7 @@ function syncHud() {
     tl.textContent = '';
     tl.classList.remove('warn', 'danger');
   }
-  document.getElementById('scoreLine').textContent = (s.running || s.over) ? L.score(s.score) : '';
+  document.getElementById('scoreLine').textContent = live ? L.score(s.score) : '';
 }
 
 function syncPauseBtn() {
@@ -338,11 +398,11 @@ function trySelect(r, c) {
 function basketHit(mx, my) {
   const n = game.state.baskets.length;
   if (!n) return -1;
-  const h = BOARD_H / n;
-  if (mx < BASKET_X || mx > BASKET_X + BASKET_W) return -1;
-  if (my < BASKET_TOP || my > BASKET_TOP + BOARD_H) return -1;
-  const i = Math.floor((my - BASKET_TOP) / h);
-  return i >= 0 && i < n ? i : -1;
+  for (let i = 0; i < n; i++) {
+    const r = basketRect(i, n);
+    if (mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h) return i;
+  }
+  return -1;
 }
 
 function tryLoadBasket(i) {
@@ -398,7 +458,8 @@ function onUp(e) {
   if (pointer.sr >= 0) {
     const dx = p.x - (BOARD_X + pointer.sc * CELL + CELL / 2);
     const dy = p.y - (BOARD_Y + pointer.sr * CELL + CELL / 2);
-    if (Math.abs(dx) > 12 || Math.abs(dy) > 12) {
+    const swipe = Math.max(10, CELL * 0.28);
+    if (Math.abs(dx) > swipe || Math.abs(dy) > swipe) {
       let tr = pointer.sr; let tc = pointer.sc;
       if (Math.abs(dx) > Math.abs(dy)) tc += dx > 0 ? 1 : -1;
       else tr += dy > 0 ? 1 : -1;
@@ -613,67 +674,75 @@ function drawBaskets() {
   const baskets = game.state.baskets;
   const n = baskets.length;
   if (!n) return;
-  const h = BOARD_H / n;
   const cap = game.state.capacity;
   const L = t();
+  const compact = n > 4;
 
   for (let i = 0; i < n; i++) {
     const b = baskets[i];
     const col = COLOURS[i];
-    const y = BASKET_TOP + i * h;
-    const pad = 3;
-    ctx.fillStyle = 'rgba(15,23,42,0.7)';
-    roundRect(BASKET_X, y + pad, BASKET_W, h - pad * 2, 10);
+    const r = basketRect(i, n);
+    const pad = 4;
+
+    ctx.fillStyle = 'rgba(15,23,42,0.78)';
+    roundRect(r.x, r.y, r.w, r.h, 8);
     ctx.fill();
     ctx.strokeStyle = col.hex;
-    ctx.lineWidth = b.full ? 2.5 : 1.2;
-    roundRect(BASKET_X, y + pad, BASKET_W, h - pad * 2, 10);
+    ctx.lineWidth = b.full ? 2.2 : 1.2;
+    roundRect(r.x, r.y, r.w, r.h, 8);
     ctx.stroke();
 
+    if (b.full) {
+      const glow = reduceMotion ? 1 : (0.75 + Math.sin(pulseFull) * 0.25);
+      ctx.fillStyle = `rgba(250,204,21,${0.14 * glow})`;
+      roundRect(r.x, r.y, r.w, r.h, 8);
+      ctx.fill();
+    }
+
     // colour swatch + mark
+    const sw = compact ? 12 : 14;
     ctx.fillStyle = col.hex;
-    roundRect(BASKET_X + 6, y + pad + 6, 16, 16, 4);
+    roundRect(r.x + pad, r.y + pad, sw, sw, 3);
     ctx.fill();
     ctx.save();
-    ctx.translate(BASKET_X + 14, y + pad + 14);
-    drawColourMark(col.mark, 18);
+    ctx.translate(r.x + pad + sw / 2, r.y + pad + sw / 2);
+    drawColourMark(col.mark, sw + 4);
     ctx.restore();
 
-    // name
+    // name (full when room; short when compact)
     ctx.fillStyle = '#e2e8f0';
-    ctx.font = 'bold 9px system-ui,sans-serif';
     ctx.textAlign = 'left';
     const name = lang === 'ua' ? col.ua : col.en;
-    ctx.fillText(name, BASKET_X + 26, y + pad + 17);
+    const label = compact ? name.slice(0, 4) : name;
+    ctx.font = `bold ${compact ? 8 : 9}px system-ui,sans-serif`;
+    ctx.fillText(label, r.x + pad + sw + 4, r.y + pad + (compact ? 10 : 11));
 
     // count
-    ctx.font = 'bold 11px system-ui,sans-serif';
-    ctx.fillText(`${b.count}/${cap}`, BASKET_X + 6, y + h - pad - 8);
+    ctx.font = `bold ${compact ? 10 : 11}px system-ui,sans-serif`;
+    ctx.textAlign = 'right';
+    ctx.fillText(`${b.count}/${cap}`, r.x + r.w - pad, r.y + pad + (compact ? 10 : 11));
+    ctx.textAlign = 'left';
 
     // fill bar
-    const barX = BASKET_X + 6;
-    const barY = y + pad + 24;
-    const barW = BASKET_W - 12;
-    const barH = 7;
-    ctx.fillStyle = 'rgba(30,41,59,0.9)';
-    roundRect(barX, barY, barW, barH, 3);
+    const barX = r.x + pad;
+    const barY = r.y + r.h - pad - (compact ? 6 : 7);
+    const barW = r.w - pad * 2;
+    const barH = compact ? 5 : 6;
+    ctx.fillStyle = 'rgba(30,41,59,0.95)';
+    roundRect(barX, barY, barW, barH, 2);
     ctx.fill();
-    const frac = Math.min(1, b.count / cap);
+    const frac = Math.min(1, b.count / Math.max(1, cap));
     if (frac > 0) {
       ctx.fillStyle = col.hex;
-      roundRect(barX, barY, Math.max(3, barW * frac), barH, 3);
+      roundRect(barX, barY, Math.max(2, barW * frac), barH, 2);
       ctx.fill();
     }
 
     if (b.full) {
-      const glow = reduceMotion ? 1 : (0.75 + Math.sin(pulseFull) * 0.25);
-      ctx.fillStyle = `rgba(250,204,21,${0.15 * glow})`;
-      roundRect(BASKET_X, y + pad, BASKET_W, h - pad * 2, 10);
-      ctx.fill();
       ctx.fillStyle = '#fde68a';
       ctx.font = 'bold 8px system-ui,sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(L.load, BASKET_X + BASKET_W / 2, y + pad + 40);
+      ctx.fillText(L.load, r.x + r.w / 2, barY - 3);
       ctx.textAlign = 'left';
     }
   }
@@ -686,38 +755,14 @@ function draw() {
 
   // atmosphere (static gradient — no scrolling patterns)
   const g = ctx.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, 'rgba(30,58,95,0.35)');
-  g.addColorStop(0.5, 'rgba(12,18,32,0)');
-  g.addColorStop(1, 'rgba(15,23,42,0.4)');
+  g.addColorStop(0, 'rgba(30,58,95,0.28)');
+  g.addColorStop(0.45, 'rgba(12,18,32,0)');
+  g.addColorStop(1, 'rgba(15,23,42,0.35)');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
 
-  // small washer silhouette top-right of board (static prop)
-  drawWasherProp();
-
   drawBoard();
   drawBaskets();
-}
-
-function drawWasherProp() {
-  const x = BASKET_X + 8;
-  const y = Math.max(52, BOARD_Y - 36);
-  ctx.fillStyle = '#334155';
-  roundRect(x, y, 56, 28, 6);
-  ctx.fill();
-  ctx.strokeStyle = '#94a3b8';
-  ctx.lineWidth = 1.5;
-  roundRect(x, y, 56, 28, 6);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(x + 28, y + 14, 8, 0, Math.PI * 2);
-  ctx.strokeStyle = '#64748b';
-  ctx.stroke();
-  ctx.fillStyle = '#94a3b8';
-  ctx.font = 'bold 8px system-ui,sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('KYIV', x + 28, y - 4);
-  ctx.textAlign = 'left';
 }
 
 function update(dt) {
@@ -751,6 +796,7 @@ window.__laundry = {
   getState: () => ({
     ...game.snapshot(),
     busy, paused, selected, W, H,
+    CELL, BOARD_X, BOARD_Y, BOARD_W, BOARD_H, BASKET_STRIP_H,
     reduceMotion,
     QUICK_WASH_WINDOW, QUICK_WASH_BONUS,
   }),
@@ -813,6 +859,25 @@ window.__laundry = {
   constants: () => ({
     COLS, ROWS, ITEM_KINDS, COLOURS: COLOURS.map((c) => c.id),
   }),
+  /** Jump to a round (for layout shots with more colours). */
+  forceRound: (round) => {
+    const r = Math.max(1, round | 0);
+    if (durationForRound(r) <= 0) return false;
+    if (!game.state.running) {
+      game.start();
+    }
+    game.setupRound(r);
+    game.state.running = true;
+    game.state.over = false;
+    hideWash();
+    busy = false;
+    selected = null;
+    tileFx.clear();
+    syncHud();
+    syncPauseBtn();
+    syncOverlay();
+    return { round: game.state.round, colours: game.state.colourCount, kinds: coloursForRound(r) * 3 };
+  },
 };
 
 function frame(now) {

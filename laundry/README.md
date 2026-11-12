@@ -1,6 +1,6 @@
 # Стирка (laundry)
 
-Portrait match-3 for *One Day in Kyiv*: laundry items (socks, briefs, T-shirts) match when **colour and type** are the same. Cleared items fill **per-colour** baskets on the right; a full basket goes into the washer and starts the next timed round.
+Portrait match-3 for *One Day in Kyiv*: laundry items (socks, briefs, T-shirts) match when **colour and type** are the same. Cleared items fill **per-colour** baskets in a compact strip **below** a full-width 8×8 board; a full basket goes into the washer and starts the next timed round.
 
 ## Rules
 
