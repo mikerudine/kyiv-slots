@@ -30,14 +30,25 @@ let BASKET_STRIP_W = 348;
 let BASKET_STRIP_H = 96;
 
 const MARGIN_X = 6;
-const BOARD_BASKET_GAP = 6;
-const BOTTOM_PAD = 8;
-/** Reserved for ≤7 colours in 2 chip rows (board size stays stable). */
-const BASKET_STRIP_H_MAX = 100;
+const BOARD_BASKET_GAP = 8;
+const BOTTOM_PAD = 10;
+const HEADER_GAP = 10; // air between measured header bottom and board top
+/** Chip sizing — reserve 2 rows so 7-colour boards keep the same CELL. */
+const BASKET_CHIP_H = 44;
+const BASKET_GAP = 5;
+const BASKET_ROWS_MAX = 2;
+const BASKET_STRIP_H_RESERVE = BASKET_ROWS_MAX * BASKET_CHIP_H + (BASKET_ROWS_MAX - 1) * BASKET_GAP;
 
+/** Pixels from canvas top to just below the HUD header row (measured). */
 function topUiPx() {
-  // Compact header under the fixed nav; include safe-area already on #wrap/#hud.
-  return 48;
+  const hudTop = document.querySelector('#hud .top');
+  const canvasRect = canvas.getBoundingClientRect();
+  if (!hudTop || !canvasRect.height) return 78;
+  const r = hudTop.getBoundingClientRect();
+  // Map CSS px → logical canvas coords (canvas CSS size === logical W×H).
+  const scaleY = H / canvasRect.height;
+  const below = (r.bottom - canvasRect.top) * scaleY;
+  return Math.max(70, Math.ceil(below) + HEADER_GAP);
 }
 
 function relayout() {
@@ -46,21 +57,30 @@ function relayout() {
   H = Math.max(420, Math.round(rect.height) || 640);
 
   const top = topUiPx();
-  CELL = Math.max(28, Math.floor(Math.min(
+  // CELL uses the max basket-strip reserve so the board doesn’t shrink when colours are added.
+  CELL = Math.max(26, Math.floor(Math.min(
     (W - MARGIN_X * 2) / COLS,
-    (H - top - BOTTOM_PAD - BOARD_BASKET_GAP - BASKET_STRIP_H_MAX) / ROWS,
+    (H - top - BOTTOM_PAD - BOARD_BASKET_GAP - BASKET_STRIP_H_RESERVE) / ROWS,
   )));
   BOARD_W = COLS * CELL;
   BOARD_H = ROWS * CELL;
   BOARD_X = Math.floor((W - BOARD_W) / 2);
   BASKET_STRIP_W = W - MARGIN_X * 2;
   BASKET_STRIP_X = MARGIN_X;
-  // Pack board from the header; let the basket strip grow into leftover height
-  // (up to a cap) so tall phones don’t show a big empty void under the chips.
-  BOARD_Y = top;
+
+  // Actual strip height follows current colour count (1 row ≤4, else 2).
+  const nColours = (typeof game !== 'undefined' && game.state && game.state.baskets.length)
+    ? game.state.baskets.length
+    : 3;
+  const basketRows = nColours <= 4 ? 1 : 2;
+  BASKET_STRIP_H = basketRows * BASKET_CHIP_H + (basketRows - 1) * BASKET_GAP;
+
+  const blockH = BOARD_H + BOARD_BASKET_GAP + BASKET_STRIP_H;
+  const available = H - top - BOTTOM_PAD;
+  // Centre board+baskets under the header when height allows (tall phones / desktop).
+  const startY = top + Math.max(0, Math.floor((available - blockH) / 2));
+  BOARD_Y = startY;
   BASKET_STRIP_Y = BOARD_Y + BOARD_H + BOARD_BASKET_GAP;
-  const remaining = H - BASKET_STRIP_Y - BOTTOM_PAD;
-  BASKET_STRIP_H = Math.max(BASKET_STRIP_H_MAX, Math.min(remaining, 128));
 }
 
 /** Horizontal chip grid under the board (1 row if ≤4, else 2 rows). */
@@ -68,12 +88,11 @@ function basketLayout(n) {
   const count = Math.max(1, n | 0);
   const cols = count <= 4 ? count : Math.ceil(count / 2);
   const rows = Math.ceil(count / cols);
-  const gap = 4;
+  const gap = BASKET_GAP;
   const chipW = (BASKET_STRIP_W - gap * (cols - 1)) / cols;
-  const chipH = Math.min(56, (BASKET_STRIP_H - gap * (rows - 1)) / rows);
+  const chipH = BASKET_CHIP_H;
   const usedH = rows * chipH + (rows - 1) * gap;
-  // Pack chips toward the top of the strip (closer to the board).
-  const originY = BASKET_STRIP_Y + Math.max(2, Math.floor((BASKET_STRIP_H - usedH) * 0.15));
+  const originY = BASKET_STRIP_Y;
   return { cols, rows, gap, chipW, chipH, originY, originX: BASKET_STRIP_X, usedH };
 }
 
@@ -147,7 +166,9 @@ const pauseOverlay = document.getElementById('pauseOverlay');
 const washOverlay = document.getElementById('washOverlay');
 
 function resizeCanvas() {
-  relayout();
+  const rect = wrapEl.getBoundingClientRect();
+  W = Math.max(280, Math.round(rect.width) || 360);
+  H = Math.max(420, Math.round(rect.height) || 640);
   const dpr = Math.min(3, window.devicePixelRatio || 1);
   canvas.width = Math.round(W * dpr);
   canvas.height = Math.round(H * dpr);
@@ -155,11 +176,14 @@ function resizeCanvas() {
   canvas.style.height = '100%';
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.imageSmoothingEnabled = true;
+  // Measure header after the canvas CSS box matches the wrap, then place the board.
+  relayout();
 }
 resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
-// Relayout once fonts/nav settle
-requestAnimationFrame(resizeCanvas);
+// Relayout once fonts/nav/HUD settle (header measure needs a painted frame).
+requestAnimationFrame(() => { resizeCanvas(); });
+setTimeout(() => resizeCanvas(), 50);
 
 function applyLang() {
   const L = t();
@@ -296,6 +320,8 @@ function afterWashResult(wash) {
         afterWashResult(again);
         return false;
       }
+      // Recentre if colour count / basket rows changed with the new round.
+      resizeCanvas();
       busy = false;
       syncHud();
       syncPauseBtn();
@@ -676,13 +702,20 @@ function drawBaskets() {
   if (!n) return;
   const cap = game.state.capacity;
   const L = t();
-  const compact = n > 4;
 
   for (let i = 0; i < n; i++) {
     const b = baskets[i];
     const col = COLOURS[i];
     const r = basketRect(i, n);
-    const pad = 4;
+    const pad = 5;
+    const name = lang === 'ua' ? col.ua : col.en;
+    // Full name only when swatch + name + count all fit; otherwise swatch + count (never truncate).
+    ctx.font = 'bold 9px system-ui,sans-serif';
+    const nameW = ctx.measureText(name).width;
+    ctx.font = 'bold 11px system-ui,sans-serif';
+    const countStr = `${b.count}/${cap}`;
+    const countW = ctx.measureText(countStr).width;
+    const showName = n <= 4 && r.w >= pad * 2 + 14 + 6 + nameW + 8 + countW;
 
     ctx.fillStyle = 'rgba(15,23,42,0.78)';
     roundRect(r.x, r.y, r.w, r.h, 8);
@@ -700,7 +733,7 @@ function drawBaskets() {
     }
 
     // colour swatch + mark
-    const sw = compact ? 12 : 14;
+    const sw = 14;
     ctx.fillStyle = col.hex;
     roundRect(r.x + pad, r.y + pad, sw, sw, 3);
     ctx.fill();
@@ -709,25 +742,27 @@ function drawBaskets() {
     drawColourMark(col.mark, sw + 4);
     ctx.restore();
 
-    // name (full when room; short when compact)
     ctx.fillStyle = '#e2e8f0';
-    ctx.textAlign = 'left';
-    const name = lang === 'ua' ? col.ua : col.en;
-    const label = compact ? name.slice(0, 4) : name;
-    ctx.font = `bold ${compact ? 8 : 9}px system-ui,sans-serif`;
-    ctx.fillText(label, r.x + pad + sw + 4, r.y + pad + (compact ? 10 : 11));
-
-    // count
-    ctx.font = `bold ${compact ? 10 : 11}px system-ui,sans-serif`;
-    ctx.textAlign = 'right';
-    ctx.fillText(`${b.count}/${cap}`, r.x + r.w - pad, r.y + pad + (compact ? 10 : 11));
+    if (showName) {
+      ctx.font = 'bold 9px system-ui,sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(name, r.x + pad + sw + 5, r.y + pad + 11);
+      ctx.font = 'bold 11px system-ui,sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText(countStr, r.x + r.w - pad, r.y + pad + 11);
+    } else {
+      // Swatch + count only (readable at 7 colours; no truncated words).
+      ctx.font = 'bold 12px system-ui,sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(countStr, r.x + pad + sw + 5, r.y + pad + 12);
+    }
     ctx.textAlign = 'left';
 
     // fill bar
     const barX = r.x + pad;
-    const barY = r.y + r.h - pad - (compact ? 6 : 7);
+    const barY = r.y + r.h - pad - 7;
     const barW = r.w - pad * 2;
-    const barH = compact ? 5 : 6;
+    const barH = 6;
     ctx.fillStyle = 'rgba(30,41,59,0.95)';
     roundRect(barX, barY, barW, barH, 2);
     ctx.fill();
@@ -742,7 +777,7 @@ function drawBaskets() {
       ctx.fillStyle = '#fde68a';
       ctx.font = 'bold 8px system-ui,sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(L.load, r.x + r.w / 2, barY - 3);
+      ctx.fillText(L.load, r.x + r.w / 2, barY - 4);
       ctx.textAlign = 'left';
     }
   }
@@ -796,7 +831,8 @@ window.__laundry = {
   getState: () => ({
     ...game.snapshot(),
     busy, paused, selected, W, H,
-    CELL, BOARD_X, BOARD_Y, BOARD_W, BOARD_H, BASKET_STRIP_H,
+    CELL, BOARD_X, BOARD_Y, BOARD_W, BOARD_H, BASKET_STRIP_Y, BASKET_STRIP_H,
+    headerBottom: topUiPx(),
     reduceMotion,
     QUICK_WASH_WINDOW, QUICK_WASH_BONUS,
   }),
@@ -873,6 +909,7 @@ window.__laundry = {
     busy = false;
     selected = null;
     tileFx.clear();
+    resizeCanvas();
     syncHud();
     syncPauseBtn();
     syncOverlay();
