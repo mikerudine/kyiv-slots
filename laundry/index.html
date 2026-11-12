@@ -11,30 +11,59 @@
 <link rel="stylesheet" href="../shared/zsu-donate.css">
 <style>
 *{box-sizing:border-box;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;height:100%;background:#02040c;color:#f1f5f9;font-family:system-ui,-apple-system,sans-serif;overflow:hidden;display:flex;align-items:center;justify-content:center}
-#wrap{position:relative;width:min(100vw,calc(100dvh*9/16),480px);height:min(100dvh,calc(100vw*16/9));aspect-ratio:9/16;margin:0 auto;background:#010208;flex:0 0 auto}
-canvas#game{display:block;width:100%;height:100%;background:#05040a}
-#hud{position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;padding:calc(48px + env(safe-area-inset-top,0px)) 12px calc(12px + env(safe-area-inset-bottom,0px));z-index:3}
-#hud .row{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
-#hud .title{font-weight:800;font-size:15px;text-shadow:0 1px 2px #000}
-#hud .meta{text-align:right;font-size:12px;opacity:.9;text-shadow:0 1px 2px #000}
+html,body{margin:0;height:100%;background:#0c1220;color:#f1f5f9;font-family:"Segoe UI",system-ui,-apple-system,sans-serif;overflow:hidden;display:flex;align-items:center;justify-content:center}
+#wrap{
+  position:relative;
+  width:min(100vw,calc(100dvh*9/16),480px);
+  height:min(100dvh,calc(100vw*16/9));
+  aspect-ratio:9/16;
+  margin:0 auto;
+  padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px);
+  background:linear-gradient(165deg,#152238 0%,#0c1220 55%,#101828 100%);
+  flex:0 0 auto;
+  overflow:hidden;
+  box-sizing:border-box;
+}
+canvas#game{display:block;width:100%;height:100%;background:transparent}
+#hud{position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;padding:calc(44px + env(safe-area-inset-top,0px)) 10px calc(10px + env(safe-area-inset-bottom,0px));z-index:3}
+#hud .top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+#hud .title{font-weight:800;font-size:15px;letter-spacing:.02em;text-shadow:0 1px 2px #0008}
+#hud .hint{font-size:11px;opacity:.78;max-width:58%;line-height:1.3;text-shadow:0 1px 2px #0008;margin-top:2px}
+#hud .meta{text-align:right;font-size:12px;text-shadow:0 1px 2px #0008}
 #hud .btns{display:flex;gap:6px;justify-content:flex-end;margin-bottom:4px}
 #lang,#pauseBtn{pointer-events:auto;border:0;border-radius:999px;background:#1e293bcc;color:#fff;font-weight:800;padding:6px 12px;font-size:12px}
 #pauseBtn{min-width:36px;padding:6px 10px}
 #pauseBtn.hidden{display:none}
-#hint{font-size:12px;opacity:.75;max-width:72%;text-shadow:0 1px 2px #000;line-height:1.25}
-#overlay,#pauseOverlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:6;padding:24px;text-align:center}
-#overlay{background:#010208e6}
+#roundLine,#timerLine,#scoreLine{font-variant-numeric:tabular-nums}
+#timerLine{font-weight:800;font-size:14px}
+#timerLine.warn{color:#fbbf24}
+#timerLine.danger{color:#fb7185}
+#overlay,#pauseOverlay,#washOverlay{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:6;
+  padding:calc(24px + env(safe-area-inset-top,0px)) 20px calc(24px + env(safe-area-inset-bottom,0px));
+  text-align:center;
+}
+#overlay{background:#0c1220f2}
 #overlay.hidden{display:none}
-#pauseOverlay{display:none;background:#020617e8;z-index:7;pointer-events:auto}
+#pauseOverlay{display:none;background:#0c1220f0;z-index:7;pointer-events:auto}
 #pauseOverlay.show{display:flex}
+#washOverlay{display:none;background:#0c1220cc;z-index:5;pointer-events:none}
+#washOverlay.show{display:flex}
+#washOverlay .card{background:#1e293b;border:1px solid #334155;border-radius:16px;padding:18px 22px;max-width:260px}
+#washOverlay .washer{width:56px;height:56px;margin:0 auto 10px;border-radius:12px;background:#334155;border:2px solid #94a3b8;position:relative}
+#washOverlay .washer::after{content:"";position:absolute;inset:10px;border-radius:50%;border:2px solid #64748b;background:#0f172a}
+#washOverlay p{margin:0;font-weight:700}
 #overlay h1,#pauseOverlay h1{margin:0 0 8px;font-size:1.45rem}
 #pauseOverlay h1{font-size:2rem;font-weight:900}
-#overlay p,#pauseOverlay p{margin:0 0 16px;opacity:.85;line-height:1.4;max-width:320px}
+#overlay p,#pauseOverlay p{margin:0 0 14px;opacity:.88;line-height:1.45;max-width:320px}
+#overlay .stats{font-size:13px;opacity:.9;margin:0 0 16px;line-height:1.5}
 #overlay button{pointer-events:auto;border:0;border-radius:999px;background:#facc15;color:#111;font-weight:800;font-size:1.05rem;padding:12px 28px}
 #nav{position:fixed;top:calc(8px + env(safe-area-inset-top,0px));left:max(8px,env(safe-area-inset-left,0px));right:max(8px,env(safe-area-inset-right,0px));z-index:50;pointer-events:auto;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 #nav a{color:#e2e8f0;font-size:12px;text-decoration:none;background:#0f172add;padding:7px 10px;border-radius:999px;font-weight:600}
 #nav a.menu{background:#facc15;color:#111;font-weight:800}
+@media (prefers-reduced-motion:reduce){
+  #washOverlay .washer::after{transition:none}
+}
 </style>
 </head>
 <body>
@@ -42,27 +71,34 @@ canvas#game{display:block;width:100%;height:100%;background:#05040a}
   <canvas id="game" width="360" height="640"></canvas>
   <div id="nav"><a class="menu" href="../menu/">☰ Меню</a><a href="../">Слоти</a><a href="../dogwalk/">Прогулянка</a><a href="../scooter/">Самокат</a></div>
   <div id="hud">
-    <div class="row">
+    <div class="top">
       <div>
         <div class="title" id="tTitle">Стирка</div>
-        <div id="hint"></div>
+        <div class="hint" id="hint"></div>
       </div>
       <div class="meta">
         <div class="btns">
           <button type="button" id="pauseBtn" class="hidden" title="Pause">⏸</button>
           <button type="button" id="lang">UA</button>
         </div>
+        <div id="roundLine"></div>
+        <div id="timerLine"></div>
         <div id="scoreLine"></div>
-        <div id="movesLine"></div>
-        <div id="fps">— fps</div>
       </div>
     </div>
     <div></div>
+  </div>
+  <div id="washOverlay" aria-hidden="true">
+    <div class="card">
+      <div class="washer" aria-hidden="true"></div>
+      <p id="washText">Прання…</p>
+    </div>
   </div>
   <div id="overlay">
     <div>
       <h1 id="oTitle">Стирка</h1>
       <p id="oBody"></p>
+      <div class="stats" id="oStats" hidden></div>
       <a class="zsu-donate" data-zsu-donate hidden href="https://www.sternenkofund.org/donate" target="_blank" rel="noopener noreferrer">Підтримати ЗСУ</a>
       <button type="button" id="oBtn">Старт</button>
     </div>
@@ -75,6 +111,6 @@ canvas#game{display:block;width:100%;height:100%;background:#05040a}
   </div>
 </div>
 <script src="../shared/zsu-donate.js"></script>
-<script src="game.js"></script>
+<script type="module" src="game.js"></script>
 </body>
 </html>
