@@ -24,6 +24,7 @@
     "index.html",
     "laundry/game.js",
     "laundry/index.html",
+    "laundry/logic.mjs",
     "menu/index.html",
     "minesweeper/game.js",
     "minesweeper/index.html",
