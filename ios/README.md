@@ -64,9 +64,10 @@ The workflow sets `CFBundleVersion` / `CURRENT_PROJECT_VERSION` at build time
 
 ```
 Online launch
-  → fetch cache-manifest.json from the live site (bundled copy is fallback)
-  → download every listed file into Application Support/OfflineSite
-  → open the live menu URL so a fresh GitHub Pages publish is visible immediately
+  → open the live menu URL immediately (first paint never waits on cache)
+  → refresh the offline snapshot in the background (concurrent downloads,
+    ~45s overall deadline; previous good snapshot kept on failure)
+  → if the live menu has not loaded within ~15s, fall back to cache or retry UI
 
 Offline launch
   → open onedayinkyiv://cache/menu/ from the last successful snapshot

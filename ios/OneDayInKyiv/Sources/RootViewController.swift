@@ -4,6 +4,9 @@ import WebKit
 
 /// Thin native shell: WKWebView + offline cache + Safari for external links.
 final class RootViewController: UIViewController {
+    /// If the live menu has not settled by then, fall back to cache or retry UI.
+    private static let liveLoadSafetySeconds: TimeInterval = 15
+
     private let webView: WKWebView
     private let statusLabel = UILabel()
     private let statusOverlay = UIView()
@@ -15,6 +18,11 @@ final class RootViewController: UIViewController {
     private var didStartInitialLoad = false
     private var isOnline = false
     private var servingFromCache = false
+    /// Bumped on each live-menu attempt so late callbacks / safety nets stay coherent.
+    private var liveLoadGeneration = 0
+    private var liveLoadSafetyWorkItem: DispatchWorkItem?
+    /// True once the current online attempt hid the overlay or showed retry/cache.
+    private var liveLoadSettled = true
 
     init() {
         let config = WKWebViewConfiguration()
@@ -36,6 +44,7 @@ final class RootViewController: UIViewController {
 
     deinit {
         pathMonitor.cancel()
+        cancelLiveLoadSafetyNet()
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "openExternal")
     }
 
@@ -151,26 +160,20 @@ final class RootViewController: UIViewController {
     }
 
     private func bootstrap() {
+        cancelLiveLoadSafetyNet()
+
         if isOnline {
-            setStatus("Updating games…", visible: true)
-            OfflineCacheManager.shared.refresh { [weak self] result in
-                guard let self else { return }
-                switch result {
-                case .success:
-                    // Online: show the live site so a Pages publish is visible immediately,
-                    // after refreshing the offline snapshot for the next flight-mode launch.
-                    self.loadLiveMenu()
-                case .failure:
-                    if OfflineCacheManager.shared.hasUsableCache {
-                        self.loadOfflineMenu(reason: "Cache update failed — using last copy.")
-                    } else {
-                        self.loadLiveMenu()
-                    }
-                }
-            }
+            // First paint must not wait on the offline snapshot refresh.
+            // Keep the calm brand overlay; fade it out when the live menu settles.
+            setStatus("One Day in Kyiv", visible: true)
+            loadLiveMenu()
+            refreshCacheInBackground()
+            scheduleLiveLoadSafetyNet()
         } else if OfflineCacheManager.shared.hasUsableCache {
+            liveLoadSettled = true
             loadOfflineMenu(reason: nil)
         } else {
+            liveLoadSettled = true
             setStatus(
                 "No network yet.\nConnect once to download the games for offline play.",
                 visible: true,
@@ -185,6 +188,8 @@ final class RootViewController: UIViewController {
 
     private func loadLiveMenu() {
         servingFromCache = false
+        liveLoadGeneration += 1
+        liveLoadSettled = false
         webView.load(URLRequest(
             url: AppConfig.liveMenuURL,
             cachePolicy: .reloadIgnoringLocalCacheData,
@@ -194,12 +199,50 @@ final class RootViewController: UIViewController {
 
     private func loadOfflineMenu(reason: String?) {
         servingFromCache = true
+        liveLoadSettled = true
+        cancelLiveLoadSafetyNet()
         if let reason {
             setStatus(reason, visible: true)
         } else {
             setStatus("Offline · cached games", visible: true)
         }
         webView.load(URLRequest(url: AppConfig.offlineMenuURL))
+    }
+
+    // MARK: - Live-load safety net
+
+    private func scheduleLiveLoadSafetyNet() {
+        let generation = liveLoadGeneration
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            guard generation == self.liveLoadGeneration, !self.liveLoadSettled else { return }
+            self.liveLoadSettled = true
+            self.webView.stopLoading()
+            if OfflineCacheManager.shared.hasUsableCache {
+                self.loadOfflineMenu(reason: "Taking too long — opening cache.")
+            } else {
+                self.setStatus(
+                    "Couldn’t load games.\nCheck the network and try again.",
+                    visible: true,
+                    showRetry: true
+                )
+            }
+        }
+        liveLoadSafetyWorkItem = work
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + Self.liveLoadSafetySeconds,
+            execute: work
+        )
+    }
+
+    private func cancelLiveLoadSafetyNet() {
+        liveLoadSafetyWorkItem?.cancel()
+        liveLoadSafetyWorkItem = nil
+    }
+
+    private func markLiveLoadSettled() {
+        liveLoadSettled = true
+        cancelLiveLoadSafetyNet()
     }
 
     // MARK: - External links
@@ -279,6 +322,7 @@ extension RootViewController: WKNavigationDelegate {
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        markLiveLoadSettled()
         setStatus("One Day in Kyiv", visible: false)
     }
 
@@ -293,6 +337,7 @@ extension RootViewController: WKNavigationDelegate {
     private func handleLoadFailure(_ error: Error) {
         let ns = error as NSError
         if ns.domain == NSURLErrorDomain && ns.code == NSURLErrorCancelled { return }
+        markLiveLoadSettled()
         if !servingFromCache, OfflineCacheManager.shared.hasUsableCache {
             loadOfflineMenu(reason: "Couldn’t reach the live site — opening cache.")
         } else {
