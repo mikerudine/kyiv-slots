@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="data:,">
+<title>Poster city · One Day in Kyiv</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Source+Sans+3:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;min-height:100%;background:#0c1018;color:#f2f5f8;font-family:"Source Sans 3",system-ui,sans-serif}
+body{
+  background:
+    linear-gradient(180deg,#152033 0%,#0c1018 38%,#080b12 100%);
+}
+#wrap{
+  margin:0 auto;max-width:980px;min-height:100dvh;
+  padding:calc(12px + env(safe-area-inset-top,0px)) 10px calc(20px + env(safe-area-inset-bottom,0px));
+}
+header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:8px}
+.brand{
+  margin:0;font-family:"Bebas Neue",sans-serif;font-size:clamp(2.4rem,11vw,4.2rem);
+  line-height:.9;letter-spacing:.02em;color:#f2d36b;
+}
+.sub{margin:4px 0 0;color:#9aa8bc;font-size:13px;font-weight:700}
+.tools{display:flex;gap:8px;padding-top:6px}
+.tools a,.tools button{
+  appearance:none;border:0;border-radius:4px;background:#1b2536;color:#f2d36b;
+  font:800 12px/1 "Source Sans 3",sans-serif;padding:9px 12px;text-decoration:none;cursor:pointer;
+}
+.skyline{
+  position:relative;margin-top:8px;
+  /* static city silhouette under posters */
+  background:
+    linear-gradient(180deg,transparent 0%,#070a10 100%),
+    repeating-linear-gradient(90deg,#101826 0 18px,#0d1420 18px 22px);
+  border-radius:8px;overflow:hidden;padding:10px 8px 0;
+  min-height:70dvh;
+}
+.skyline::before{
+  content:"";position:absolute;left:0;right:0;bottom:0;height:28%;
+  background:linear-gradient(180deg,transparent,#05070c);
+  pointer-events:none;z-index:0;
+}
+.street{
+  position:relative;z-index:1;
+  display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:end;
+}
+@media (min-width:380px){
+  .street{grid-template-columns:repeat(3,1fr)}
+}
+@media (min-width:760px){
+  .street{grid-template-columns:repeat(9,1fr);gap:10px;min-height:62vh}
+}
+a.poster{
+  position:relative;display:block;text-decoration:none;color:#fff;
+  border:2px solid #f2d36b55;background:#111;overflow:hidden;
+  box-shadow:0 12px 24px #0008;
+  transition:transform .16s ease, border-color .16s ease;
+}
+a.poster:nth-child(odd){height:240px}
+a.poster:nth-child(even){height:280px}
+@media (min-width:380px){
+  a.poster:nth-child(3n+1){height:220px}
+  a.poster:nth-child(3n+2){height:280px}
+  a.poster:nth-child(3n){height:240px}
+}
+@media (min-width:760px){
+  a.poster:nth-child(3n+1),a.poster:nth-child(3n+2),a.poster:nth-child(3n){height:auto}
+  a.poster{min-height:420px}
+  a.poster:nth-child(odd){min-height:520px}
+  a.poster:nth-child(5){min-height:560px}
+}
+a.poster:focus-visible{outline:2px solid #f2d36b;outline-offset:2px}
+@media (hover:hover){a.poster:hover{transform:translateY(-4px) scale(1.01);border-color:#f2d36b}}
+a.poster:active{transform:scale(.985)}
+a.poster img{
+  width:100%;height:100%;object-fit:cover;object-position:center top;display:block;
+  filter:saturate(1.05) contrast(1.04);
+  /* slight poster print feel — static */
+  image-rendering:auto;
+}
+a.poster .label{
+  position:absolute;left:0;right:0;bottom:0;padding:28px 8px 8px;
+  background:linear-gradient(180deg,transparent,rgba(5,8,14,.92) 55%);
+}
+a.poster .t{
+  font-family:"Bebas Neue",sans-serif;font-size:clamp(18px,4.8vw,28px);letter-spacing:.03em;line-height:1;
+  text-shadow:0 1px 0 #000;
+}
+a.poster .d{margin-top:4px;font-size:11px;line-height:1.3;color:#c9d3e0;font-weight:700;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ground{
+  position:relative;z-index:1;margin-top:8px;height:14px;border-radius:2px;
+  background:linear-gradient(90deg,#2a3344,#1a2230 40%,#2a3344);
+  box-shadow:0 -2px 0 #f2d36b33;
+}
+.arch{display:block;text-align:center;color:#7d8b9e;font-size:12px;margin-top:14px;text-decoration:none;font-weight:700}
+@media (prefers-reduced-motion:reduce){
+  a.poster,a.poster:hover,a.poster:active{transition:none;transform:none}
+}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <header>
+    <div>
+      <h1 class="brand" id="brand"></h1>
+      <p class="sub" id="sub"></p>
+    </div>
+    <div class="tools">
+      <a href="../">←</a>
+      <button type="button" id="lang">UA</button>
+    </div>
+  </header>
+  <div class="skyline">
+    <div class="street" id="list"></div>
+    <div class="ground" aria-hidden="true"></div>
+  </div>
+  <a class="arch" id="arch" href="../../raycaster/"></a>
+</div>
+<script src="../games.js"></script>
+<script>
+const {G,T,createLang,archHref}=MenuConcepts;
+const list=document.getElementById('list');
+const langCtrl=createLang(render);
+function render(lang){
+  const L=T[lang];
+  brand.textContent=L.brand;
+  sub.textContent=lang==='ua'?'Вечірні афіші на Хрещатику':'Evening posters on Khreshchatyk';
+  arch.textContent=L.arch;
+  arch.href=archHref;
+  langBtn.textContent=langCtrl.label();
+  list.innerHTML=G.map(g=>`
+    <a class="poster" href="${g.h}">
+      <img src="${g.img}" alt="" loading="lazy" width="780" height="844">
+      <div class="label"><div class="t">${g[lang][0]}</div><div class="d">${g[lang][1]}</div></div>
+    </a>`).join('');
+}
+const langBtn=document.getElementById('lang');
+langBtn.onclick=()=>langCtrl.toggle();
+langCtrl.apply();
+</script>
+</body>
+</html>

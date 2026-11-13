@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="data:,">
+<title>Comic · One Day in Kyiv</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bangers&family=Comic+Neue:wght@700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;min-height:100%;background:#1a2740;color:#111}
+body{
+  background:
+    radial-gradient(circle at 12% 8%,#2b4570 0 18%,transparent 19%),
+    radial-gradient(circle at 88% 12%,#c43c3c 0 10%,transparent 11%),
+    #1a2740;
+}
+#wrap{
+  margin:0 auto;max-width:820px;min-height:100dvh;
+  padding:calc(12px + env(safe-area-inset-top,0px)) 10px calc(20px + env(safe-area-inset-bottom,0px));
+}
+header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}
+.brand{
+  margin:0;font-family:Bangers,cursive;font-size:clamp(2rem,9vw,3.4rem);line-height:1;
+  color:#ffe566;letter-spacing:.03em;
+  text-shadow:3px 3px 0 #111,-1px -1px 0 #111,1px -1px 0 #111,-1px 1px 0 #111,1px 1px 0 #111;
+}
+.sub{margin:4px 0 0;font-family:"Comic Neue",cursive;font-weight:700;color:#d7e3f5;font-size:14px}
+.tools{display:flex;gap:8px}
+.tools a,.tools button{
+  appearance:none;border:3px solid #111;border-radius:10px;background:#ffe566;color:#111;
+  font:700 13px/1 "Comic Neue",cursive;padding:8px 11px;text-decoration:none;cursor:pointer;
+  box-shadow:3px 3px 0 #111;
+}
+.page{
+  background:#f7f1e1;
+  border:4px solid #111;
+  box-shadow:8px 8px 0 #0b1324;
+  padding:10px;
+  /* static newsprint dots — no animation */
+  background-image:radial-gradient(#00000014 1.1px,transparent 1.2px);
+  background-size:7px 7px;
+  background-color:#f7f1e1;
+}
+.panels{
+  display:grid;gap:10px;
+  grid-template-columns:1fr 1fr;
+}
+@media (min-width:700px){
+  .panels{grid-template-columns:repeat(6,1fr)}
+}
+a.panel{
+  position:relative;display:block;text-decoration:none;color:#111;
+  border:4px solid #111;background:#111;overflow:hidden;min-height:150px;
+  box-shadow:4px 4px 0 #00000055;
+  transition:transform .15s ease;
+}
+a.panel:focus-visible{outline:3px solid #ffe566;outline-offset:2px}
+@media (hover:hover){a.panel:hover{transform:scale(1.02)}}
+a.panel:active{transform:scale(.98)}
+a.panel img{
+  width:100%;height:100%;min-height:150px;object-fit:cover;object-position:center top;display:block;
+  filter:contrast(1.08) saturate(1.05);
+}
+a.panel::after{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  /* static halftone */
+  background-image:radial-gradient(#00000033 0.9px,transparent 1px);
+  background-size:5px 5px;
+  mix-blend-mode:multiply;opacity:.55;
+}
+a.panel .ink{position:absolute;inset:0;box-shadow:inset 0 0 0 3px #111;pointer-events:none}
+a.panel .bubble{
+  position:absolute;z-index:2;left:8px;right:8px;bottom:8px;
+  background:#fff;border:3px solid #111;border-radius:16px 16px 16px 4px;
+  padding:7px 9px;box-shadow:3px 3px 0 #111;
+}
+a.panel .bubble::before{
+  content:"";position:absolute;left:14px;bottom:-10px;width:12px;height:12px;
+  background:#fff;border-right:3px solid #111;border-bottom:3px solid #111;
+  transform:rotate(45deg);
+}
+a.panel .t{font-family:Bangers,cursive;font-size:clamp(15px,4.2vw,20px);letter-spacing:.02em;line-height:1.05}
+a.panel .d{font-family:"Comic Neue",cursive;font-weight:700;font-size:11px;margin-top:3px;line-height:1.25;color:#333}
+a.panel.splash{grid-column:1/-1;min-height:210px}
+a.panel.splash .t{font-size:clamp(22px,6vw,34px)}
+@media (min-width:700px){
+  a.panel.splash{grid-column:span 4;grid-row:span 2;min-height:320px}
+  a.panel[data-id=dogwalk]{grid-column:span 2;grid-row:span 2;min-height:320px}
+  a.panel[data-id=scooter],a.panel[data-id=laundry],
+  a.panel[data-id=dice],a.panel[data-id=commute]{grid-column:span 3;min-height:200px}
+  a.panel[data-id=findit],a.panel[data-id=minesweeper],a.panel[data-id=tetris]{grid-column:span 2;min-height:190px}
+}
+.caption{
+  margin:10px 2px 0;font-family:Bangers,cursive;font-size:22px;color:#111;
+  background:#ffe566;display:inline-block;padding:4px 10px;border:3px solid #111;
+  box-shadow:3px 3px 0 #111;
+}
+.arch{display:block;text-align:center;margin-top:14px;color:#9eb0c8;font:700 12px "Comic Neue",cursive;text-decoration:none}
+@media (prefers-reduced-motion:reduce){
+  a.panel,a.panel:hover,a.panel:active{transition:none;transform:none}
+}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <header>
+    <div>
+      <h1 class="brand" id="brand"></h1>
+      <p class="sub" id="sub"></p>
+    </div>
+    <div class="tools">
+      <a href="../">←</a>
+      <button type="button" id="lang">UA</button>
+    </div>
+  </header>
+  <div class="page">
+    <div class="caption" id="pick"></div>
+    <div class="panels" id="list" style="margin-top:10px"></div>
+  </div>
+  <a class="arch" id="arch" href="../../raycaster/"></a>
+</div>
+<script src="../games.js"></script>
+<script>
+const {G,T,createLang,archHref}=MenuConcepts;
+const list=document.getElementById('list');
+const langCtrl=createLang(render);
+function render(lang){
+  const L=T[lang];
+  brand.textContent=L.brand;
+  sub.textContent=L.sub;
+  pick.textContent=L.pick+'!';
+  arch.textContent=L.arch;
+  arch.href=archHref;
+  langBtn.textContent=langCtrl.label();
+  list.innerHTML=G.map((g,i)=>`
+    <a class="panel${i===0?' splash':''}" data-id="${g.id}" href="${g.h}">
+      <img src="${g.img}" alt="" loading="lazy" width="780" height="844">
+      <div class="ink"></div>
+      <div class="bubble"><div class="t">${g.e} ${g[lang][0]}</div><div class="d">${g[lang][1]}</div></div>
+    </a>`).join('');
+}
+const langBtn=document.getElementById('lang');
+langBtn.onclick=()=>langCtrl.toggle();
+langCtrl.apply();
+</script>
+</body>
+</html>
