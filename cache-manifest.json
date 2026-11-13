@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "updatedHint": "App refreshes this list when online; bundled copy is the fallback.",
   "files": [
     "cache-manifest.json",
