@@ -4,10 +4,14 @@
   const T = {
     ua: { title: 'Кості світла', guess: 'Скільки годин світла сьогодні буде?', hold: '🎲 Затисни й відпусти', shaking: 'Трусимо… відпусти!', hint: 'Затисни кнопку або кості, щоб потрусити, відпусти — кидок', again: 'Грати ще раз', rolling: 'Кидаємо…',
       info: (w, b) => `⚪ ${w} год світла · ⚫ ${b} год без світла`, light: 'є світло', dark: 'немає світла',
-      win: (n) => `Вгадав! Світло було ${n} год ⚡`, lose: (n, g) => `Світло було ${n} год, твій прогноз ${g} (різниця ${Math.abs(n - g)})` },
+      winTitle: 'Вгадали!', loseTitle: 'Не вгадали', winIcon: '✓', loseIcon: '✕',
+      lightLbl: 'Світло', guessLbl: 'Ваш прогноз', hours: (n) => `${n} год`,
+      diff: (d) => d === 0 ? 'Точно в ціль' : `Різниця: ${d} год` },
     en: { title: 'Power Dice', guess: 'How many hours of power today?', hold: '🎲 Hold & release', shaking: 'Shaking… let go!', hint: 'Hold the button or dice to shake, release to throw', again: 'Play again', rolling: 'Rolling…',
       info: (w, b) => `⚪ ${w} h power · ⚫ ${b} h outage`, light: 'power on', dark: 'no power',
-      win: (n) => `Spot on! ${n} h of power ⚡`, lose: (n, g) => `Power was on ${n} h, you guessed ${g} (off by ${Math.abs(n - g)})` },
+      winTitle: 'You got it!', loseTitle: 'Not quite', winIcon: '✓', loseIcon: '✕',
+      lightLbl: 'Power', guessLbl: 'Your guess', hours: (n) => `${n} h`,
+      diff: (d) => d === 0 ? 'Exact match' : `Difference: ${d} h` },
   };
   let lang = localStorage.getItem('dice-lang') || 'ua';
   const $ = (id) => document.getElementById(id);
@@ -26,15 +30,17 @@
   let state = 'idle', lightHours = 0, lastInfo = '';
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const rnd = () => 1 + ((Math.random() * 6) | 0);
+  const reduceMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   function paint(h, light) {
     const c = cells[h];
     c.className = 'cell ' + (light ? 'light' : 'dark');
     c.querySelector('.ic').textContent = light ? '⚡' : '🚫';
   }
+  function clearResult() { $('result').className = ''; }
   function reset() {
     cells.forEach((c) => { c.className = 'cell empty'; c.querySelector('.ic').textContent = ''; });
-    $('result').textContent = ''; $('result').className = ''; $('meme').textContent = ''; $('wrap').classList.remove('done'); lastInfo = ''; $('rollInfo').textContent = ''; hour = 0;
+    clearResult(); $('wrap').classList.remove('done'); lastInfo = ''; $('rollInfo').textContent = ''; hour = 0;
     if (typeof setZsuDonateVisible === 'function') setZsuDonateVisible(false);
     lightHours = 0;
   }
@@ -66,30 +72,25 @@
     for (let i = 0; i < w && hour < 24; i++, hour++) { paint(hour, true); lightHours++; await sleep(110); }
     for (let i = 0; i < b && hour < 24; i++, hour++) { paint(hour, false); await sleep(110); }
     window.__dice.lastRolls = rolls;
-    if (hour >= 24) { state = 'done'; $('guess').disabled = false; showResult(+$('guess').value); $('wrap').classList.add('done'); showMeme(); }
+    if (hour >= 24) { state = 'done'; $('guess').disabled = false; showResult(+$('guess').value, true); $('wrap').classList.add('done'); }
     else state = 'ready';
     applyLang();
   }
   function onBtnClick() { if (state === 'done') { reset(); state = 'idle'; applyLang(); } }
-  // memes: drop a file into memes/ and add one line to memes/memes.json
-  let memes = [], lastMeme = -1;
-  fetch('memes/memes.json').then((r) => r.json()).then((a) => { memes = a.filter((m) => m && m.file); }).catch(() => {});
-  function showMeme() {
-    const box = $('meme'); box.textContent = '';
-    if (!memes.length) return;
-    let i = (Math.random() * memes.length) | 0;
-    if (memes.length > 1 && i === lastMeme) i = (i + 1 + ((Math.random() * (memes.length - 1)) | 0)) % memes.length;
-    lastMeme = i;
-    const img = new Image(); img.src = 'memes/' + memes[i].file; img.alt = memes[i].alt || ''; img.decoding = 'async';
-    box.appendChild(img);
-  }
   let lastGuess = 0;
-  function showResult(g) {
+  function showResult(g, animate) {
     if (typeof setZsuDonateVisible === 'function') setZsuDonateVisible(true);
     lastGuess = g;
-    const r = $('result'), L = T[lang];
-    if (lightHours === g) { r.textContent = L.win(lightHours); r.className = 'win'; }
-    else { r.textContent = L.lose(lightHours, g); r.className = 'lose'; }
+    const r = $('result'), L = T[lang], win = lightHours === g, diff = Math.abs(lightHours - g);
+    const enter = animate ? (!reduceMotion() ? ' enter' : '') : (r.classList.contains('enter') ? ' enter' : '');
+    r.className = 'show ' + (win ? 'win' : 'lose') + enter;
+    $('resultIcon').textContent = win ? L.winIcon : L.loseIcon;
+    $('resultTitle').textContent = win ? L.winTitle : L.loseTitle;
+    $('resultLightLbl').textContent = L.lightLbl;
+    $('resultGuessLbl').textContent = L.guessLbl;
+    $('resultLightVal').textContent = L.hours(lightHours);
+    $('resultGuessVal').textContent = L.hours(g);
+    $('resultDiff').textContent = L.diff(diff);
   }
   function applyLang() {
     const L = T[lang];
@@ -101,7 +102,7 @@
     $('btn').disabled = state === 'throwing';
     if (!lastInfo || state === 'idle') $('rollInfo').textContent = state === 'done' ? '' : L.hint;
     if (lastInfo) $('rollInfo').textContent = L.info(lastInfo[0], lastInfo[1]);
-    if (state === 'done') showResult(lastGuess);
+    if (state === 'done') showResult(lastGuess, false);
   }
   $('guess').addEventListener('input', () => { $('guessVal').textContent = $('guess').value; });
   $('lang').addEventListener('click', () => { lang = lang === 'ua' ? 'en' : 'ua'; localStorage.setItem('dice-lang', lang); applyLang(); });
@@ -112,6 +113,31 @@
   }
   $('btn').addEventListener('click', onBtnClick);
   window.addEventListener('pointerup', release);
-  window.__dice = { startHold: () => startHold(), release, lastMeme: () => lastMeme, getState: () => ({ state, meme: $('meme').querySelector('img')?.getAttribute('src') || null, lightHours, painted: cells.filter((c) => !c.classList.contains('empty')).length }) };
+  window.__dice = {
+    startHold: () => startHold(),
+    release,
+    /** Test/helper: paint a finished day and show the result card (does not roll). */
+    forceResult(hours, guess) {
+      reset();
+      lightHours = 0;
+      for (let h = 0; h < 24; h++) {
+        const light = h < hours;
+        paint(h, light);
+        if (light) lightHours++;
+      }
+      $('guess').value = String(guess);
+      $('guessVal').textContent = String(guess);
+      state = 'done';
+      $('wrap').classList.add('done');
+      showResult(guess, true);
+      applyLang();
+    },
+    getState: () => ({
+      state,
+      lightHours,
+      painted: cells.filter((c) => !c.classList.contains('empty')).length,
+      result: state === 'done' ? { win: lightHours === lastGuess, lightHours, guess: lastGuess } : null,
+    }),
+  };
   applyLang();
 })();
