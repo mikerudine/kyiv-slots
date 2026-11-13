@@ -10,95 +10,225 @@
 <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Comic+Neue:wght@700&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;min-height:100%;background:#1a2740;color:#111}
-body{
-  background:
-    radial-gradient(circle at 12% 8%,#2b4570 0 18%,transparent 19%),
-    radial-gradient(circle at 88% 12%,#c43c3c 0 10%,transparent 11%),
-    #1a2740;
-}
+html,body{margin:0;min-height:100%;background:#141c2c;color:#111}
 #wrap{
-  margin:0 auto;max-width:820px;min-height:100dvh;
-  padding:calc(12px + env(safe-area-inset-top,0px)) 10px calc(20px + env(safe-area-inset-bottom,0px));
+  margin:0 auto;max-width:760px;min-height:100dvh;
+  padding:calc(10px + env(safe-area-inset-top,0px)) 8px calc(18px + env(safe-area-inset-bottom,0px));
 }
-header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}
-.brand{
-  margin:0;font-family:Bangers,cursive;font-size:clamp(2rem,9vw,3.4rem);line-height:1;
-  color:#ffe566;letter-spacing:.03em;
-  text-shadow:3px 3px 0 #111,-1px -1px 0 #111,1px -1px 0 #111,-1px 1px 0 #111,1px 1px 0 #111;
-}
-.sub{margin:4px 0 0;font-family:"Comic Neue",cursive;font-weight:700;color:#d7e3f5;font-size:14px}
-.tools{display:flex;gap:8px}
+.tools{display:flex;gap:8px;justify-content:flex-end;margin-bottom:8px}
 .tools a,.tools button{
-  appearance:none;border:3px solid #111;border-radius:10px;background:#ffe566;color:#111;
+  appearance:none;border:3px solid #111;border-radius:0;background:#ffe566;color:#111;
   font:700 13px/1 "Comic Neue",cursive;padding:8px 11px;text-decoration:none;cursor:pointer;
   box-shadow:3px 3px 0 #111;
 }
+/* Outer comic page — thick ink frame, white gutters show between chopped panels */
 .page{
-  background:#f7f1e1;
-  border:4px solid #111;
-  box-shadow:8px 8px 0 #0b1324;
-  padding:10px;
-  /* static newsprint dots — no animation */
-  background-image:radial-gradient(#00000014 1.1px,transparent 1.2px);
-  background-size:7px 7px;
-  background-color:#f7f1e1;
+  background:#fff;
+  border:7px solid #111;
+  padding:0;
+  /* static paper grain only */
+  background-image:radial-gradient(#00000012 1px,transparent 1.2px);
+  background-size:6px 6px;
+  background-color:#fff;
 }
-.panels{
-  display:grid;gap:10px;
-  grid-template-columns:1fr 1fr;
+.title-strip{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  background:#ffe566;border-bottom:6px solid #111;padding:10px 12px;
+}
+.title-strip h1{
+  margin:0;font-family:Bangers,cursive;font-size:clamp(1.7rem,8vw,2.8rem);
+  line-height:1;letter-spacing:.04em;color:#111;
+  text-shadow:2px 2px 0 #fff;
+}
+.title-strip .sub{margin:0;font:700 12px/1.2 "Comic Neue",cursive;color:#333;max-width:42%}
+
+/* Dense chopped spread — absolute irregular polygons */
+.spread{
+  position:relative;
+  width:100%;
+  /* tall puzzle page */
+  height:clamp(980px, 280vw, 1180px);
 }
 @media (min-width:700px){
-  .panels{grid-template-columns:repeat(6,1fr)}
+  .spread{height:1100px}
 }
+
 a.panel{
-  position:relative;display:block;text-decoration:none;color:#111;
-  border:4px solid #111;background:#111;overflow:hidden;min-height:150px;
-  box-shadow:4px 4px 0 #00000055;
-  transition:transform .15s ease;
+  position:absolute;
+  display:block;
+  text-decoration:none;color:#111;
+  /* tap target floor */
+  min-width:44px;min-height:72px;
+  z-index:1;
+  transition:transform .12s ease;
 }
-a.panel:focus-visible{outline:3px solid #ffe566;outline-offset:2px}
-@media (hover:hover){a.panel:hover{transform:scale(1.02)}}
-a.panel:active{transform:scale(.98)}
-a.panel img{
-  width:100%;height:100%;min-height:150px;object-fit:cover;object-position:center top;display:block;
-  filter:contrast(1.08) saturate(1.05);
+a.panel:focus-visible{outline:3px solid #ffe566;outline-offset:3px;z-index:8}
+@media (hover:hover){
+  a.panel:hover{z-index:6;transform:scale(1.01)}
 }
-a.panel::after{
+a.panel:active{transform:scale(.99)}
+
+/* Art layer: clip-path + multi drop-shadow = thick black ink edge */
+a.panel .art{
+  position:absolute;inset:0;
+  clip-path:var(--poly);
+  background:#111;
+  /* ink outline follows polygon */
+  filter:
+    drop-shadow(5px 0 0 #111)
+    drop-shadow(-5px 0 0 #111)
+    drop-shadow(0 5px 0 #111)
+    drop-shadow(0 -5px 0 #111)
+    drop-shadow(4px 4px 0 #111)
+    drop-shadow(-4px -4px 0 #111)
+    drop-shadow(4px -4px 0 #111)
+    drop-shadow(-4px 4px 0 #111)
+    drop-shadow(0 0 0 #111);
+}
+a.panel .art img{
+  width:100%;height:100%;object-fit:cover;object-position:center top;display:block;
+  filter:contrast(1.1) saturate(.92);
+}
+a.panel .art::after{
   content:"";position:absolute;inset:0;pointer-events:none;
-  /* static halftone */
-  background-image:radial-gradient(#00000033 0.9px,transparent 1px);
-  background-size:5px 5px;
-  mix-blend-mode:multiply;opacity:.55;
+  background-image:radial-gradient(#00000040 1px,transparent 1.15px);
+  background-size:4px 4px;
+  mix-blend-mode:multiply;opacity:.5;
 }
-a.panel .ink{position:absolute;inset:0;box-shadow:inset 0 0 0 3px #111;pointer-events:none}
-a.panel .bubble{
-  position:absolute;z-index:2;left:8px;right:8px;bottom:8px;
-  background:#fff;border:3px solid #111;border-radius:16px 16px 16px 4px;
-  padding:7px 9px;box-shadow:3px 3px 0 #111;
+
+/* Labels sit ABOVE art so they can break out over gutters/edges */
+a.panel .label{
+  position:absolute;z-index:4;pointer-events:none;
+  background:#fff;border:3px solid #111;padding:5px 9px;
+  font-family:Bangers,cursive;font-size:clamp(15px,4.5vw,22px);
+  letter-spacing:.03em;line-height:1;color:#111;
+  max-width:min(92%,220px);
 }
-a.panel .bubble::before{
-  content:"";position:absolute;left:14px;bottom:-10px;width:12px;height:12px;
-  background:#fff;border-right:3px solid #111;border-bottom:3px solid #111;
-  transform:rotate(45deg);
+a.panel .label small{
+  display:block;margin-top:3px;font:700 10px/1.25 "Comic Neue",cursive;color:#333;
+  letter-spacing:0;max-width:100%;
 }
-a.panel .t{font-family:Bangers,cursive;font-size:clamp(15px,4.2vw,20px);letter-spacing:.02em;line-height:1.05}
-a.panel .d{font-family:"Comic Neue",cursive;font-weight:700;font-size:11px;margin-top:3px;line-height:1.25;color:#333}
-a.panel.splash{grid-column:1/-1;min-height:210px}
-a.panel.splash .t{font-size:clamp(22px,6vw,34px)}
+
+/* Bubble shapes */
+a.panel .label.round{
+  border-radius:50% 50% 50% 50% / 55% 55% 45% 45%;
+  padding:10px 14px;text-align:center;
+}
+a.panel .label.angular{
+  border-radius:0;transform:rotate(-2deg);
+  clip-path:polygon(0 8%, 94% 0, 100% 78%, 8% 100%);
+  padding:10px 14px 12px;
+}
+a.panel .label.burst{
+  background:#ffe566;
+  border-radius:0;
+  clip-path:polygon(
+    50% 0%, 63% 18%, 88% 10%, 78% 32%, 100% 45%, 80% 55%, 92% 78%,
+    68% 72%, 55% 100%, 48% 75%, 22% 92%, 30% 68%, 0% 60%, 22% 48%,
+    8% 22%, 35% 28%
+  );
+  padding:16px 18px;text-align:center;transform:rotate(-6deg);
+  font-size:clamp(16px,5vw,24px);
+}
+a.panel .label.caption{
+  border-radius:0;background:#fff;transform:skewX(-6deg);
+}
+
+/* —— Panel geometry (mobile-first dense chop) ——
+   White gutters ≈ gaps between absolute boxes; polygons slant into neighbors. */
+
+/* 1 slots — full top, bottom edge slants down L→R */
+a.panel[data-id=slots]{
+  left:2%;top:1.2%;width:96%;height:19%;
+  --poly:polygon(0% 0%, 100% 0%, 100% 100%, 0% 78%);
+  z-index:2;
+}
+a.panel[data-id=slots] .art img{object-position:center 35%}
+a.panel[data-id=slots] .label{right:-2%;top:-2%}
+
+/* 2 dogwalk — left, diagonal right edge */
+a.panel[data-id=dogwalk]{
+  left:2%;top:17%;width:54%;height:18%;
+  --poly:polygon(0% 12%, 100% 0%, 86% 100%, 0% 100%);
+  z-index:3;
+}
+a.panel[data-id=dogwalk] .label{left:4%;bottom:6%}
+
+/* 3 scooter — right, interlocking slant */
+a.panel[data-id=scooter]{
+  left:46%;top:15.5%;width:52%;height:20%;
+  --poly:polygon(18% 0%, 100% 8%, 100% 100%, 0% 88%);
+  z-index:2;
+}
+a.panel[data-id=scooter] .label{right:4%;top:12%}
+
+/* 4 laundry — wide left-heavy, bottom zig */
+a.panel[data-id=laundry]{
+  left:2%;top:33.5%;width:58%;height:16%;
+  --poly:polygon(0% 0%, 100% 14%, 92% 100%, 0% 86%);
+  z-index:2;
+}
+a.panel[data-id=laundry] .label{left:-1%;top:8%}
+
+/* 5 dice — right wedge */
+a.panel[data-id=dice]{
+  left:50%;top:34%;width:48%;height:17%;
+  --poly:polygon(12% 0%, 100% 0%, 100% 100%, 0% 100%);
+  z-index:3;
+}
+a.panel[data-id=dice] .label{right:3%;bottom:4%}
+
+/* 6 commute — full mid band, opposite slant */
+a.panel[data-id=commute]{
+  left:2%;top:48%;width:96%;height:17%;
+  --poly:polygon(0% 18%, 100% 0%, 100% 82%, 0% 100%);
+  z-index:2;
+}
+a.panel[data-id=commute] .art img{object-position:center 20%}
+a.panel[data-id=commute] .label{left:6%;bottom:-4%}
+
+/* 7 findit — left column filling to bottom, right edge slanted */
+a.panel[data-id=findit]{
+  left:2%;top:62%;width:46%;height:36%;
+  --poly:polygon(0% 0%, 100% 8%, 82% 100%, 0% 100%);
+  z-index:2;
+}
+a.panel[data-id=findit] .label{left:5%;top:10%}
+
+/* 8 minesweeper — mid wedge interlocking both neighbors */
+a.panel[data-id=minesweeper]{
+  left:36%;top:63%;width:42%;height:21%;
+  --poly:polygon(18% 0%, 100% 0%, 100% 100%, 0% 86%);
+  z-index:3;
+}
+a.panel[data-id=minesweeper] .label{right:2%;top:10%}
+
+/* 9 tetris — tall right closer, left edge slanted into findit */
+a.panel[data-id=tetris]{
+  left:64%;top:62%;width:34%;height:36%;
+  --poly:polygon(18% 6%, 100% 0%, 100% 100%, 0% 100%);
+  z-index:2;
+}
+a.panel[data-id=tetris] .label{left:8%;bottom:10%}
+
+/* Desktop: same chop idea, wider proportions */
 @media (min-width:700px){
-  a.panel.splash{grid-column:span 4;grid-row:span 2;min-height:320px}
-  a.panel[data-id=dogwalk]{grid-column:span 2;grid-row:span 2;min-height:320px}
-  a.panel[data-id=scooter],a.panel[data-id=laundry],
-  a.panel[data-id=dice],a.panel[data-id=commute]{grid-column:span 3;min-height:200px}
-  a.panel[data-id=findit],a.panel[data-id=minesweeper],a.panel[data-id=tetris]{grid-column:span 2;min-height:190px}
+  .spread{height:980px}
+  a.panel[data-id=slots]{height:22%; --poly:polygon(0% 0%, 100% 0%, 100% 100%, 0% 72%)}
+  a.panel[data-id=dogwalk]{top:18%;height:22%;width:50%; --poly:polygon(0% 18%, 100% 0%, 88% 100%, 0% 100%)}
+  a.panel[data-id=scooter]{top:16%;height:24%;width:52%;left:46%; --poly:polygon(16% 0%, 100% 10%, 100% 100%, 0% 86%)}
+  a.panel[data-id=laundry]{top:37%;height:18%}
+  a.panel[data-id=dice]{top:37%;height:19%}
+  a.panel[data-id=commute]{top:52%;height:18%}
+  a.panel[data-id=findit]{top:66%;height:22%}
+  a.panel[data-id=minesweeper]{top:67%;height:20%}
+  a.panel[data-id=tetris]{top:66%;height:32%}
+  a.panel .label{font-size:22px;max-width:260px}
+  a.panel .label small{font-size:11px}
 }
-.caption{
-  margin:10px 2px 0;font-family:Bangers,cursive;font-size:22px;color:#111;
-  background:#ffe566;display:inline-block;padding:4px 10px;border:3px solid #111;
-  box-shadow:3px 3px 0 #111;
-}
-.arch{display:block;text-align:center;margin-top:14px;color:#9eb0c8;font:700 12px "Comic Neue",cursive;text-decoration:none}
+
+.arch{display:block;text-align:center;margin-top:12px;color:#8fa0b8;font:700 12px "Comic Neue",cursive;text-decoration:none}
+
 @media (prefers-reduced-motion:reduce){
   a.panel,a.panel:hover,a.panel:active{transition:none;transform:none}
 }
@@ -106,41 +236,51 @@ a.panel.splash .t{font-size:clamp(22px,6vw,34px)}
 </head>
 <body>
 <div id="wrap">
-  <header>
-    <div>
-      <h1 class="brand" id="brand"></h1>
+  <div class="tools">
+    <a href="../">←</a>
+    <button type="button" id="lang">UA</button>
+  </div>
+  <div class="page">
+    <div class="title-strip">
+      <h1 id="brand"></h1>
       <p class="sub" id="sub"></p>
     </div>
-    <div class="tools">
-      <a href="../">←</a>
-      <button type="button" id="lang">UA</button>
-    </div>
-  </header>
-  <div class="page">
-    <div class="caption" id="pick"></div>
-    <div class="panels" id="list" style="margin-top:10px"></div>
+    <div class="spread" id="list"></div>
   </div>
   <a class="arch" id="arch" href="../../raycaster/"></a>
 </div>
 <script src="../games.js"></script>
 <script>
 const {G,T,createLang,archHref}=MenuConcepts;
+/* Label style per game — mix of angular / round / burst / caption, overlapping cuts */
+const BUBBLE={
+  slots:'angular',
+  dogwalk:'burst',
+  scooter:'round',
+  laundry:'caption',
+  dice:'angular',
+  commute:'burst',
+  findit:'caption',
+  minesweeper:'round',
+  tetris:'angular',
+};
 const list=document.getElementById('list');
 const langCtrl=createLang(render);
 function render(lang){
   const L=T[lang];
   brand.textContent=L.brand;
-  sub.textContent=L.sub;
-  pick.textContent=L.pick+'!';
+  sub.textContent=L.pick+'!';
   arch.textContent=L.arch;
   arch.href=archHref;
   langBtn.textContent=langCtrl.label();
-  list.innerHTML=G.map((g,i)=>`
-    <a class="panel${i===0?' splash':''}" data-id="${g.id}" href="${g.h}">
-      <img src="${g.img}" alt="" loading="lazy" width="780" height="844">
-      <div class="ink"></div>
-      <div class="bubble"><div class="t">${g.e} ${g[lang][0]}</div><div class="d">${g[lang][1]}</div></div>
-    </a>`).join('');
+  list.innerHTML=G.map(g=>{
+    const kind=BUBBLE[g.id]||'caption';
+    const short=g[lang][1];
+    return `<a class="panel" data-id="${g.id}" href="${g.h}" aria-label="${g[lang][0]}">
+      <span class="art"><img src="${g.img}" alt="" loading="lazy" width="780" height="844"></span>
+      <span class="label ${kind}">${g[lang][0]}<small>${short}</small></span>
+    </a>`;
+  }).join('');
 }
 const langBtn=document.getElementById('lang');
 langBtn.onclick=()=>langCtrl.toggle();

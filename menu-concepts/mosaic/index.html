@@ -54,15 +54,23 @@ a.tile img{
 }
 a.tile .scrim{
   position:absolute;inset:0;
-  background:linear-gradient(180deg,transparent 35%,rgba(4,10,18,.88) 100%);
+  background:linear-gradient(180deg,transparent 45%,rgba(4,10,18,.9) 100%);
 }
 a.tile .meta{position:absolute;left:10px;right:10px;bottom:10px;z-index:1}
 a.tile .t{font-family:Unbounded,sans-serif;font-weight:600;font-size:14px;letter-spacing:-.01em}
 a.tile .d{margin-top:3px;font-size:11px;line-height:1.35;color:#d5e0ea;opacity:.92;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 a.tile.hero .t{font-size:clamp(16px,4.2vw,22px)}
-a.tile.hero .d{-webkit-line-clamp:3}
-/* mobile bento */
-a.tile[data-id=slots]{grid-column:1/-1;min-height:200px}
+a.tile.hero .d{-webkit-line-clamp:2}
+/* mobile bento — slots focuses on reels crop, not page chrome */
+a.tile[data-id=slots]{grid-column:1/-1;min-height:220px}
+a.tile[data-id=slots] img{object-position:center center}
+a.tile[data-id=slots] .scrim{
+  background:linear-gradient(180deg,transparent 55%,rgba(4,10,18,.92) 100%);
+}
+a.tile[data-id=slots] .meta{
+  left:12px;right:auto;bottom:12px;max-width:70%;
+  background:rgba(4,10,18,.72);padding:8px 10px;border-radius:10px;
+}
 a.tile[data-id=dogwalk],a.tile[data-id=scooter]{min-height:150px}
 a.tile[data-id=commute]{grid-column:1/-1;min-height:140px}
 @media (min-width:720px){
