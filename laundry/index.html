@@ -18,27 +18,75 @@ html,body{margin:0;height:100%;background:#0c1220;color:#f1f5f9;font-family:"Seg
   height:100dvh;
   max-height:100dvh;
   margin:0 auto;
-  padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px);
+  /* Left/right/bottom only — top inset is applied on nav + HUD so absolute
+     children (positioned against the padding edge) clear the notch together. */
+  padding:0 env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px);
   background:linear-gradient(165deg,#152238 0%,#0c1220 55%,#101828 100%);
   flex:0 0 auto;
   overflow:hidden;
   box-sizing:border-box;
 }
 canvas#game{display:block;width:100%;height:100%;background:transparent}
-/* Wrap already applies safe-area padding — HUD only clears the fixed nav row. */
-#hud{position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;padding:40px 8px 0;z-index:3}
-#hud .top{display:flex;justify-content:space-between;align-items:center;gap:6px;min-height:30px;padding:2px 0 6px;background:linear-gradient(180deg,#0c1220f2 60%,#0c122000)}
+
+/* Nav is ABSOLUTE inside wrap (same box as HUD) — not viewport-fixed —
+   so Safari and WKWebView share one safe-area top inset. */
+#nav{
+  position:absolute;
+  top:calc(6px + env(safe-area-inset-top,0px));
+  left:6px;right:6px;
+  z-index:50;pointer-events:auto;
+  display:flex;flex-wrap:nowrap;gap:5px;align-items:center;overflow:hidden;
+}
+#nav a{color:#e2e8f0;font-size:11px;text-decoration:none;background:#0f172add;padding:6px 9px;border-radius:999px;font-weight:600;white-space:nowrap}
+#nav a.menu{background:#facc15;color:#111;font-weight:800}
+@media (max-width:360px){
+  #nav a:not(.menu){display:none}
+}
+
+/* HUD sits below the nav row; top padding includes the same safe-area inset. */
+#hud{
+  position:absolute;inset:0;pointer-events:none;
+  display:flex;flex-direction:column;
+  padding:calc(42px + env(safe-area-inset-top,0px)) 8px 0;
+  z-index:3;
+}
+#hudChrome{
+  display:flex;flex-direction:column;gap:4px;
+  padding:2px 0 8px;
+  background:linear-gradient(180deg,#0c1220f5 70%,#0c122000);
+}
+#hud .top{display:flex;justify-content:space-between;align-items:center;gap:6px;min-height:28px}
 #hud .title{font-weight:800;font-size:14px;letter-spacing:.02em;text-shadow:0 1px 2px #0008;white-space:nowrap}
 #hud .hint{display:none}
 #hud .meta{display:flex;align-items:center;gap:6px;font-size:11px;text-shadow:0 1px 2px #0008;flex-wrap:nowrap}
 #hud .btns{display:flex;gap:4px}
-#hud .stats{display:flex;align-items:center;gap:6px;font-variant-numeric:tabular-nums;white-space:nowrap}
+#hud .stats{display:flex;align-items:center;gap:8px;font-variant-numeric:tabular-nums;white-space:nowrap}
 #lang,#pauseBtn{pointer-events:auto;border:0;border-radius:999px;background:#1e293bcc;color:#fff;font-weight:800;padding:5px 9px;font-size:11px}
 #pauseBtn{min-width:30px;padding:5px 8px}
 #pauseBtn.hidden{display:none}
-#timerLine{font-weight:800;font-size:12px}
-#timerLine.warn{color:#fbbf24}
-#timerLine.danger{color:#fb7185}
+
+/* Prominent timer — large seconds + static bar (no blink). */
+#timerBlock{display:none;align-items:center;gap:10px;padding:2px 2px 0}
+#timerBlock.show{display:flex}
+#timerBig{
+  font-weight:900;font-size:28px;line-height:1;letter-spacing:.02em;
+  font-variant-numeric:tabular-nums;min-width:2.4ch;text-align:center;
+  text-shadow:0 1px 2px #000a;color:#f8fafc;
+}
+#timerBig.warn{color:#fbbf24}
+#timerBig.danger{color:#fb7185}
+#timerTrack{
+  flex:1;height:8px;border-radius:999px;background:#1e293b;
+  border:1px solid #334155;overflow:hidden;
+}
+#timerFill{
+  height:100%;width:100%;border-radius:999px;background:#38bdf8;
+  transform-origin:left center;transform:scaleX(1);
+  /* no transition — fill is set from JS each tick; avoids flash */
+}
+#timerFill.warn{background:#fbbf24}
+#timerFill.danger{background:#fb7185}
+
 #overlay,#pauseOverlay,#washOverlay{
   position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:6;
   padding:calc(24px + env(safe-area-inset-top,0px)) 20px calc(24px + env(safe-area-inset-bottom,0px));
@@ -59,12 +107,6 @@ canvas#game{display:block;width:100%;height:100%;background:transparent}
 #overlay p,#pauseOverlay p{margin:0 0 14px;opacity:.88;line-height:1.45;max-width:320px}
 #overlay .stats{font-size:13px;opacity:.9;margin:0 0 16px;line-height:1.5}
 #overlay button{pointer-events:auto;border:0;border-radius:999px;background:#facc15;color:#111;font-weight:800;font-size:1.05rem;padding:12px 28px}
-#nav{position:fixed;top:calc(6px + env(safe-area-inset-top,0px));left:max(6px,env(safe-area-inset-left,0px));right:max(6px,env(safe-area-inset-right,0px));z-index:50;pointer-events:auto;display:flex;flex-wrap:nowrap;gap:5px;align-items:center;overflow:hidden}
-#nav a{color:#e2e8f0;font-size:11px;text-decoration:none;background:#0f172add;padding:6px 9px;border-radius:999px;font-weight:600;white-space:nowrap}
-#nav a.menu{background:#facc15;color:#111;font-weight:800}
-@media (max-width:360px){
-  #nav a:not(.menu){display:none}
-}
 @media (prefers-reduced-motion:reduce){
   #washOverlay .washer::after{transition:none}
 }
@@ -75,19 +117,24 @@ canvas#game{display:block;width:100%;height:100%;background:transparent}
   <canvas id="game" width="360" height="640"></canvas>
   <div id="nav"><a class="menu" href="../menu/">☰ Меню</a><a href="../">Слоти</a><a href="../dogwalk/">Прогулянка</a><a href="../scooter/">Самокат</a></div>
   <div id="hud">
-    <div class="top">
-      <div class="title" id="tTitle">Стирка</div>
-      <div class="hint" id="hint"></div>
-      <div class="meta">
-        <div class="stats">
-          <span id="roundLine"></span>
-          <span id="timerLine"></span>
-          <span id="scoreLine"></span>
+    <div id="hudChrome">
+      <div class="top">
+        <div class="title" id="tTitle">Стирка</div>
+        <div class="hint" id="hint"></div>
+        <div class="meta">
+          <div class="stats">
+            <span id="roundLine"></span>
+            <span id="scoreLine"></span>
+          </div>
+          <div class="btns">
+            <button type="button" id="pauseBtn" class="hidden" title="Pause">⏸</button>
+            <button type="button" id="lang">UA</button>
+          </div>
         </div>
-        <div class="btns">
-          <button type="button" id="pauseBtn" class="hidden" title="Pause">⏸</button>
-          <button type="button" id="lang">UA</button>
-        </div>
+      </div>
+      <div id="timerBlock" aria-live="polite">
+        <div id="timerBig">60</div>
+        <div id="timerTrack"><div id="timerFill"></div></div>
       </div>
     </div>
   </div>

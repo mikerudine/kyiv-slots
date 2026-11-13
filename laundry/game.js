@@ -1,6 +1,6 @@
 /* One Day in Kyiv — laundry match-3 v2 (board + colour baskets + timed rounds) */
 import {
-  COLS, ROWS, ITEM_KINDS, COLOURS,
+  COLS, ROWS, ITEM_KINDS, ITEM_TYPES, COLOURS,
   QUICK_WASH_WINDOW, QUICK_WASH_BONUS,
   coloursForRound, durationForRound,
   createGame, findMatches, adjacent,
@@ -12,7 +12,8 @@ const ctx = canvas.getContext('2d', { alpha: true });
 
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const SWAP_MS = reduceMotion ? 0.01 : 0.12;
-const FALL_MS = reduceMotion ? 0.01 : 0.16;
+const CLEAR_MS = reduceMotion ? 0.01 : 0.2;
+const FALL_MS = reduceMotion ? 0.01 : 0.18;
 const WASH_MS = reduceMotion ? 0.15 : 0.9;
 
 // Layout is recomputed from the wrap’s CSS box so the 8×8 board can use
@@ -30,25 +31,24 @@ let BASKET_STRIP_W = 348;
 let BASKET_STRIP_H = 96;
 
 const MARGIN_X = 6;
-const BOARD_BASKET_GAP = 8;
-const BOTTOM_PAD = 10;
-const HEADER_GAP = 10; // air between measured header bottom and board top
-/** Chip sizing — reserve 2 rows so 7-colour boards keep the same CELL. */
-const BASKET_CHIP_H = 44;
-const BASKET_GAP = 5;
+const BOARD_BASKET_GAP = 6;
+const BOTTOM_PAD = 8;
+const HEADER_GAP = 8; // air between measured HUD chrome and board top
+/** Basket chip sizing — reserve 2 rows so 7-colour boards keep the same CELL. */
+const BASKET_CHIP_H = 56;
+const BASKET_GAP = 4;
 const BASKET_ROWS_MAX = 2;
 const BASKET_STRIP_H_RESERVE = BASKET_ROWS_MAX * BASKET_CHIP_H + (BASKET_ROWS_MAX - 1) * BASKET_GAP;
 
-/** Pixels from canvas top to just below the HUD header row (measured). */
+/** Pixels from canvas top to just below the HUD chrome (title + timer). */
 function topUiPx() {
-  const hudTop = document.querySelector('#hud .top');
+  const chrome = document.getElementById('hudChrome');
   const canvasRect = canvas.getBoundingClientRect();
-  if (!hudTop || !canvasRect.height) return 78;
-  const r = hudTop.getBoundingClientRect();
-  // Map CSS px → logical canvas coords (canvas CSS size === logical W×H).
+  if (!chrome || !canvasRect.height) return 96;
+  const r = chrome.getBoundingClientRect();
   const scaleY = H / canvasRect.height;
   const below = (r.bottom - canvasRect.top) * scaleY;
-  return Math.max(70, Math.ceil(below) + HEADER_GAP);
+  return Math.max(88, Math.ceil(below) + HEADER_GAP);
 }
 
 function relayout() {
@@ -57,8 +57,8 @@ function relayout() {
   H = Math.max(420, Math.round(rect.height) || 640);
 
   const top = topUiPx();
-  // CELL uses the max basket-strip reserve so the board doesn’t shrink when colours are added.
-  CELL = Math.max(26, Math.floor(Math.min(
+  // Always reserve 2 basket rows so CELL / BOARD_Y never jump when colours unlock.
+  CELL = Math.max(24, Math.floor(Math.min(
     (W - MARGIN_X * 2) / COLS,
     (H - top - BOTTOM_PAD - BOARD_BASKET_GAP - BASKET_STRIP_H_RESERVE) / ROWS,
   )));
@@ -67,17 +67,10 @@ function relayout() {
   BOARD_X = Math.floor((W - BOARD_W) / 2);
   BASKET_STRIP_W = W - MARGIN_X * 2;
   BASKET_STRIP_X = MARGIN_X;
-
-  // Actual strip height follows current colour count (1 row ≤4, else 2).
-  const nColours = (typeof game !== 'undefined' && game.state && game.state.baskets.length)
-    ? game.state.baskets.length
-    : 3;
-  const basketRows = nColours <= 4 ? 1 : 2;
-  BASKET_STRIP_H = basketRows * BASKET_CHIP_H + (basketRows - 1) * BASKET_GAP;
+  BASKET_STRIP_H = BASKET_STRIP_H_RESERVE;
 
   const blockH = BOARD_H + BOARD_BASKET_GAP + BASKET_STRIP_H;
   const available = H - top - BOTTOM_PAD;
-  // Centre board+baskets under the header when height allows (tall phones / desktop).
   const startY = top + Math.max(0, Math.floor((available - blockH) / 2));
   BOARD_Y = startY;
   BASKET_STRIP_Y = BOARD_Y + BOARD_H + BOARD_BASKET_GAP;
@@ -92,7 +85,8 @@ function basketLayout(n) {
   const chipW = (BASKET_STRIP_W - gap * (cols - 1)) / cols;
   const chipH = BASKET_CHIP_H;
   const usedH = rows * chipH + (rows - 1) * gap;
-  const originY = BASKET_STRIP_Y;
+  // Vertically centre the used rows inside the reserved strip.
+  const originY = BASKET_STRIP_Y + Math.max(0, (BASKET_STRIP_H - usedH) / 2);
   return { cols, rows, gap, chipW, chipH, originY, originX: BASKET_STRIP_X, usedH };
 }
 
@@ -111,12 +105,12 @@ function basketRect(i, n) {
 const I18N = {
   ua: {
     title: 'Стирка',
-    hint: '3+ однакових (тип+колір) → у кошик кольору. Заповни кошик, поки є світло.',
+    hint: '3+ однакових шкарпеток одного кольору → у кошик. Заповни кошик, поки є світло.',
     round: (n) => `Раунд ${n}`,
-    timer: (s) => `${Math.ceil(s)} с`,
+    timer: (s) => `${Math.ceil(s)}`,
     score: (s) => `рахунок ${s | 0}`,
     overlayTitle: 'Стирка',
-    overlayBody: 'Збирай 3+ однакових речей (той самий тип і колір). У кошик іде колір: червоні шкарпетки й футболки — в один кошик. Заповнений кошик — у пральну, новий таймер. Кожен 3-й раунд: новий колір і менше часу.',
+    overlayBody: 'Збирай 3+ шкарпетки одного кольору. Кожен колір має свій кошик. Заповнений кошик — у пральну машину, новий таймер. Кожен 3-й раунд: новий колір і менше часу.',
     start: 'Старт', again: 'Ще раз',
     powerTitle: 'Світло скінчилось',
     shutdownTitle: 'Екстрене відключення',
@@ -125,17 +119,17 @@ const I18N = {
     pause: 'Пауза', pauseBody: 'Торкніться, щоб продовжити',
     wash: 'Прання…',
     washQuick: 'Швидке прання!',
-    basketFull: 'Повний — завантажити',
+    basketFull: 'Повний',
     load: 'У машину',
   },
   en: {
     title: 'Laundry',
-    hint: 'Match 3+ same type+colour → colour basket. Fill a basket while the power lasts.',
+    hint: 'Match 3+ socks of the same colour → colour basket. Fill a basket while the power lasts.',
     round: (n) => `Round ${n}`,
-    timer: (s) => `${Math.ceil(s)} s`,
+    timer: (s) => `${Math.ceil(s)}`,
     score: (s) => `score ${s | 0}`,
     overlayTitle: 'Laundry',
-    overlayBody: 'Match 3+ identical items (same type and colour). Baskets are per colour: red socks and red tees share the red basket. A full basket goes into the washer and a new timer starts. Every 3rd round: a new colour and less time.',
+    overlayBody: 'Match 3+ socks of the same colour. Each colour has its own basket. A full basket goes into the washer and a new timer starts. Every 3rd round: a new colour and less time.',
     start: 'Start', again: 'Again',
     powerTitle: 'Power ran out',
     shutdownTitle: 'Emergency shutdown',
@@ -144,7 +138,7 @@ const I18N = {
     pause: 'Paused', pauseBody: 'Tap to resume',
     wash: 'Washing…',
     washQuick: 'Quick wash!',
-    basketFull: 'Full — load',
+    basketFull: 'Full',
     load: 'Load',
   },
 };
@@ -159,7 +153,7 @@ let paused = false;
 let anims = [];
 let washFx = null; // { until, quick, colour }
 let tileFx = new Map(); // id -> { ox, oy, scale, clear, fall0 }
-let pulseFull = 0;
+let flyParts = []; // optional clear→basket particles (static ease, no blink)
 
 const pauseBtn = document.getElementById('pauseBtn');
 const pauseOverlay = document.getElementById('pauseOverlay');
@@ -176,12 +170,10 @@ function resizeCanvas() {
   canvas.style.height = '100%';
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.imageSmoothingEnabled = true;
-  // Measure header after the canvas CSS box matches the wrap, then place the board.
   relayout();
 }
 resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
-// Relayout once fonts/nav/HUD settle (header measure needs a painted frame).
 requestAnimationFrame(() => { resizeCanvas(); });
 setTimeout(() => resizeCanvas(), 50);
 
@@ -209,16 +201,29 @@ function syncHud() {
   const L = t();
   const live = s.running || s.over;
   document.getElementById('roundLine').textContent = live ? L.round(s.round) : '';
-  const tl = document.getElementById('timerLine');
-  if (s.running && !s.over) {
-    tl.textContent = L.timer(Math.max(0, s.timeLeft));
-    tl.classList.toggle('warn', s.timeLeft <= 15 && s.timeLeft > 5);
-    tl.classList.toggle('danger', s.timeLeft <= 5);
-  } else {
-    tl.textContent = '';
-    tl.classList.remove('warn', 'danger');
-  }
   document.getElementById('scoreLine').textContent = live ? L.score(s.score) : '';
+
+  const block = document.getElementById('timerBlock');
+  const big = document.getElementById('timerBig');
+  const fill = document.getElementById('timerFill');
+  if (s.running && !s.over) {
+    block.classList.add('show');
+    const secs = Math.max(0, s.timeLeft);
+    big.textContent = L.timer(secs);
+    const frac = Math.max(0, Math.min(1, secs / Math.max(1, s.duration)));
+    fill.style.transform = `scaleX(${frac})`;
+    const warn = secs <= 15 && secs > 10;
+    const danger = secs <= 10;
+    big.classList.toggle('warn', warn);
+    big.classList.toggle('danger', danger);
+    fill.classList.toggle('warn', warn);
+    fill.classList.toggle('danger', danger);
+  } else {
+    block.classList.remove('show');
+    big.classList.remove('warn', 'danger');
+    fill.classList.remove('warn', 'danger');
+    fill.style.transform = 'scaleX(1)';
+  }
 }
 
 function syncPauseBtn() {
@@ -313,14 +318,13 @@ function afterWashResult(wash) {
         syncHud();
         return false;
       }
-      // Capacity shrink may leave a basket already full — auto-load it
       const pre = game.state.baskets.findIndex((b) => b.full);
       if (pre >= 0) {
         const again = game.loadBasket(pre);
         afterWashResult(again);
         return false;
       }
-      // Recentre if colour count / basket rows changed with the new round.
+      // Strip height is reserved — no layout jump; still refresh measure.
       resizeCanvas();
       busy = false;
       syncHud();
@@ -344,6 +348,124 @@ function tweenSwapOffset(a, b, dx, dy, startFrac, endFrac, then) {
     fb.ox = -dx * e; fb.oy = -dy * e;
     if (t0 >= 1) {
       then();
+      return false;
+    }
+    return true;
+  });
+}
+
+function snapshotIdPositions(board) {
+  const map = new Map();
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    const tile = board[r][c];
+    if (tile) map.set(tile.id, { r, c });
+  }
+  return map;
+}
+
+function runFallFrom(beforePos, res) {
+  const falling = [];
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    const tile = game.state.board[r][c];
+    if (!tile) continue;
+    const f = fxFor(tile);
+    f.ox = 0;
+    f.scale = 1;
+    f.clear = 0;
+    const prev = beforePos.get(tile.id);
+    if (prev) {
+      f.oy = reduceMotion ? 0 : (prev.r - r) * CELL;
+    } else {
+      // New tile entering from above — short calm drop, not a sky-fall of the whole board.
+      f.oy = reduceMotion ? 0 : -CELL * (1.1 + (r % 3) * 0.08);
+    }
+    f.fall0 = f.oy;
+    if (f.oy !== 0) falling.push(f);
+  }
+  if (!falling.length) {
+    syncHud();
+    if (res && res.wash && res.wash.ok) afterWashResult(res.wash);
+    else busy = false;
+    return;
+  }
+  let u = 0;
+  anims.push((dt) => {
+    u += dt / FALL_MS;
+    const t0 = Math.min(1, u);
+    const e = t0 * t0 * (3 - 2 * t0);
+    for (const f of falling) f.oy = (f.fall0 || 0) * (1 - e);
+    if (t0 >= 1) {
+      for (const f of falling) { f.oy = 0; f.fall0 = null; }
+      syncHud();
+      if (res && res.wash && res.wash.ok) afterWashResult(res.wash);
+      else busy = false;
+      return false;
+    }
+    return true;
+  });
+}
+
+function animateClearThenResolve(matchCells) {
+  const board = game.state.board;
+  const clearing = [];
+  const nB = game.state.baskets.length;
+
+  for (const { r, c } of matchCells) {
+    const tile = board[r][c];
+    if (!tile) continue;
+    const f = fxFor(tile);
+    f.ox = 0;
+    f.oy = 0;
+    clearing.push({ tile, f, r, c, colour: tile.colour, kind: tile.kind });
+    // Soft fly-to-basket particle (skipped under reduced motion).
+    if (!reduceMotion && tile.colour < nB) {
+      const from = posOf(r, c);
+      const br = basketRect(tile.colour, nB);
+      flyParts.push({
+        x0: from.x, y0: from.y,
+        x1: br.x + br.w / 2, y1: br.y + br.h * 0.4,
+        colour: tile.colour, kind: tile.kind,
+        u: 0, life: CELL * 0.45,
+      });
+    }
+  }
+
+  if (reduceMotion || !clearing.length) {
+    const beforePos = snapshotIdPositions(board);
+    // Remove matched tiles from fx map after resolve; snapshot first.
+    const res = game.resolveBoard();
+    // Drop fx for destroyed tiles; keep survivors.
+    const live = new Set();
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+      const t = game.state.board[r][c];
+      if (t) live.add(t.id);
+    }
+    for (const id of [...tileFx.keys()]) if (!live.has(id)) tileFx.delete(id);
+    runFallFrom(beforePos, res);
+    return;
+  }
+
+  let u = 0;
+  anims.push((dt) => {
+    u += dt / CLEAR_MS;
+    const t0 = Math.min(1, u);
+    const e = t0 * t0 * (3 - 2 * t0);
+    for (const g of clearing) {
+      g.f.scale = 1 - e * 0.85;
+      g.f.clear = e;
+    }
+    for (const p of flyParts) p.u = Math.min(1, t0);
+    if (t0 >= 1) {
+      flyParts = [];
+      const beforePos = snapshotIdPositions(board);
+      const res = game.resolveBoard();
+      const live = new Set();
+      for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+        const t = game.state.board[r][c];
+        if (t) live.add(t.id);
+      }
+      for (const id of [...tileFx.keys()]) if (!live.has(id)) tileFx.delete(id);
+      runFallFrom(beforePos, res);
       return false;
     }
     return true;
@@ -377,32 +499,14 @@ function attemptSwap(r1, c1, r2, c2) {
       });
       return;
     }
-    const res = game.swap(r1, c1, r2, c2);
-    tileFx.clear();
-    const falling = [];
-    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
-      const tile = game.state.board[r][c];
-      if (!tile) continue;
-      const f = fxFor(tile);
-      f.oy = reduceMotion ? 0 : -CELL * (1 + ((r + c) % 3) * 0.15);
-      f.fall0 = f.oy;
-      falling.push(f);
-    }
-    let u = 0;
-    anims.push((dt) => {
-      u += dt / FALL_MS;
-      const t0 = Math.min(1, u);
-      const e = t0 * t0 * (3 - 2 * t0);
-      for (const f of falling) f.oy = (f.fall0 || 0) * (1 - e);
-      if (t0 >= 1) {
-        for (const f of falling) { f.oy = 0; f.fall0 = null; }
-        syncHud();
-        if (res.wash && res.wash.ok) afterWashResult(res.wash);
-        else busy = false;
-        return false;
-      }
-      return true;
-    });
+    // Commit swap on the board, reset visual offsets (tiles now live in new cells).
+    board[r1][c1] = b;
+    board[r2][c2] = a;
+    const fa = fxFor(a); const fb = fxFor(b);
+    fa.ox = fa.oy = fb.ox = fb.oy = 0;
+
+    const matchCells = findMatches(board).cells;
+    animateClearThenResolve(matchCells);
   });
   return true;
 }
@@ -517,6 +621,7 @@ document.getElementById('oBtn').addEventListener('click', () => {
   busy = false;
   paused = false;
   anims = [];
+  flyParts = [];
   tileFx.clear();
   hideWash();
   pauseOverlay.classList.remove('show');
@@ -524,6 +629,8 @@ document.getElementById('oBtn').addEventListener('click', () => {
   syncPauseBtn();
   applyLang();
   syncHud();
+  // Timer block appears — remasure HUD chrome.
+  requestAnimationFrame(() => resizeCanvas());
 });
 
 // ---- drawing ----
@@ -599,7 +706,7 @@ function drawItemShape(kind, colourHex, s) {
     ctx.stroke();
     ctx.fillStyle = 'rgba(255,255,255,0.35)';
     ctx.fillRect(-h * 0.26, -h * 0.72, h * 0.48, h * 0.18);
-  } else if (kind === 1) { // briefs
+  } else if (kind === 1) { // briefs (kept for future ITEM_TYPES)
     ctx.beginPath();
     ctx.moveTo(-h * 0.58, -h * 0.22);
     ctx.lineTo(h * 0.58, -h * 0.22);
@@ -640,13 +747,11 @@ function drawTile(tile, x, y, sel) {
   ctx.translate(x + (f ? f.ox : 0), y + (f ? f.oy : 0));
   if (f && f.clear) ctx.globalAlpha = Math.max(0, 1 - f.clear);
 
-  // soft cell plate
   ctx.fillStyle = 'rgba(15,23,42,0.35)';
   roundRect(-s / 2, -s / 2, s, s, 8);
   ctx.fill();
 
   drawItemShape(tile.kind, col.hex, s * 0.92);
-  // colour-blind mark (static, corner)
   ctx.save();
   ctx.translate(s * 0.28, -s * 0.28);
   drawColourMark(col.mark, s * 0.7);
@@ -662,7 +767,6 @@ function drawTile(tile, x, y, sel) {
 }
 
 function drawBoard() {
-  // tray
   ctx.fillStyle = 'rgba(15,23,42,0.55)';
   roundRect(BOARD_X - 4, BOARD_Y - 4, BOARD_W + 8, BOARD_H + 8, 12);
   ctx.fill();
@@ -671,7 +775,6 @@ function drawBoard() {
   roundRect(BOARD_X - 4, BOARD_Y - 4, BOARD_W + 8, BOARD_H + 8, 12);
   ctx.stroke();
 
-  // faint grid (static, not animated)
   ctx.strokeStyle = 'rgba(51,65,85,0.45)';
   ctx.lineWidth = 1;
   for (let r = 0; r <= ROWS; r++) {
@@ -696,90 +799,212 @@ function drawBoard() {
   }
 }
 
+/** Mix hex colour toward white/black. amount in [-1,1]. */
+function shadeHex(hex, amount) {
+  const n = hex.replace('#', '');
+  const num = parseInt(n.length === 3 ? n.split('').map((c) => c + c).join('') : n, 16);
+  let r = (num >> 16) & 255;
+  let g = (num >> 8) & 255;
+  let b = num & 255;
+  if (amount >= 0) {
+    r = Math.round(r + (255 - r) * amount);
+    g = Math.round(g + (255 - g) * amount);
+    b = Math.round(b + (255 - b) * amount);
+  } else {
+    const a = -amount;
+    r = Math.round(r * (1 - a));
+    g = Math.round(g * (1 - a));
+    b = Math.round(b * (1 - a));
+  }
+  return `rgb(${r},${g},${b})`;
+}
+
+/**
+ * Draw a small woven/plastic laundry basket tinted with the colour,
+ * socks piled by fill level, count label, and a static full/load cue.
+ */
+function drawLaundryBasket(r, col, count, cap, full) {
+  const L = t();
+  const labelH = Math.max(11, Math.min(14, r.h * 0.22));
+  const basketH = r.h - labelH - 1;
+  const bx = r.x + 2;
+  const by = r.y + 1;
+  const bw = r.w - 4;
+  const bh = basketH;
+
+  const bodyTop = by + bh * 0.22;
+  const bodyBot = by + bh * 0.92;
+  const rimY = bodyTop;
+  const topInset = bw * 0.08;
+  const botInset = bw * 0.16;
+  const leftTop = bx + topInset;
+  const rightTop = bx + bw - topInset;
+  const leftBot = bx + botInset;
+  const rightBot = bx + bw - botInset;
+
+  const base = shadeHex(col.hex, -0.28);
+  const mid = shadeHex(col.hex, -0.08);
+  const lit = shadeHex(col.hex, 0.22);
+  const weave = shadeHex(col.hex, -0.42);
+
+  // Side handles (loops)
+  ctx.strokeStyle = shadeHex(col.hex, -0.35);
+  ctx.lineWidth = Math.max(1.5, bw * 0.04);
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.arc(leftTop - bw * 0.02, rimY + bh * 0.12, bh * 0.11, Math.PI * 0.55, Math.PI * 1.45);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(rightTop + bw * 0.02, rimY + bh * 0.12, bh * 0.11, Math.PI * 1.55, Math.PI * 0.45);
+  ctx.stroke();
+
+  // Basket body (trapezoid)
+  ctx.beginPath();
+  ctx.moveTo(leftTop, rimY);
+  ctx.lineTo(rightTop, rimY);
+  ctx.lineTo(rightBot, bodyBot);
+  ctx.lineTo(leftBot, bodyBot);
+  ctx.closePath();
+  const grad = ctx.createLinearGradient(bx, rimY, bx, bodyBot);
+  grad.addColorStop(0, lit);
+  grad.addColorStop(0.45, mid);
+  grad.addColorStop(1, base);
+  ctx.fillStyle = grad;
+  ctx.fill();
+  ctx.strokeStyle = full ? '#fde68a' : weave;
+  ctx.lineWidth = full ? 1.8 : 1.1;
+  ctx.stroke();
+
+  // Static weave / plastic ribs (no animation)
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(leftTop, rimY);
+  ctx.lineTo(rightTop, rimY);
+  ctx.lineTo(rightBot, bodyBot);
+  ctx.lineTo(leftBot, bodyBot);
+  ctx.closePath();
+  ctx.clip();
+  ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+  ctx.lineWidth = 1;
+  const ribs = Math.max(3, Math.floor(bw / 9));
+  for (let i = 1; i < ribs; i++) {
+    const t0 = i / ribs;
+    const x0 = leftTop + (rightTop - leftTop) * t0;
+    const x1 = leftBot + (rightBot - leftBot) * t0;
+    ctx.beginPath();
+    ctx.moveTo(x0, rimY);
+    ctx.lineTo(x1, bodyBot);
+    ctx.stroke();
+  }
+  const bands = Math.max(2, Math.floor(bh / 14));
+  for (let i = 1; i < bands; i++) {
+    const t0 = i / bands;
+    const y = rimY + (bodyBot - rimY) * t0;
+    const xl = leftTop + (leftBot - leftTop) * t0;
+    const xr = rightTop + (rightBot - rightTop) * t0;
+    ctx.beginPath();
+    ctx.moveTo(xl, y);
+    ctx.lineTo(xr, y);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // Rim lip
+  ctx.fillStyle = shadeHex(col.hex, 0.12);
+  roundRect(leftTop - 1, rimY - bh * 0.06, (rightTop - leftTop) + 2, bh * 0.1, 2);
+  ctx.fill();
+  if (full) {
+    ctx.strokeStyle = '#fde68a';
+    ctx.lineWidth = 1.4;
+    roundRect(leftTop - 1, rimY - bh * 0.06, (rightTop - leftTop) + 2, bh * 0.1, 2);
+    ctx.stroke();
+  }
+
+  // Socks piled inside (fill level)
+  const frac = Math.min(1, count / Math.max(1, cap));
+  const innerLeft = leftTop + bw * 0.06;
+  const innerRight = rightTop - bw * 0.06;
+  const innerBot = bodyBot - bh * 0.08;
+  const innerTop = rimY + bh * 0.08;
+  const fillTop = innerBot - (innerBot - innerTop) * frac;
+  if (frac > 0.02) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(leftTop + 2, rimY + 2);
+    ctx.lineTo(rightTop - 2, rimY + 2);
+    ctx.lineTo(rightBot - 2, bodyBot - 2);
+    ctx.lineTo(leftBot + 2, bodyBot - 2);
+    ctx.closePath();
+    ctx.clip();
+    // Soft laundry mound
+    ctx.fillStyle = shadeHex(col.hex, 0.35);
+    ctx.beginPath();
+    ctx.moveTo(innerLeft, innerBot);
+    ctx.lineTo(innerRight, innerBot);
+    ctx.quadraticCurveTo(innerRight - 2, fillTop, (innerLeft + innerRight) / 2, fillTop - bh * 0.04);
+    ctx.quadraticCurveTo(innerLeft + 2, fillTop, innerLeft, innerBot);
+    ctx.fill();
+    // Tiny sock silhouettes peeking out
+    const sockN = Math.min(5, Math.max(1, Math.ceil(frac * 5)));
+    for (let i = 0; i < sockN; i++) {
+      const sx = innerLeft + (innerRight - innerLeft) * ((i + 0.5) / sockN);
+      const sy = fillTop + bh * 0.06 + (i % 2) * bh * 0.04;
+      ctx.save();
+      ctx.translate(sx, sy);
+      ctx.rotate((i - sockN / 2) * 0.25);
+      drawItemShape(0, col.hex, Math.min(14, bw * 0.28));
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  // Colour-blind mark on rim
+  ctx.save();
+  ctx.translate((leftTop + rightTop) / 2, rimY - bh * 0.01);
+  drawColourMark(col.mark, Math.min(16, bw * 0.35));
+  ctx.restore();
+
+  // Count / full label below basket
+  const labelY = by + bh + labelH * 0.78;
+  ctx.textAlign = 'center';
+  if (full) {
+    ctx.fillStyle = '#fde68a';
+    ctx.font = `bold ${Math.max(8, Math.min(10, labelH - 2))}px system-ui,sans-serif`;
+    ctx.fillText(L.load, r.x + r.w / 2, labelY);
+  } else {
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = `bold ${Math.max(9, Math.min(11, labelH))}px system-ui,sans-serif`;
+    ctx.fillText(`${count}/${cap}`, r.x + r.w / 2, labelY);
+  }
+  ctx.textAlign = 'left';
+}
+
 function drawBaskets() {
   const baskets = game.state.baskets;
   const n = baskets.length;
   if (!n) return;
   const cap = game.state.capacity;
-  const L = t();
 
   for (let i = 0; i < n; i++) {
     const b = baskets[i];
     const col = COLOURS[i];
     const r = basketRect(i, n);
-    const pad = 5;
-    const name = lang === 'ua' ? col.ua : col.en;
-    // Full name only when swatch + name + count all fit; otherwise swatch + count (never truncate).
-    ctx.font = 'bold 9px system-ui,sans-serif';
-    const nameW = ctx.measureText(name).width;
-    ctx.font = 'bold 11px system-ui,sans-serif';
-    const countStr = `${b.count}/${cap}`;
-    const countW = ctx.measureText(countStr).width;
-    const showName = n <= 4 && r.w >= pad * 2 + 14 + 6 + nameW + 8 + countW;
+    drawLaundryBasket(r, col, b.count, cap, b.full);
+  }
+}
 
-    ctx.fillStyle = 'rgba(15,23,42,0.78)';
-    roundRect(r.x, r.y, r.w, r.h, 8);
-    ctx.fill();
-    ctx.strokeStyle = col.hex;
-    ctx.lineWidth = b.full ? 2.2 : 1.2;
-    roundRect(r.x, r.y, r.w, r.h, 8);
-    ctx.stroke();
-
-    if (b.full) {
-      const glow = reduceMotion ? 1 : (0.75 + Math.sin(pulseFull) * 0.25);
-      ctx.fillStyle = `rgba(250,204,21,${0.14 * glow})`;
-      roundRect(r.x, r.y, r.w, r.h, 8);
-      ctx.fill();
-    }
-
-    // colour swatch + mark
-    const sw = 14;
-    ctx.fillStyle = col.hex;
-    roundRect(r.x + pad, r.y + pad, sw, sw, 3);
-    ctx.fill();
+function drawFlyParts() {
+  for (const p of flyParts) {
+    const e = p.u * p.u * (3 - 2 * p.u);
+    const x = p.x0 + (p.x1 - p.x0) * e;
+    const y = p.y0 + (p.y1 - p.y0) * e - Math.sin(e * Math.PI) * 18;
+    const col = COLOURS[p.colour];
+    if (!col) continue;
     ctx.save();
-    ctx.translate(r.x + pad + sw / 2, r.y + pad + sw / 2);
-    drawColourMark(col.mark, sw + 4);
+    ctx.globalAlpha = Math.max(0, 1 - e * 0.85);
+    ctx.translate(x, y);
+    drawItemShape(p.kind, col.hex, p.size * (1 - e * 0.35));
     ctx.restore();
-
-    ctx.fillStyle = '#e2e8f0';
-    if (showName) {
-      ctx.font = 'bold 9px system-ui,sans-serif';
-      ctx.textAlign = 'left';
-      ctx.fillText(name, r.x + pad + sw + 5, r.y + pad + 11);
-      ctx.font = 'bold 11px system-ui,sans-serif';
-      ctx.textAlign = 'right';
-      ctx.fillText(countStr, r.x + r.w - pad, r.y + pad + 11);
-    } else {
-      // Swatch + count only (readable at 7 colours; no truncated words).
-      ctx.font = 'bold 12px system-ui,sans-serif';
-      ctx.textAlign = 'left';
-      ctx.fillText(countStr, r.x + pad + sw + 5, r.y + pad + 12);
-    }
-    ctx.textAlign = 'left';
-
-    // fill bar
-    const barX = r.x + pad;
-    const barY = r.y + r.h - pad - 7;
-    const barW = r.w - pad * 2;
-    const barH = 6;
-    ctx.fillStyle = 'rgba(30,41,59,0.95)';
-    roundRect(barX, barY, barW, barH, 2);
-    ctx.fill();
-    const frac = Math.min(1, b.count / Math.max(1, cap));
-    if (frac > 0) {
-      ctx.fillStyle = col.hex;
-      roundRect(barX, barY, Math.max(2, barW * frac), barH, 2);
-      ctx.fill();
-    }
-
-    if (b.full) {
-      ctx.fillStyle = '#fde68a';
-      ctx.font = 'bold 8px system-ui,sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(L.load, r.x + r.w / 2, barY - 4);
-      ctx.textAlign = 'left';
-    }
   }
 }
 
@@ -788,7 +1013,6 @@ function draw() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, W, H);
 
-  // atmosphere (static gradient — no scrolling patterns)
   const g = ctx.createLinearGradient(0, 0, 0, H);
   g.addColorStop(0, 'rgba(30,58,95,0.28)');
   g.addColorStop(0.45, 'rgba(12,18,32,0)');
@@ -798,22 +1022,13 @@ function draw() {
 
   drawBoard();
   drawBaskets();
+  drawFlyParts();
 }
 
 function update(dt) {
-  if (!game.state.running || paused || game.state.over) {
-    for (let i = anims.length - 1; i >= 0; i--) {
-      if (washFx && anims[i]) {
-        // allow wash anim to finish even if over mid-frame
-      }
-    }
-  }
-
   for (let i = anims.length - 1; i >= 0; i--) {
     if (!anims[i](dt)) anims.splice(i, 1);
   }
-
-  if (!reduceMotion) pulseFull += dt * 4;
 
   if (game.state.running && !paused && !game.state.over && !busy && !washFx) {
     const ev = game.tick(dt);
@@ -870,7 +1085,6 @@ window.__laundry = {
     syncOverlay();
     syncHud();
   },
-  // test helpers: set / fill basket counts (no auto-load)
   setBasketCount: (i, n) => {
     const b = game.state.baskets[i];
     if (!b) return false;
@@ -893,7 +1107,7 @@ window.__laundry = {
     return wash;
   },
   constants: () => ({
-    COLS, ROWS, ITEM_KINDS, COLOURS: COLOURS.map((c) => c.id),
+    COLS, ROWS, ITEM_KINDS, ITEM_TYPES, COLOURS: COLOURS.map((c) => c.id),
   }),
   /** Jump to a round (for layout shots with more colours). */
   forceRound: (round) => {
@@ -909,11 +1123,16 @@ window.__laundry = {
     busy = false;
     selected = null;
     tileFx.clear();
+    flyParts = [];
     resizeCanvas();
     syncHud();
     syncPauseBtn();
     syncOverlay();
-    return { round: game.state.round, colours: game.state.colourCount, kinds: coloursForRound(r) * 3 };
+    return {
+      round: game.state.round,
+      colours: game.state.colourCount,
+      kinds: coloursForRound(r) * ITEM_TYPES.length,
+    };
   },
 };
 

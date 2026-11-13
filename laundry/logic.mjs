@@ -2,17 +2,23 @@
  * Pure match-3 laundry logic (colour+type matching, per-colour baskets, timed rounds).
  * Tunable constants live at the top — adjust after sim/tests.
  *
- * Matching: same COLOUR and same ITEM TYPE (sock/briefs/tee).
+ * Matching: same COLOUR and same ITEM TYPE.
+ * Socks-only for now (`ITEM_TYPES = ['sock']`); add 'briefs'/'tee' later.
  * Baskets: per colour only — any matched red items fill the red basket.
  */
 
 // ---- tunable constants ----
-/** Board size — larger helps when kinds = colours × 3. */
+/** Board size. */
 export let COLS = 8;
 export let ROWS = 8;
 
-/** Item types — matching requires colour AND kind. */
-export const ITEM_KINDS = ['sock', 'briefs', 'tee'];
+/**
+ * Laundry item types. Matching requires colour AND type.
+ * Socks only for now — append 'briefs' / 'tee' later without changing match rules.
+ */
+export const ITEM_TYPES = ['sock'];
+/** Alias kept for existing call sites / UI. */
+export const ITEM_KINDS = ITEM_TYPES;
 
 /**
  * Colour palette (Ukrainian UI names). First START_COLOURS are active at round 1.
@@ -28,8 +34,8 @@ export const COLOURS = [
   { id: 'cyan', ua: 'блакитний', en: 'cyan', hex: '#0891b2', dark: '#0e7490', mark: 'diamond' },
 ];
 
-/** Start with 3 colours (= 9 tile kinds); +1 colour every COLOUR_EVERY_N_ROUNDS rounds. */
-export let START_COLOURS = 3;
+/** Start with 4 sock colours; +1 colour every COLOUR_EVERY_N_ROUNDS rounds. */
+export let START_COLOURS = 4;
 export const MAX_COLOURS = COLOURS.length; // 7
 /** New colour (+ basket) at the start of rounds 4, 7, 10… */
 export const COLOUR_EVERY_N_ROUNDS = 3;
@@ -43,23 +49,19 @@ export const QUICK_WASH_BONUS = 50;
 export const POINTS_PER_ITEM = 1;
 
 /**
- * Extra weight given to a neighbour’s (colour, kind) when refilling / dealing.
- * 0 = uniform; higher = more cascades and faster basket fill.
- */
-/**
  * Extra weight for a neighbour’s (colour, kind) when dealing/refilling.
- * Tuned: 1.0 keeps boards lively without melting cascades too fast.
+ * Socks-only boards cascade easily — keep bias modest.
  */
-export let REFILL_NEIGHBOR_BIAS = 1.0;
+export let REFILL_NEIGHBOR_BIAS = 0.85;
 
 /**
  * Base basket capacity at START_COLOURS. Scales with colour count.
- * Tuned via greedy sim for ~30–50s to first full basket (see logic-test.mjs).
+ * Tuned via greedy sim for ~30–45s to first full basket (socks-only).
  */
-export let BASKET_CAPACITY_BASE = 36;
+export let BASKET_CAPACITY_BASE = 48;
 
 /** Floor so late rounds with many colours stay reachable. */
-export let BASKET_CAPACITY_MIN = 12;
+export let BASKET_CAPACITY_MIN = 16;
 
 /** Apply a tune profile (used by the capacity sweep / tests). */
 export function applyTune(opts = {}) {
@@ -549,6 +551,18 @@ export function createGame(opts = {}) {
     return { ...res, newlyFull, wash };
   }
 
+  /**
+   * Resolve matches on the current board (caller already swapped tiles).
+   * Used by the UI clear animation so the board can fade before gravity.
+   */
+  function resolveBoard() {
+    if (!state.running || state.over) return { ok: false };
+    const { collected, waves } = resolveMatches(state.board, state.colourCount, rng, nextIdRef);
+    const newlyFull = addToBaskets(collected);
+    const wash = handleFills(newlyFull);
+    return { ok: true, invalid: false, collected, waves, newlyFull, wash };
+  }
+
   function tick(dt) {
     if (!state.running || state.over) return null;
     state.timeLeft -= dt;
@@ -610,6 +624,7 @@ export function createGame(opts = {}) {
     state,
     start,
     swap,
+    resolveBoard,
     tick,
     loadBasket,
     findMove: () => findMove(state.board),
