@@ -8,46 +8,330 @@
 <script data-goatcounter="https://mikerudine.goatcounter.com/count"
         async src="//gc.zgo.at/count.js"></script>
 <style>
+@font-face{
+  font-family:'Russo One';font-style:normal;font-weight:400;font-display:swap;
+  src:url('fonts/russo-one-cyrillic.woff2') format('woff2');
+  unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116;
+}
+@font-face{
+  font-family:'Russo One';font-style:normal;font-weight:400;font-display:swap;
+  src:url('fonts/russo-one-latin.woff2') format('woff2');
+  unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face{
+  font-family:'Rubik Mono One';font-style:normal;font-weight:400;font-display:swap;
+  src:url('fonts/rubik-mono-one-cyrillic.woff2') format('woff2');
+  unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116;
+}
+@font-face{
+  font-family:'Rubik Mono One';font-style:normal;font-weight:400;font-display:swap;
+  src:url('fonts/rubik-mono-one-latin.woff2') format('woff2');
+  unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face{
+  font-family:'Neucha';font-style:normal;font-weight:400;font-display:swap;
+  src:url('fonts/neucha-cyrillic.woff2') format('woff2');
+  unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116;
+}
+@font-face{
+  font-family:'Neucha';font-style:normal;font-weight:400;font-display:swap;
+  src:url('fonts/neucha-latin.woff2') format('woff2');
+  unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;min-height:100%;background:#0b1020;font-family:system-ui,-apple-system,sans-serif;color:#e2e8f0}
-#wrap{margin:0 auto;max-width:480px;min-height:100dvh;padding:calc(16px + env(safe-area-inset-top,0px)) 16px calc(20px + env(safe-area-inset-bottom,0px));background:radial-gradient(120% 60% at 50% 0%,#1e2a4a 0%,#0b1020 70%)}
-header{display:flex;align-items:center;justify-content:space-between}
-h1{margin:0;font-size:24px;color:#fde047}
-.sub{color:#94a3b8;font-size:13px;margin:4px 0 16px}
-#lang{border:0;border-radius:999px;background:#1e293b;color:#fde047;font-weight:800;padding:7px 13px}
-a.card{display:flex;align-items:center;gap:14px;background:#151d33;border:1px solid #26314f;border-radius:18px;padding:14px;margin-bottom:12px;text-decoration:none;color:inherit;transition:background .2s}
-a.card:active{background:#1e2a4a}
-.ic{font-size:34px;width:52px;height:52px;display:grid;place-items:center;background:#0b1020;border-radius:14px;flex:none}
-.t{font-weight:800;font-size:17px;color:#fde047}
-.d{font-size:13px;color:#cbd5e1;margin-top:2px}
-.arch{display:block;text-align:center;color:#64748b;font-size:12px;margin-top:18px}
+html,body{margin:0;min-height:100%;background:#141c2c;color:#111}
+#wrap{
+  margin:0 auto;max-width:780px;min-height:100dvh;
+  padding:calc(10px + env(safe-area-inset-top,0px)) 8px calc(18px + env(safe-area-inset-bottom,0px));
+}
+.page{
+  background:#fff;
+  border:7px solid #111;
+  background-image:radial-gradient(#00000010 1px,transparent 1.2px);
+  background-size:6px 6px;
+  background-color:#fff;
+}
+.title-strip{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  background:#ffe566;border-bottom:5px solid #111;padding:10px 12px;
+}
+.title-strip h1{
+  margin:0;font-family:'Russo One',sans-serif;font-size:clamp(1.2rem,5.8vw,2rem);
+  line-height:1.05;letter-spacing:.02em;color:#111;flex:1;min-width:0;
+}
+#lang{
+  appearance:none;border:3px solid #111;border-radius:0;background:#fff;color:#111;
+  font:400 13px/1 'Russo One',sans-serif;padding:7px 11px;cursor:pointer;flex:none;
+  box-shadow:2px 2px 0 #111;
+}
+.pick{
+  margin:0;padding:6px 12px 0;font-family:Neucha,sans-serif;font-size:14px;color:#333;
+}
+
+.spread{
+  display:grid;
+  grid-template-columns:1.05fr 0.95fr;
+  grid-template-areas:
+    "slots slots"
+    "dogwalk scooter"
+    "laundry dice"
+    "commute commute"
+    "findit mines"
+    "tetris tetris";
+  grid-template-rows:minmax(148px,17vw) minmax(128px,15vw) minmax(120px,14vw) minmax(128px,15vw) minmax(128px,15vw) minmax(120px,14vw);
+  gap:10px;
+  padding:10px;
+  background:#fff;
+}
+@media (min-width:700px){
+  .spread{grid-template-rows:200px 180px 170px 180px 180px 170px;gap:12px;padding:12px}
+}
+
+a.panel{
+  position:relative;display:block;min-height:72px;
+  text-decoration:none;color:#111;overflow:visible;z-index:1;
+  transition:transform .12s ease;
+}
+a.panel:focus-visible{outline:3px solid #ffe566;outline-offset:2px;z-index:9}
+@media (hover:hover){a.panel:hover{z-index:7;transform:scale(1.01)}}
+a.panel:active{transform:scale(.99)}
+
+a.panel .ink{
+  position:absolute;inset:0;clip-path:var(--poly);background:#111;z-index:0;
+}
+a.panel .shot{
+  position:absolute;inset:0;clip-path:var(--poly-in);z-index:1;overflow:hidden;background:#222;
+}
+a.panel .shot img{width:100%;height:100%;object-fit:cover;display:block}
+a.panel .outline{
+  position:absolute;inset:0;width:100%;height:100%;z-index:2;pointer-events:none;overflow:visible;
+}
+a.panel .outline polygon{
+  fill:none;stroke:#111;stroke-width:3.5;vector-effect:non-scaling-stroke;stroke-linejoin:miter;
+}
+
+a.panel .label{
+  position:absolute;z-index:5;pointer-events:none;
+  background:#fff;border:3px solid #111;padding:5px 8px;
+  font-family:'Russo One',sans-serif;font-size:clamp(12px,3.4vw,17px);
+  letter-spacing:.02em;line-height:1.05;color:#111;
+  max-width:min(92%,220px);box-shadow:2px 2px 0 #111;
+}
+a.panel .label small{
+  display:block;margin-top:2px;font-family:Neucha,sans-serif;font-size:11px;
+  letter-spacing:0;line-height:1.2;color:#333;
+}
+a.panel .label.round{border-radius:50% 48% 52% 50%/54% 50% 50% 46%;padding:8px 10px;text-align:center}
+a.panel .label.angular{border-radius:0;transform:rotate(-2deg)}
+a.panel .label.burst{
+  background:#ffe566;border-radius:0;transform:rotate(-5deg);
+  clip-path:polygon(50% 0%,64% 16%,90% 10%,80% 32%,100% 46%,82% 56%,94% 80%,70% 74%,56% 100%,46% 78%,20% 94%,28% 70%,0 62%,20% 48%,6% 22%,34% 28%);
+  padding:10px 12px;text-align:center;box-shadow:none;
+}
+a.panel .label.caption{border-radius:0;transform:skewX(-5deg)}
+
+a.panel .sfx{
+  position:absolute;z-index:6;pointer-events:none;
+  font-family:'Rubik Mono One','Russo One',sans-serif;
+  font-size:clamp(14px,4.6vw,26px);line-height:1;letter-spacing:.02em;
+  color:#ffe566;-webkit-text-stroke:2px #111;paint-order:stroke fill;
+  text-shadow:3px 3px 0 #111;transform:rotate(-8deg);white-space:nowrap;
+}
+
+/* Narrow phones: compact titles, hide subtitles so subjects stay clear */
+@media (max-width:420px){
+  a.panel .label{font-size:11px;padding:3px 6px;max-width:none;width:max-content;border-width:2px}
+  a.panel .label small{display:none}
+  a.panel .label.burst{padding:7px 8px;font-size:11px}
+  a.panel .label.round{padding:6px 8px}
+  a.panel .sfx{font-size:13px;-webkit-text-stroke:1.5px #111}
+  a.panel[data-id=commute] .label{max-width:min(90%,280px);width:max-content;font-size:12px}
+  a.panel[data-id=commute] .label small{display:block;font-size:10px}
+  a.panel[data-id=dice] .sfx{font-size:11px}
+}
+
+a.panel[data-id=slots]{
+  grid-area:slots;
+  --poly:polygon(0% 0%,100% 0%,100% 100%,0% 82%);
+  --poly-in:polygon(1.2% 1.5%,98.8% 1.5%,98.8% 97%,1.2% 80.5%);
+}
+a.panel[data-id=slots] img{object-position:55% 45%}
+a.panel[data-id=slots] .label{right:2%;top:6%;max-width:min(70%,260px)}
+a.panel[data-id=slots] .sfx{left:4%;bottom:10%;transform:rotate(-6deg)}
+
+a.panel[data-id=dogwalk]{
+  grid-area:dogwalk;
+  --poly:polygon(0% 10%,100% 0%,100% 100%,0% 100%);
+  --poly-in:polygon(1.5% 11.5%,98.5% 1.8%,98.5% 98.2%,1.5% 98.2%);
+}
+/* Dog head lower-left — caption top-left (sky), SFX near bark */
+a.panel[data-id=dogwalk] img{object-position:42% 78%}
+a.panel[data-id=dogwalk] .label{left:4%;right:auto;top:6%;bottom:auto;transform:none}
+a.panel[data-id=dogwalk] .sfx{left:auto;right:4%;top:auto;bottom:10%;color:#ff5a3a;transform:rotate(8deg)}
+
+a.panel[data-id=scooter]{
+  grid-area:scooter;
+  --poly:polygon(0% 0%,100% 8%,100% 100%,0% 90%);
+  --poly-in:polygon(1.5% 1.8%,98.5% 9.5%,98.5% 98.2%,1.5% 88.5%);
+}
+a.panel[data-id=scooter] img{object-position:30% 40%}
+a.panel[data-id=scooter] .label{left:4%;right:auto;top:8%}
+a.panel[data-id=scooter] .sfx{left:auto;right:4%;bottom:10%;transform:rotate(8deg)}
+
+a.panel[data-id=laundry]{
+  grid-area:laundry;
+  --poly:polygon(0% 0%,100% 12%,100% 100%,0% 88%);
+  --poly-in:polygon(1.5% 1.8%,98.5% 13.5%,98.5% 98.2%,1.5% 86.5%);
+}
+/* Cat mid-left — caption on washer/socks bottom-right, keep inside cell */
+a.panel[data-id=laundry] img{object-position:38% 42%}
+a.panel[data-id=laundry] .label{left:auto;right:6%;top:auto;bottom:8%;transform:none}
+a.panel[data-id=laundry] .sfx{left:4%;right:auto;top:8%;bottom:auto;color:#111;transform:rotate(-10deg)}
+
+a.panel[data-id=dice]{
+  grid-area:dice;
+  --poly:polygon(0% 14%,100% 0%,100% 100%,0% 100%);
+  --poly-in:polygon(1.5% 15.5%,98.5% 1.8%,98.5% 98.2%,1.5% 98.2%);
+}
+a.panel[data-id=dice] img{object-position:50% 45%}
+a.panel[data-id=dice] .label{right:3%;bottom:6%}
+a.panel[data-id=dice] .sfx{left:3%;top:12%;transform:rotate(-4deg);font-size:clamp(12px,3.8vw,20px)}
+
+a.panel[data-id=commute]{
+  grid-area:commute;
+  --poly:polygon(0% 16%,100% 0%,100% 84%,0% 100%);
+  --poly-in:polygon(1.2% 17%,98.8% 1.8%,98.8% 82.5%,1.2% 97.5%);
+}
+a.panel[data-id=commute] img{object-position:40% 40%}
+a.panel[data-id=commute] .label{
+  left:50%;bottom:6%;
+  transform:translateX(-50%) rotate(-1deg);
+  max-width:min(94%,440px);width:max-content;text-align:center;
+  white-space:normal;overflow:visible;
+}
+a.panel[data-id=commute] .sfx{left:3%;top:8%;transform:rotate(-10deg)}
+
+a.panel[data-id=findit]{
+  grid-area:findit;
+  --poly:polygon(0% 0%,100% 8%,88% 100%,0% 100%);
+  --poly-in:polygon(1.5% 1.8%,98% 9.5%,86.5% 98.2%,1.5% 98.2%);
+}
+a.panel[data-id=findit] img{object-position:45% 50%}
+a.panel[data-id=findit] .label{left:4%;top:8%}
+a.panel[data-id=findit] .sfx{right:8%;bottom:12%;transform:rotate(10deg)}
+
+a.panel[data-id=minesweeper]{
+  grid-area:mines;
+  --poly:polygon(8% 0%,100% 0%,100% 100%,0% 90%);
+  --poly-in:polygon(9.5% 1.8%,98.5% 1.8%,98.5% 98.2%,1.8% 88.5%);
+}
+a.panel[data-id=minesweeper] img{object-position:55% 40%}
+a.panel[data-id=minesweeper] .label{right:3%;top:8%}
+a.panel[data-id=minesweeper] .sfx{left:6%;bottom:10%;transform:rotate(-14deg);color:#ffef5a}
+
+a.panel[data-id=tetris]{
+  grid-area:tetris;
+  --poly:polygon(0% 18%,100% 0%,100% 100%,0% 100%);
+  --poly-in:polygon(1.2% 19%,98.8% 1.8%,98.8% 98.2%,1.2% 98.2%);
+}
+a.panel[data-id=tetris] img{object-position:50% 45%}
+a.panel[data-id=tetris] .label{right:4%;bottom:10%}
+a.panel[data-id=tetris] .sfx{left:5%;top:14%;transform:rotate(4deg)}
+
+@media (min-width:700px){
+  a.panel .label{font-size:17px;max-width:280px;padding:6px 10px}
+  a.panel .label small{font-size:12px}
+  a.panel .sfx{font-size:28px}
+  a.panel[data-id=commute] .label{max-width:520px;font-size:20px}
+  a.panel[data-id=dice] .sfx{font-size:22px}
+  a.panel[data-id=dogwalk] .label{max-width:200px}
+  a.panel[data-id=laundry] .label{max-width:200px}
+}
+
+.arch{display:block;text-align:center;margin-top:12px;color:#8fa0b8;font:400 13px Neucha,sans-serif;text-decoration:none}
+
+@media (prefers-reduced-motion:reduce){
+  a.panel,a.panel:hover,a.panel:active{transition:none;transform:none}
+}
 </style>
 </head>
 <body>
 <div id="wrap">
-  <header><h1 id="h">🌃 Один день у Києві</h1><button id="lang" type="button">UA</button></header>
-  <div class="sub" id="sub"></div>
-  <div id="list"></div>
-  <a class="arch" href="../raycaster/" id="arch"></a>
+  <div class="page">
+    <div class="title-strip">
+      <h1 id="h"></h1>
+      <button type="button" id="lang">UA</button>
+    </div>
+    <p class="pick" id="sub"></p>
+    <div class="spread" id="list"></div>
+  </div>
+  <a class="arch" id="arch" href="../raycaster/"></a>
 </div>
 <script>
 const G=[
- {h:'../',e:'🎰',ua:['Слоти','Тривога, світла нема, дощ — крути барабани'],en:['Slots','Air raid, blackout, rain — spin the reels']},
- {h:'../dogwalk/',e:'🐕',ua:['Прогулянка','Вигуляй собаку вечірнім Києвом'],en:['Dog walk','Walk the dog through evening Kyiv']},
- {h:'../scooter/',e:'🛴',ua:['Самокат','Їдь крізь блекаути з фарою'],en:['Scooter','Ride through blackouts with a headlight']},
- {h:'../laundry/',e:'🫧',ua:['Стирка','Шкарпетки за кольором у кошики, поки є світло'],en:['Laundry','Match socks by colour into baskets while the power lasts']},
- {h:'../dice/',e:'🎲',ua:['Кості світла','Вгадай, скільки годин світла сьогодні'],en:['Power dice','Guess how many hours of power today']},
- {h:'../commute/',e:'🚇',ua:['Дорога на Осокорки','Доїдь з Оболоні до комендантської'],en:['Road to Osokorky','Cross Kyiv before curfew']},
- {h:'../findit/',e:'🔦',ua:['Знайди річ','Бардак, блекаут і ліхтарик'],en:['Find it','Mess, blackout and a flashlight']},
- {h:'../minesweeper/',e:'⚡',ua:['Графік світла','Сапер: світло й темрява по годинах і чергах'],en:['Power schedule','Minesweeper: light and darkness by hour and queue']},
- {h:'../tetris/',e:'▦',ua:['Тетріс відключень','Тетріс на графіку черг 1.1–5.2'],en:['Outage Tetris','Tetris on outage queues 1.1–5.2']},
+  {id:'slots',h:'../',art:'slots',sfx:'ДЗВЯНЬ!',bubble:'angular',pts:'0,0 100,0 100,100 0,82',
+    ua:['Слоти','Тривога, світла нема, дощ — крути барабани'],
+    en:['Slots','Air raid, blackout, rain — spin the reels']},
+  {id:'dogwalk',h:'../dogwalk/',art:'walk',sfx:'ГРРР!',bubble:'caption',pts:'0,10 100,0 100,100 0,100',
+    ua:['Прогулянка','Вигуляй собаку вечірнім Києвом'],
+    en:['Dog walk','Walk the dog through evening Kyiv']},
+  {id:'scooter',h:'../scooter/',art:'scooter',sfx:'ВЖЖЖ!',bubble:'round',pts:'0,0 100,8 100,100 0,90',
+    ua:['Самокат','Їдь крізь блекаути з фарою'],
+    en:['Scooter','Ride through blackouts with a headlight']},
+  {id:'laundry',h:'../laundry/',art:'laundry',sfx:'МЯУ!',bubble:'caption',pts:'0,0 100,12 100,100 0,88',
+    ua:['Стирка','Шкарпетки за кольором у кошики, поки є світло'],
+    en:['Laundry','Match socks by colour into baskets while the power lasts']},
+  {id:'dice',h:'../dice/',art:'dice',sfx:'ТРАХ-ТРАХ!',bubble:'angular',pts:'0,14 100,0 100,100 0,100',
+    ua:['Кості світла','Вгадай, скільки годин світла сьогодні'],
+    en:['Power dice','Guess how many hours of power today']},
+  {id:'commute',h:'../commute/',art:'commute',sfx:'ШВИДШЕ!',bubble:'caption',pts:'0,16 100,0 100,84 0,100',
+    ua:['Дорога на Осокорки','Доїдь з Оболоні до комендантської'],
+    en:['Road to Osokorky','Cross Kyiv before curfew']},
+  {id:'findit',h:'../findit/',art:'findit',sfx:'ОЙ!',bubble:'caption',pts:'0,0 100,8 88,100 0,100',
+    ua:['Знайди річ','Бардак, блекаут і ліхтарик'],
+    en:['Find it','Mess, blackout and a flashlight']},
+  {id:'minesweeper',h:'../minesweeper/',art:'schedule',sfx:'БУМ!',bubble:'round',pts:'8,0 100,0 100,100 0,90',
+    ua:['Графік світла','Сапер: світло й темрява по годинах і чергах'],
+    en:['Power schedule','Minesweeper: light and darkness by hour and queue']},
+  {id:'tetris',h:'../tetris/',art:'tetris',sfx:'БАХ!',bubble:'angular',pts:'0,18 100,0 100,100 0,100',
+    ua:['Тетріс відключень','Тетріс на графіку черг 1.1–5.2'],
+    en:['Outage Tetris','Tetris on outage queues 1.1–5.2']},
 ];
-const T={ua:{h:'🌃 Один день у Києві',sub:'Усі міні-ігри',arch:'Архів: raycaster-прототип'},en:{h:'🌃 One Day in Kyiv',sub:'All mini-games',arch:'Archive: raycaster prototype'}};
+const T={
+  ua:{h:'Один день у Києві',sub:'Обери гру!',arch:'Архів: raycaster-прототип'},
+  en:{h:'One Day in Kyiv',sub:'Pick a game!',arch:'Archive: raycaster prototype'}
+};
 let lang=localStorage.getItem('menu-lang')||'ua';
-function render(){const L=T[lang];document.documentElement.lang=lang==='ua'?'uk':'en';
- h.textContent=L.h;sub.textContent=L.sub;arch.textContent=L.arch;document.getElementById('lang').textContent=lang.toUpperCase();
- list.innerHTML=G.map(g=>`<a class="card" href="${g.h}"><div class="ic">${g.e}</div><div><div class="t">${g[lang][0]}</div><div class="d">${g[lang][1]}</div></div></a>`).join('');}
-document.getElementById('lang').onclick=()=>{lang=lang==='ua'?'en':'ua';localStorage.setItem('menu-lang',lang);render();};
+const list=document.getElementById('list');
+const langBtn=document.getElementById('lang');
+
+function render(){
+  const L=T[lang];
+  document.documentElement.lang=lang==='ua'?'uk':'en';
+  h.textContent=L.h;
+  sub.textContent=L.sub;
+  arch.textContent=L.arch;
+  langBtn.textContent=lang.toUpperCase();
+  list.innerHTML=G.map(g=>{
+    const art=`assets/comic/${g.art}.webp`;
+    const art600=`assets/comic/${g.art}-600.webp`;
+    return `<a class="panel" data-id="${g.id}" href="${g.h}" aria-label="${g[lang][0]}">
+      <span class="ink" aria-hidden="true"></span>
+      <span class="shot">
+        <img src="${art600}" srcset="${art600} 600w, ${art} 1024w"
+             sizes="(max-width:700px) 92vw, 760px"
+             alt="" width="1024" height="768" loading="lazy" decoding="async">
+      </span>
+      <svg class="outline" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        <polygon points="${g.pts}"></polygon>
+      </svg>
+      <span class="sfx" aria-hidden="true">${g.sfx}</span>
+      <span class="label ${g.bubble}">${g[lang][0]}<small>${g[lang][1]}</small></span>
+    </a>`;
+  }).join('');
+}
+langBtn.onclick=()=>{lang=lang==='ua'?'en':'ua';localStorage.setItem('menu-lang',lang);render();};
 render();
 </script>
 </body>
