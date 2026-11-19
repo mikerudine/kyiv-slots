@@ -1,6 +1,7 @@
 import {
   KIND, SIZE, createGame, place, swapHold, flood, emptyBoard, idx,
   resolveItemMerges, resolveObstacleMerges, moveBlackouts, unlitSet, isBoardFull,
+  seedStarter, emptyAdjacent,
 } from './logic.mjs';
 
 let failed = 0;
@@ -124,6 +125,38 @@ function boardOf(pairs) {
   g.board[0] = KIND.EMPTY;
   const res = place(g, 0, () => 0.5);
   assert(res.ok && g.over && isBoardFull(g.board), 'game over when full');
+}
+
+// Starter seed: 4–5 low-tier + ≥1 free blackout, no immediate 3-match
+{
+  const b = emptyBoard();
+  let i = 0;
+  const seq = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.05, 0.95];
+  const rng = () => seq[i++ % seq.length];
+  seedStarter(b, rng);
+  const items = b.filter((k) => k === KIND.BATTERY || k === KIND.POWERBANK);
+  const blackouts = b.filter((k) => k === KIND.BLACKOUT);
+  assert(items.length >= 4 && items.length <= 5, 'seed 4–5 low-tier items');
+  assert(blackouts.length >= 1 && blackouts.length <= 2, 'seed 1–2 blackouts');
+  assert(!b.includes(KIND.TRAPPED), 'starter blackouts not trapped');
+  for (let c = 0; c < b.length; c++) {
+    if (b[c] === KIND.BLACKOUT) {
+      assert(emptyAdjacent(b, c).length > 0, 'starter blackout has free neighbour');
+    }
+    if (b[c] === KIND.BATTERY || b[c] === KIND.POWERBANK) {
+      assert(flood(b, c).length < 3, 'no immediate 3-match after seed');
+    }
+  }
+}
+
+// createGame seeds the board (items + blackout)
+{
+  const g = createGame(() => 0.4);
+  const items = g.board.filter((k) => k === KIND.BATTERY || k === KIND.POWERBANK).length;
+  const bos = g.board.filter((k) => k === KIND.BLACKOUT).length;
+  assert(items >= 4 && items <= 5, 'createGame seeds low-tier items');
+  assert(bos >= 1, 'createGame seeds at least one blackout');
+  assert(g.next !== KIND.BLACKOUT, 'first next is not blackout');
 }
 
 assert(SIZE === 6, 'grid size 6');

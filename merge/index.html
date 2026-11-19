@@ -71,11 +71,17 @@ h1{margin:0;font-size:clamp(14px,3.8vw,17px);font-weight:800;text-align:center;f
 #boardShell{
   position:relative;
   width:min(100%,calc((100dvh - 280px) * 0.95));
-  aspect-ratio:1;max-width:100%;
+  aspect-ratio:1 / 1;max-width:100%;
+  flex:none;
 }
+/* Absolute fill so height is definite — Safari won't collapse empty 1fr rows */
 #board{
-  display:grid;grid-template-columns:repeat(6,1fr);gap:4px;
-  width:100%;height:100%;
+  position:absolute;inset:0;
+  display:grid;
+  grid-template-columns:repeat(6,minmax(0,1fr));
+  grid-template-rows:repeat(6,minmax(0,1fr));
+  gap:4px;
+  box-sizing:border-box;
   background:#e8ecf2;border:1.5px solid #c5cad6;border-radius:16px;padding:6px;
   box-shadow:0 1px 3px #1a23400a;
 }
@@ -98,13 +104,20 @@ h1{margin:0;font-size:clamp(14px,3.8vw,17px);font-weight:800;text-align:center;f
 }
 .cell{
   position:relative;border:1px solid #c9ced8;border-radius:10px;background:#f7f8fb;
-  padding:0;cursor:pointer;touch-action:manipulation;
+  padding:0;margin:0;cursor:pointer;touch-action:manipulation;
   display:flex;align-items:center;justify-content:center;
   -webkit-appearance:none;appearance:none;
+  min-width:0;min-height:0;width:auto;height:auto;
+  overflow:hidden;align-self:stretch;justify-self:stretch;
 }
 .cell:disabled{cursor:default}
 .cell:not(:disabled):active{background:#eef1f6}
-.cell .piece{width:88%;height:88%;pointer-events:none}
+.cell .piece{
+  box-sizing:border-box;
+  width:80%;height:80%;max-width:100%;max-height:100%;
+  pointer-events:none;flex:none;
+}
+.cell .piece svg{width:100%;height:100%;display:block;object-fit:contain}
 .cell .piece.empty{display:none}
 /* Unlit: greyed icon + dim cell + small corner mark — readable on light board */
 .cell.unlit{background:#e2e6ed}
