@@ -228,10 +228,56 @@ export function rollNext(rng = Math.random) {
   return KIND.GENERATOR;
 }
 
+/**
+ * Pre-place 4–5 low-tier items (batteries + at most two power banks).
+ * Never places blackouts; rejects placements that would form an immediate 3+ match.
+ */
+export function seedStarter(board, rng = Math.random) {
+  const count = 4 + ((rng() * 2) | 0); // 4 or 5
+  let powerbanks = 0;
+  if (rng() < 0.55) powerbanks = 1;
+  if (rng() < 0.25) powerbanks = Math.min(2, count - 1);
+  const kinds = [];
+  for (let i = 0; i < count - powerbanks; i++) kinds.push(KIND.BATTERY);
+  for (let i = 0; i < powerbanks; i++) kinds.push(KIND.POWERBANK);
+  // Fisher–Yates
+  for (let i = kinds.length - 1; i > 0; i--) {
+    const j = (rng() * (i + 1)) | 0;
+    const t = kinds[i];
+    kinds[i] = kinds[j];
+    kinds[j] = t;
+  }
+
+  const placed = [];
+  for (const kind of kinds) {
+    const tried = new Set();
+    let ok = false;
+    for (let attempt = 0; attempt < 64 && !ok; attempt++) {
+      const empties = emptyCells(board).filter((i) => !tried.has(i));
+      if (!empties.length) break;
+      const at = empties[(rng() * empties.length) | 0];
+      tried.add(at);
+      board[at] = kind;
+      if (flood(board, at).length >= 3) {
+        board[at] = KIND.EMPTY;
+        continue;
+      }
+      placed.push(at);
+      ok = true;
+    }
+  }
+  return placed;
+}
+
 export function createGame(rng = Math.random) {
+  const board = emptyBoard();
+  seedStarter(board, rng);
+  let next = rollNext(rng);
+  // Prefer a playable first piece (not blackout) on a fresh board
+  if (next === KIND.BLACKOUT) next = KIND.BATTERY;
   return {
-    board: emptyBoard(),
-    next: rollNext(rng),
+    board,
+    next,
     hold: KIND.EMPTY,
     score: 0,
     over: false,
