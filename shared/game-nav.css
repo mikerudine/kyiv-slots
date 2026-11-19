@@ -67,20 +67,21 @@ a.game-nav.game-nav-light:active {
   box-shadow: 1px 1px 0 #1a2340;
 }
 
-/* Final / game-over / result: restart + menu row */
+/* Final / game-over / result: restart + menu row (side-by-side when space allows) */
 .game-nav-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
   justify-content: center;
   align-items: stretch;
-  width: 100%;
-  max-width: 360px;
+  width: min(100%, 360px);
+  min-width: min(100%, 280px);
   margin: 0 auto;
 }
 
 .game-nav-actions > * {
-  flex: 1 1 140px;
+  flex: 1 1 calc(50% - 5px);
+  min-width: 120px;
   min-height: 44px;
   box-sizing: border-box;
 }
