@@ -1,0 +1,126 @@
+/* Shared in-game back-to-menu control + final-screen "to menu" action.
+   Comfortable 44×44 tap target; safe-area aware when floating. */
+
+a.game-nav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-sizing: border-box;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 10px 14px;
+  margin: 0;
+  text-decoration: none;
+  text-align: center;
+  white-space: nowrap;
+  font: 800 13px/1.1 system-ui, -apple-system, "Segoe UI", sans-serif;
+  letter-spacing: 0.01em;
+  color: #111;
+  background: #facc15;
+  border: 2px solid #111;
+  border-radius: 10px;
+  box-shadow: 2px 2px 0 #111;
+  cursor: pointer;
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+  z-index: 100;
+  flex: none;
+}
+
+a.game-nav:hover,
+a.game-nav:focus-visible {
+  background: #fde047;
+}
+
+a.game-nav:focus-visible {
+  outline: 2px solid #fde047;
+  outline-offset: 2px;
+}
+
+a.game-nav:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 #111;
+}
+
+/* Floating top-left (canvas / no-header games). Safe-area clears notch. */
+a.game-nav.game-nav-float {
+  position: fixed;
+  top: calc(8px + env(safe-area-inset-top, 0px));
+  left: calc(8px + env(safe-area-inset-left, 0px));
+}
+
+/* Light boards (dice / minesweeper / merge headers) */
+a.game-nav.game-nav-light {
+  color: #1a2340;
+  background: #ffe566;
+  border-color: #1a2340;
+  box-shadow: 2px 2px 0 #1a2340;
+}
+
+a.game-nav.game-nav-light:hover,
+a.game-nav.game-nav-light:focus-visible {
+  background: #fff1a8;
+}
+
+a.game-nav.game-nav-light:active {
+  box-shadow: 1px 1px 0 #1a2340;
+}
+
+/* Final / game-over / result: restart + menu row */
+.game-nav-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  align-items: stretch;
+  width: 100%;
+  max-width: 360px;
+  margin: 0 auto;
+}
+
+.game-nav-actions > * {
+  flex: 1 1 140px;
+  min-height: 44px;
+  box-sizing: border-box;
+}
+
+/* Equal-weight companion to each game's restart button (base look; games may restyle). */
+a.game-nav-to-menu {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 12px 22px;
+  text-decoration: none;
+  text-align: center;
+  font: 900 15px/1.2 system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: #111;
+  background: #e2e8f0;
+  border: 2px solid #111;
+  border-radius: 999px;
+  cursor: pointer;
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+}
+
+a.game-nav-to-menu:hover,
+a.game-nav-to-menu:focus-visible {
+  background: #f1f5f9;
+}
+
+a.game-nav-to-menu:focus-visible {
+  outline: 2px solid #facc15;
+  outline-offset: 2px;
+}
+
+a.game-nav-to-menu[hidden] {
+  display: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  a.game-nav:active {
+    transform: none;
+  }
+}

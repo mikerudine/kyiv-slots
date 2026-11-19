@@ -359,7 +359,7 @@
   function render() {
     const L = T[lang];
     document.documentElement.lang = lang === 'ua' ? 'uk' : 'en';
-    $('lang').textContent = lang.toUpperCase(); $('title').textContent = L.title; $('menu').textContent = L.menu;
+    $('lang').textContent = lang.toUpperCase(); $('title').textContent = L.title; if (typeof setGameNavLang === 'function') setGameNavLang(lang);
     $('pauseBtn').textContent = paused ? '▶' : '⏸';
     $('clock').textContent = '🕔 ' + hhmm(Math.min(g.t, CURFEW)); $('money').textContent = '💸 ' + g.money + ' ' + L.money;
     $('clock').className = CURFEW - g.t < 90 ? 'late' : '';
@@ -410,6 +410,7 @@
     $('oBtn').textContent = btn;
     $('overlay').classList.remove('hidden');
     if (typeof setZsuDonateVisible === 'function') setZsuDonateVisible(started && g.over);
+    if (typeof setGameNavToMenuVisible === 'function') setGameNavToMenuVisible(started && g.over);
   }
   function showEnd() { const L = T[lang]; g.won ? overlay(L.win, L.winB(g.t - START, g.money), L.again) : overlay(L.lose, L.loseB(nm(g.at)), L.again); }
   $('fullBtn').onclick = openFull; $('fullClose').onclick = () => $('full').classList.add('hidden');

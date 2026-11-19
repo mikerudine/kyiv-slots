@@ -92,6 +92,7 @@
     document.getElementById('hint').textContent = L.hint;
     document.getElementById('lang').textContent = lang.toUpperCase();
     document.documentElement.lang = lang === 'ua' ? 'uk' : 'en';
+    if (typeof setGameNavLang === 'function') setGameNavLang(lang);
     document.getElementById('pauseTitle').textContent = L.pause;
     document.getElementById('pauseBody').textContent = L.pauseBody;
     if (!running) {
@@ -99,6 +100,7 @@
       document.getElementById('oBody').textContent = dead ? L.overBody(distance, score) : L.overlayBody;
       document.getElementById('oBtn').textContent = dead ? L.again : L.start;
       if (typeof setZsuDonateVisible === 'function') setZsuDonateVisible(dead);
+      if (typeof setGameNavToMenuVisible === 'function') setGameNavToMenuVisible(dead);
     }
   }
   document.getElementById('lang').addEventListener('click', () => {

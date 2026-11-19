@@ -1,5 +1,5 @@
 {
-  "version": 9,
+  "version": 10,
   "updatedHint": "App refreshes this list when online; bundled copy is the fallback.",
   "files": [
     "cache-manifest.json",
@@ -52,6 +52,8 @@
     "raycaster/raycaster.js",
     "scooter/game.js",
     "scooter/index.html",
+    "shared/game-nav.css",
+    "shared/game-nav.js",
     "shared/zsu-donate.css",
     "shared/zsu-donate.js",
     "tetris/game.js",

@@ -183,6 +183,7 @@ function applyLang() {
   document.getElementById('hint').textContent = L.hint;
   document.getElementById('lang').textContent = lang.toUpperCase();
   document.documentElement.lang = lang === 'ua' ? 'uk' : 'en';
+  if (typeof setGameNavLang === 'function') setGameNavLang(lang);
   document.getElementById('pauseTitle').textContent = L.pause;
   document.getElementById('pauseBody').textContent = L.pauseBody;
   document.getElementById('washText').textContent = L.wash;
@@ -262,6 +263,7 @@ function syncOverlay() {
     stats.textContent = L.stats(s);
     document.getElementById('oBtn').textContent = L.again;
     if (typeof setZsuDonateVisible === 'function') setZsuDonateVisible(true);
+    if (typeof setGameNavToMenuVisible === 'function') setGameNavToMenuVisible(true);
   } else if (!s.running) {
     overlay.classList.remove('hidden');
     document.getElementById('oTitle').textContent = L.overlayTitle;
@@ -269,9 +271,11 @@ function syncOverlay() {
     stats.hidden = true;
     document.getElementById('oBtn').textContent = L.start;
     if (typeof setZsuDonateVisible === 'function') setZsuDonateVisible(false);
+    if (typeof setGameNavToMenuVisible === 'function') setGameNavToMenuVisible(false);
   } else {
     overlay.classList.add('hidden');
     if (typeof setZsuDonateVisible === 'function') setZsuDonateVisible(false);
+    if (typeof setGameNavToMenuVisible === 'function') setGameNavToMenuVisible(false);
   }
 }
 

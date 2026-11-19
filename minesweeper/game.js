@@ -526,7 +526,7 @@
     document.documentElement.lang = lang === 'ua' ? 'uk' : 'en';
     document.title = L.title + ' · One Day in Kyiv';
     $('title').textContent = L.title;
-    $('menu').textContent = L.menu;
+    if (typeof setGameNavLang === 'function') setGameNavLang(lang);
     $('lang').textContent = lang.toUpperCase();
     $('darkLbl').textContent = L.dark;
     $('flagLbl').textContent = L.flags;

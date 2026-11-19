@@ -95,11 +95,13 @@
   function applyLang() {
     const L = T[lang];
     document.documentElement.lang = lang === 'ua' ? 'uk' : 'en';
+    if (typeof setGameNavLang === 'function') setGameNavLang(lang);
     $('lang').textContent = lang.toUpperCase();
     $('title').textContent = L.title; $('guessLbl').textContent = L.guess;
     $('lgL').textContent = L.light; $('lgD').textContent = L.dark;
     $('btn').textContent = state === 'done' ? L.again : state === 'holding' ? L.shaking : state === 'throwing' ? L.rolling : L.hold;
     $('btn').disabled = state === 'throwing';
+    if (typeof setGameNavToMenuVisible === 'function') setGameNavToMenuVisible(state === 'done');
     if (!lastInfo || state === 'idle') $('rollInfo').textContent = state === 'done' ? '' : L.hint;
     if (lastInfo) $('rollInfo').textContent = L.info(lastInfo[0], lastInfo[1]);
     if (state === 'done') showResult(lastGuess, false);
