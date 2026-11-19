@@ -11,7 +11,9 @@
     4: { fill: '#3f8f9e', nameUa: 'річка', nameEn: 'river', swatch: '#5eb8c9' },
     5: { fill: '#8b939e', nameUa: 'місто', nameEn: 'town', swatch: '#b0b8c4' },
   };
-  const EMPTY = '#121820';
+  // Classic paint-by-numbers blank: light paper, not dark (dark looked like «no alert»)
+  const EMPTY = '#eef1f4';
+  const EMPTY_STROKE = '#1e293b';
 
   const T = {
     ua: {
@@ -172,17 +174,18 @@
 
   function fillFor(f) {
     if (!f.painted) return EMPTY;
-    const c = COLOURS[f.painted].fill;
-    if (f.painted !== f.target) {
-      // slightly darker wrong paint — still readable, no flash
-      return c;
-    }
-    return c;
+    return COLOURS[f.painted].fill;
   }
 
   function paintFeature(f) {
     const el = document.getElementById('f-' + f.id);
-    if (el) el.setAttribute('fill', fillFor(f));
+    if (el) {
+      el.setAttribute('fill', fillFor(f));
+      // Keep a clear dark outline so light blanks and painted fills both read
+      if (f.kind === 'town' || f.kind === 'river') {
+        el.setAttribute('stroke', EMPTY_STROKE);
+      }
+    }
     const num = document.getElementById('n-' + f.id);
     if (num) {
       const show = f.painted !== f.target;
@@ -251,8 +254,8 @@
       hit.setAttribute('cy', f.cy);
       hit.setAttribute('r', f.major ? 16 : 13);
       hit.setAttribute('fill', EMPTY);
-      hit.setAttribute('stroke', '#0b1020');
-      hit.setAttribute('stroke-width', '1');
+      hit.setAttribute('stroke', EMPTY_STROKE);
+      hit.setAttribute('stroke-width', '2');
       hit.dataset.id = f.id;
       town.appendChild(hit);
 
