@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<link rel="icon" href="data:,">
+<title>Накопич кіловати · One Day in Kyiv</title>
+<script data-goatcounter="https://mikerudine.goatcounter.com/count"
+        async src="//gc.zgo.at/count.js"></script>
+<link rel="stylesheet" href="../shared/zsu-donate.css">
+<style>
+*{box-sizing:border-box;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:#dfe4ec;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#1a2340}
+#wrap{
+  position:relative;margin:0 auto;
+  width:min(100vw,calc(100dvh*9/16),480px);height:100dvh;
+  background:linear-gradient(180deg,#eef2f7 0%,#e4e9f1 55%,#d8dee8 100%);
+  display:flex;flex-direction:column;
+  padding:calc(8px + env(safe-area-inset-top,0px)) 12px calc(10px + env(safe-area-inset-bottom,0px));
+  overflow:hidden;
+}
+header{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-shrink:0}
+header a{color:#64748b;text-decoration:none;font-size:13px;font-weight:600;padding:4px 2px}
+h1{margin:0;font-size:clamp(14px,3.8vw,17px);font-weight:800;text-align:center;flex:1;line-height:1.15}
+#lang{border:0;border-radius:999px;background:#1a2340;color:#fff;font-weight:800;padding:6px 12px;font-size:12px;cursor:pointer}
+
+#scoreBar{
+  display:flex;align-items:stretch;gap:8px;margin-top:8px;flex-shrink:0;
+}
+.score-card{
+  flex:1;background:#fff;border:1.5px solid #c9ced8;border-radius:14px;
+  padding:8px 12px;display:flex;flex-direction:column;justify-content:center;min-width:0;
+  box-shadow:0 1px 2px #0000000a;
+}
+.score-card .lbl{font-size:11px;font-weight:700;color:#64748b;letter-spacing:.02em}
+.score-card .val{font-size:clamp(22px,6vw,28px);font-weight:900;font-variant-numeric:tabular-nums;line-height:1.1;color:#1a2340}
+.score-card.best .val{font-size:clamp(16px,4.2vw,20px);color:#475569}
+.score-card.kw .val{color:#0f766e}
+.score-card.kw .val span{font-size:.55em;font-weight:800;margin-left:2px;color:#0d9488}
+
+#tray{
+  display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;flex-shrink:0;
+}
+.slot{
+  background:#fff;border:1.5px solid #c9ced8;border-radius:14px;padding:8px;
+  display:flex;align-items:center;gap:10px;min-height:64px;
+  box-shadow:0 1px 2px #0000000a;
+}
+.slot.hold{cursor:pointer;touch-action:manipulation;font:inherit;color:inherit;text-align:left;width:100%}
+.slot.hold:active{filter:brightness(.97)}
+.slot.hold:focus-visible{outline:2px solid #f5b400;outline-offset:2px}
+.slot .meta{flex:1;min-width:0}
+.slot .meta .tag{font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.04em}
+.slot .meta .name{font-size:13px;font-weight:800;color:#1a2340;line-height:1.2;margin-top:2px}
+.piece{
+  width:48px;height:48px;border-radius:12px;flex:none;
+  display:flex;align-items:center;justify-content:center;
+  border:2px solid #1a2340;background:#f8fafc;overflow:hidden;
+}
+.piece svg{width:86%;height:86%;display:block}
+.piece.empty{border-style:dashed;border-color:#cbd5e1;background:#f1f5f9}
+.piece.k1{background:#fef9c3;border-color:#ca8a04}
+.piece.k2{background:#e0f2fe;border-color:#0284c7}
+.piece.k3{background:#fee2e2;border-color:#dc2626}
+.piece.k4{background:#ffedd5;border-color:#ea580c}
+.piece.k5{background:#dbeafe;border-color:#2563eb}
+.piece.k6{background:#ede9fe;border-color:#6d28d9}
+.piece.kb{background:#334155;border-color:#0f172a}
+.piece.kt{background:#475569;border-color:#1e293b}
+.piece.kl{background:#fef08a;border-color:#eab308}
+.piece.ks{background:#fde68a;border-color:#b45309}
+
+#hint{font-size:12px;color:#64748b;line-height:1.35;margin:6px 2px 0;min-height:32px;flex-shrink:0}
+
+#boardWrap{
+  flex:1 1 0;min-height:0;margin-top:6px;
+  display:flex;align-items:center;justify-content:center;
+}
+#board{
+  display:grid;grid-template-columns:repeat(6,1fr);gap:5px;
+  width:min(100%,calc((100dvh - 280px) * 0.95));
+  aspect-ratio:1;max-width:100%;
+  background:#1a2340;border-radius:16px;padding:6px;
+  box-shadow:0 4px 16px #1a234028;
+}
+.cell{
+  position:relative;border:0;border-radius:10px;background:#2a3450;
+  padding:0;cursor:pointer;touch-action:manipulation;
+  display:flex;align-items:center;justify-content:center;
+  -webkit-appearance:none;appearance:none;
+}
+.cell:disabled{cursor:default}
+.cell:not(:disabled):active{filter:brightness(1.08)}
+.cell .piece{width:86%;height:86%;border-width:1.5px;border-radius:9px;pointer-events:none}
+.cell .piece.empty{display:none}
+.cell.unlit .piece{filter:brightness(.55) saturate(.7)}
+.cell.unlit::after{
+  content:'';position:absolute;inset:0;border-radius:10px;
+  box-shadow:inset 0 0 0 2px #94a3b888;pointer-events:none;
+}
+.cell.pop .piece{animation:pop .28s ease-out}
+@keyframes pop{0%{transform:scale(.72);opacity:.6}70%{transform:scale(1.06)}100%{transform:scale(1);opacity:1}}
+.cell.fade .piece{animation:fadein .25s ease-out}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+
+#legend{
+  display:flex;flex-wrap:wrap;gap:6px 10px;justify-content:center;
+  font-size:10px;color:#64748b;margin-top:6px;flex-shrink:0;line-height:1.2;
+}
+#legend span{display:inline-flex;align-items:center;gap:4px}
+#legend .dot{width:10px;height:10px;border-radius:3px;border:1px solid #1a234044}
+
+#overlay{
+  position:absolute;inset:0;z-index:20;
+  background:#1a2340d8;
+  display:flex;align-items:center;justify-content:center;
+  padding:calc(16px + env(safe-area-inset-top,0px)) 16px calc(16px + env(safe-area-inset-bottom,0px));
+}
+#overlay.hidden{display:none}
+#panel{
+  background:#fff;border-radius:18px;padding:20px 18px;width:100%;max-width:340px;
+  box-shadow:0 12px 40px #0005;text-align:center;
+  display:flex;flex-direction:column;gap:10px;max-height:min(90dvh,560px);overflow:auto;
+}
+#panel h2{margin:0;font-size:22px;font-weight:900;color:#1a2340}
+#panel .final{font-size:36px;font-weight:900;color:#0f766e;font-variant-numeric:tabular-nums;line-height:1}
+#panel .final small{font-size:16px;font-weight:800;color:#0d9488;margin-left:4px}
+#panel .bestline{font-size:14px;font-weight:700;color:#475569}
+#panel .msg{font-size:13px;color:#64748b;line-height:1.4;margin:0}
+#again{
+  border:0;border-radius:999px;background:#f5b400;color:#1a2340;
+  font-weight:900;font-size:16px;padding:14px;width:100%;cursor:pointer;margin-top:4px;
+}
+a.zsu-donate.zsu-block{width:100%;margin:0}
+
+@media (prefers-reduced-motion:reduce){
+  .cell.pop .piece,.cell.fade .piece{animation:none}
+}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <header>
+    <a href="../menu/" id="menu">☰ Меню</a>
+    <h1 id="title">Накопич кіловати</h1>
+    <button id="lang" type="button">UA</button>
+  </header>
+
+  <div id="scoreBar">
+    <div class="score-card kw">
+      <span class="lbl" id="scoreLbl">накопичено</span>
+      <span class="val" id="scoreVal">0<span>кВт</span></span>
+    </div>
+    <div class="score-card best">
+      <span class="lbl" id="bestLbl">рекорд</span>
+      <span class="val" id="bestVal">0</span>
+    </div>
+  </div>
+
+  <div id="tray">
+    <div class="slot" id="nextSlot">
+      <div class="piece empty" id="nextPiece" aria-hidden="true"></div>
+      <div class="meta">
+        <div class="tag" id="nextTag">далі</div>
+        <div class="name" id="nextName"></div>
+      </div>
+    </div>
+    <button type="button" class="slot hold" id="holdBtn" aria-label="stash">
+      <div class="piece empty" id="holdPiece" aria-hidden="true"></div>
+      <div class="meta">
+        <div class="tag" id="holdTag">запас</div>
+        <div class="name" id="holdName"></div>
+      </div>
+    </button>
+  </div>
+
+  <p id="hint"></p>
+
+  <div id="boardWrap">
+    <div id="board" role="grid" aria-label="board"></div>
+  </div>
+
+  <div id="legend"></div>
+
+  <div id="overlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="overTitle">
+    <div id="panel">
+      <h2 id="overTitle"></h2>
+      <div class="final" id="overScore">0<small>кВт</small></div>
+      <div class="bestline" id="overBest"></div>
+      <p class="msg" id="overMsg"></p>
+      <a class="zsu-donate zsu-light zsu-block" data-zsu-donate hidden href="https://www.sternenkofund.org/donate" target="_blank" rel="noopener noreferrer">Підтримати ЗСУ</a>
+      <button type="button" id="again"></button>
+    </div>
+  </div>
+</div>
+<script src="../shared/zsu-donate.js"></script>
+<script type="module" src="game.js"></script>
+</body>
+</html>

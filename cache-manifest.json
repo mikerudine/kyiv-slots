@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 5,
   "updatedHint": "App refreshes this list when online; bundled copy is the fallback.",
   "files": [
     "cache-manifest.json",
@@ -24,6 +24,8 @@
     "menu/assets/comic/dice.webp",
     "menu/assets/comic/laundry-600.webp",
     "menu/assets/comic/laundry.webp",
+    "menu/assets/comic/merge-600.webp",
+    "menu/assets/comic/merge.webp",
     "menu/assets/comic/schedule-600.webp",
     "menu/assets/comic/schedule.webp",
     "menu/assets/comic/scooter-600.webp",
@@ -41,6 +43,9 @@
     "menu/fonts/russo-one-cyrillic.woff2",
     "menu/fonts/russo-one-latin.woff2",
     "menu/index.html",
+    "merge/game.js",
+    "merge/index.html",
+    "merge/logic.mjs",
     "minesweeper/game.js",
     "minesweeper/index.html",
     "raycaster/index.html",

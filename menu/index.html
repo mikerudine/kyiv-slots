@@ -78,7 +78,7 @@ html,body{margin:0;min-height:100%;background:#141c2c;color:#111}
     "laundry dice"
     "commute commute"
     "coloring mines"
-    "tetris tetris";
+    "tetris merge";
   grid-template-rows:minmax(148px,17vw) minmax(128px,15vw) minmax(120px,14vw) minmax(128px,15vw) minmax(128px,15vw) minmax(120px,14vw);
   gap:10px;
   padding:10px;
@@ -149,6 +149,7 @@ a.panel .sfx{
   a.panel[data-id=commute] .label{max-width:min(90%,280px);width:max-content;font-size:12px}
   a.panel[data-id=commute] .label small{display:block;font-size:10px}
   a.panel[data-id=dice] .sfx{font-size:11px}
+  a.panel[data-id=merge] .sfx{font-size:12px}
 }
 
 a.panel[data-id=slots]{
@@ -232,12 +233,21 @@ a.panel[data-id=minesweeper] .sfx{left:6%;bottom:10%;transform:rotate(-14deg);co
 
 a.panel[data-id=tetris]{
   grid-area:tetris;
-  --poly:polygon(0% 18%,100% 0%,100% 100%,0% 100%);
-  --poly-in:polygon(1.2% 19%,98.8% 1.8%,98.8% 98.2%,1.2% 98.2%);
+  --poly:polygon(0% 18%,100% 0%,100% 100%,0% 88%);
+  --poly-in:polygon(1.5% 19%,98.5% 1.8%,98.5% 98.2%,1.5% 86.5%);
 }
 a.panel[data-id=tetris] img{object-position:50% 45%}
 a.panel[data-id=tetris] .label{right:4%;bottom:10%}
 a.panel[data-id=tetris] .sfx{left:5%;top:14%;transform:rotate(4deg)}
+
+a.panel[data-id=merge]{
+  grid-area:merge;
+  --poly:polygon(0% 0%,100% 12%,100% 100%,0% 100%);
+  --poly-in:polygon(1.5% 1.8%,98.5% 13.5%,98.5% 98.2%,1.5% 98.2%);
+}
+a.panel[data-id=merge] img{object-position:50% 42%}
+a.panel[data-id=merge] .label{left:4%;right:auto;bottom:8%;top:auto}
+a.panel[data-id=merge] .sfx{left:auto;right:4%;top:10%;bottom:auto;transform:rotate(-10deg);color:#ffef5a}
 
 @media (min-width:700px){
   a.panel .label{font-size:17px;max-width:280px;padding:6px 10px}
@@ -247,6 +257,7 @@ a.panel[data-id=tetris] .sfx{left:5%;top:14%;transform:rotate(4deg)}
   a.panel[data-id=dice] .sfx{font-size:22px}
   a.panel[data-id=dogwalk] .label{max-width:200px}
   a.panel[data-id=laundry] .label{max-width:200px}
+  a.panel[data-id=merge] .label{max-width:200px}
 }
 
 .arch{display:block;text-align:center;margin-top:12px;color:#8fa0b8;font:400 13px Neucha,sans-serif;text-decoration:none}
@@ -294,9 +305,12 @@ const G=[
   {id:'minesweeper',h:'../minesweeper/',art:'schedule',sfx:'БУМ!',bubble:'round',pts:'8,0 100,0 100,100 0,90',
     ua:['Графік світла','Сапер: світло й темрява по годинах і чергах'],
     en:['Power schedule','Minesweeper: light and darkness by hour and queue']},
-  {id:'tetris',h:'../tetris/',art:'tetris',sfx:'БАХ!',bubble:'angular',pts:'0,18 100,0 100,100 0,100',
+  {id:'tetris',h:'../tetris/',art:'tetris',sfx:'БАХ!',bubble:'angular',pts:'0,18 100,0 100,100 0,88',
     ua:['Тетріс відключень','Тетріс на графіку черг 1.1–5.2'],
     en:['Outage Tetris','Tetris on outage queues 1.1–5.2']},
+  {id:'merge',h:'../merge/',art:'merge',sfx:'ВЖУХ!',bubble:'burst',pts:'0,0 100,12 100,100 0,100',
+    ua:['Накопич кіловати','Зливай батарейки до ТЕЦ, лови відключення'],
+    en:['Stack the kilowatts','Merge batteries up to the CHP, trap blackouts']},
 ];
 const T={
   ua:{h:'Один день у Києві',sub:'Обери гру!',arch:'Архів: raycaster-прототип'},
