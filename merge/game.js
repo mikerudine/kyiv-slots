@@ -71,24 +71,11 @@ const ICONS = {
   [KIND.STATION]: `<svg viewBox="0 0 40 40" aria-hidden="true"><rect x="7" y="14" width="26" height="16" rx="3" fill="#ef4444" stroke="#1a2340" stroke-width="2"/><rect x="11" y="17" width="10" height="7" rx="1.5" fill="#1e293b"/><rect x="13" y="19" width="6" height="3" rx="0.5" fill="#22d3ee"/><rect x="24" y="18" width="5" height="8" rx="1" fill="#fde047" stroke="#1a2340" stroke-width="1"/><path d="M10 30h20" stroke="#1a2340" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="32" r="2" fill="#1a2340"/><circle cx="28" cy="32" r="2" fill="#1a2340"/></svg>`,
   [KIND.GENERATOR]: `<svg viewBox="0 0 40 40" aria-hidden="true"><rect x="6" y="16" width="22" height="14" rx="2" fill="#fb923c" stroke="#1a2340" stroke-width="2"/><rect x="10" y="19" width="8" height="5" rx="1" fill="#1e293b"/><circle cx="30" cy="22" r="6" fill="#fde047" stroke="#1a2340" stroke-width="2"/><circle cx="30" cy="22" r="2" fill="#1a2340"/><path d="M9 30h16" stroke="#1a2340" stroke-width="2"/><rect x="8" y="12" width="6" height="5" rx="1" fill="#94a3b8" stroke="#1a2340" stroke-width="1.5"/></svg>`,
   [KIND.SOLAR]: `<svg viewBox="0 0 40 40" aria-hidden="true"><rect x="8" y="8" width="24" height="18" rx="2" fill="#3b82f6" stroke="#1a2340" stroke-width="2"/><path d="M8 14h24M8 20h24M16 8v18M24 8v18" stroke="#1e3a8a" stroke-width="1.5"/><path d="M20 26v6M14 34h12" stroke="#1a2340" stroke-width="2" stroke-linecap="round"/><circle cx="20" cy="6" r="2" fill="#fde047"/></svg>`,
-  [KIND.TEC]: `<svg viewBox="0 0 40 40" aria-hidden="true"><rect x="4" y="22" width="32" height="12" rx="1" fill="#a78bfa" stroke="#1a2340" stroke-width="2"/><path d="M10 22V12h6v10M18 22V10h8v12M28 22v-6h6v6" fill="#c4b5fd" stroke="#1a2340" stroke-width="1.5"/><path d="M12 12c0-4 2-7 3-8M22 10c0-5 3-8 4-9M31 16c0-3 1-5 2-6" fill="none" stroke="#e2e8f0" stroke-width="2" stroke-linecap="round"/><rect x="8" y="26" width="4" height="4" fill="#1a2340"/><rect x="16" y="26" width="4" height="4" fill="#1a2340"/><rect x="24" y="26" width="4" height="4" fill="#1a2340"/></svg>`,
-  [KIND.BLACKOUT]: `<svg viewBox="0 0 40 40" aria-hidden="true"><ellipse cx="20" cy="18" rx="14" ry="11" fill="#475569" stroke="#0f172a" stroke-width="2"/><ellipse cx="14" cy="22" rx="7" ry="6" fill="#64748b" stroke="#0f172a" stroke-width="1.5"/><ellipse cx="26" cy="22" rx="7" ry="6" fill="#64748b" stroke="#0f172a" stroke-width="1.5"/><path d="M12 14l4 3M24 14l4 3" stroke="#0f172a" stroke-width="2.5" stroke-linecap="round"/><path d="M17 24c1.5 1 4.5 1 6 0" fill="none" stroke="#0f172a" stroke-width="2" stroke-linecap="round"/><path d="M20 28v5M18 34h6" stroke="#0f172a" stroke-width="2" stroke-linecap="round"/><rect x="16" y="34" width="8" height="3" rx="0.5" fill="#1e293b" stroke="#0f172a" stroke-width="1"/></svg>`,
-  [KIND.TRAPPED]: `<svg viewBox="0 0 40 40" aria-hidden="true"><rect x="6" y="8" width="28" height="24" rx="3" fill="#64748b" stroke="#0f172a" stroke-width="2"/><path d="M12 14h16M12 20h16M12 26h10" stroke="#334155" stroke-width="2" stroke-linecap="round"/><circle cx="28" cy="26" r="3" fill="#1e293b"/></svg>`,
-  [KIND.LAMP]: `<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M14 18c0-6 3-10 6-10s6 4 6 10c0 3-1 5-2 6h-8c-1-1-2-3-2-6z" fill="#fde047" stroke="#1a2340" stroke-width="2"/><rect x="16" y="24" width="8" height="4" rx="1" fill="#1a2340"/><rect x="18" y="28" width="4" height="6" fill="#475569" stroke="#1a2340" stroke-width="1"/><path d="M12 16h2M26 16h2M20 6v2" stroke="#facc15" stroke-width="2" stroke-linecap="round"/></svg>`,
-  [KIND.STREET]: `<svg viewBox="0 0 40 40" aria-hidden="true"><rect x="18" y="18" width="4" height="16" fill="#475569" stroke="#1a2340" stroke-width="1.5"/><path d="M10 18c0-8 4-14 10-14s10 6 10 14" fill="#fde047" stroke="#1a2340" stroke-width="2"/><path d="M14 18h12" stroke="#1a2340" stroke-width="2"/><circle cx="20" cy="12" r="3" fill="#fef08a"/></svg>`,
-};
-
-const PIECE_CLASS = {
-  [KIND.BATTERY]: 'k1',
-  [KIND.POWERBANK]: 'k2',
-  [KIND.STATION]: 'k3',
-  [KIND.GENERATOR]: 'k4',
-  [KIND.SOLAR]: 'k5',
-  [KIND.TEC]: 'k6',
-  [KIND.BLACKOUT]: 'kb',
-  [KIND.TRAPPED]: 'kt',
-  [KIND.LAMP]: 'kl',
-  [KIND.STREET]: 'ks',
+  [KIND.TEC]: `<svg viewBox="0 0 40 40" aria-hidden="true"><rect x="4" y="22" width="32" height="12" rx="1" fill="#a78bfa" stroke="#1a2340" stroke-width="2"/><path d="M10 22V12h6v10M18 22V10h8v12M28 22v-6h6v6" fill="#c4b5fd" stroke="#1a2340" stroke-width="1.5"/><path d="M12 12c0-4 2-7 3-8M22 10c0-5 3-8 4-9M31 16c0-3 1-5 2-6" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round"/><rect x="8" y="26" width="4" height="4" fill="#1a2340"/><rect x="16" y="26" width="4" height="4" fill="#1a2340"/><rect x="24" y="26" width="4" height="4" fill="#1a2340"/></svg>`,
+  [KIND.BLACKOUT]: `<svg viewBox="0 0 40 40" aria-hidden="true"><ellipse cx="20" cy="18" rx="14" ry="11" fill="#334155" stroke="#0f172a" stroke-width="2"/><ellipse cx="14" cy="22" rx="7" ry="6" fill="#475569" stroke="#0f172a" stroke-width="1.5"/><ellipse cx="26" cy="22" rx="7" ry="6" fill="#475569" stroke="#0f172a" stroke-width="1.5"/><path d="M12 14l4 3M24 14l4 3" stroke="#f8fafc" stroke-width="2.5" stroke-linecap="round"/><path d="M17 24c1.5 1 4.5 1 6 0" fill="none" stroke="#f8fafc" stroke-width="2" stroke-linecap="round"/><path d="M20 28v5M18 34h6" stroke="#0f172a" stroke-width="2" stroke-linecap="round"/><rect x="16" y="34" width="8" height="3" rx="0.5" fill="#1e293b" stroke="#0f172a" stroke-width="1"/></svg>`,
+  [KIND.TRAPPED]: `<svg viewBox="0 0 40 40" aria-hidden="true"><rect x="6" y="8" width="28" height="24" rx="3" fill="#94a3b8" stroke="#0f172a" stroke-width="2"/><path d="M6 8l28 24M34 8L6 32" stroke="#0f172a" stroke-width="2" stroke-linecap="round"/><path d="M12 14h16M12 20h16" stroke="#64748b" stroke-width="1.5" stroke-linecap="round"/></svg>`,
+  [KIND.LAMP]: `<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M14 18c0-6 3-10 6-10s6 4 6 10c0 3-1 5-2 6h-8c-1-1-2-3-2-6z" fill="#fde047" stroke="#1a2340" stroke-width="2"/><rect x="16" y="24" width="8" height="4" rx="1" fill="#1a2340"/><rect x="18" y="28" width="4" height="6" fill="#475569" stroke="#1a2340" stroke-width="1"/><path d="M12 16h2M26 16h2M20 6v2" stroke="#ca8a04" stroke-width="2" stroke-linecap="round"/></svg>`,
+  [KIND.STREET]: `<svg viewBox="0 0 40 40" aria-hidden="true"><rect x="18" y="18" width="4" height="16" fill="#475569" stroke="#1a2340" stroke-width="1.5"/><path d="M10 18c0-8 4-14 10-14s10 6 10 14" fill="#fde047" stroke="#1a2340" stroke-width="2"/><path d="M14 18h12" stroke="#1a2340" stroke-width="2"/><circle cx="20" cy="12" r="3" fill="#fef08a" stroke="#1a2340" stroke-width="1"/></svg>`,
 };
 
 let lang = localStorage.getItem('merge-lang') || 'ua';
@@ -103,12 +90,11 @@ function pieceHTML(kind) {
   if (!kind || kind === KIND.EMPTY) {
     return '<div class="piece empty"></div>';
   }
-  const cls = PIECE_CLASS[kind] || '';
-  return `<div class="piece ${cls}">${ICONS[kind] || ''}</div>`;
+  return `<div class="piece">${ICONS[kind] || ''}</div>`;
 }
 
 function setPieceEl(el, kind) {
-  el.className = 'piece ' + (kind && kind !== KIND.EMPTY ? (PIECE_CLASS[kind] || '') : 'empty');
+  el.className = 'piece' + (!kind || kind === KIND.EMPTY ? ' empty' : '');
   el.innerHTML = kind && kind !== KIND.EMPTY ? (ICONS[kind] || '') : '';
 }
 
