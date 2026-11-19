@@ -520,7 +520,7 @@
     document.documentElement.lang = lang === 'ua' ? 'uk' : 'en';
     document.title = LL.title + ' · One Day in Kyiv';
     $('title').textContent = LL.title;
-    $('menu').textContent = LL.menu;
+    if (typeof setGameNavLang === 'function') setGameNavLang(lang);
     $('lang').textContent = lang.toUpperCase();
     $('scoreLbl').textContent = LL.score;
     $('linesLbl').textContent = LL.lines;
@@ -559,11 +559,13 @@
       startExtra.classList.add('hidden');
     }
     if (typeof setZsuDonateVisible === 'function') setZsuDonateVisible(overlayMode === 'over');
+    if (typeof setGameNavToMenuVisible === 'function') setGameNavToMenuVisible(overlayMode === 'over');
   }
 
   function hideOverlay() {
     $('overlay').classList.add('hidden');
     if (typeof setZsuDonateVisible === 'function') setZsuDonateVisible(false);
+    if (typeof setGameNavToMenuVisible === 'function') setGameNavToMenuVisible(false);
   }
 
   function startFromOverlay() {

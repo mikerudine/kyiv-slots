@@ -8,6 +8,7 @@
 <script data-goatcounter="https://mikerudine.goatcounter.com/count"
         async src="//gc.zgo.at/count.js"></script>
 <link rel="stylesheet" href="../shared/zsu-donate.css">
+<link rel="stylesheet" href="../shared/game-nav.css">
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 html,body{margin:0;height:100%;background:#0a0e16;color:#e2e8f0;font-family:ui-sans-serif,system-ui,-apple-system,sans-serif}
@@ -21,7 +22,7 @@ html,body{margin:0;height:100%;background:#0a0e16;color:#e2e8f0;font-family:ui-s
   background:#0d121c;overflow:hidden;
 }
 header{display:flex;align-items:center;gap:6px;flex-shrink:0}
-header a{color:#94a3b8;font-size:12px;text-decoration:none;padding:4px 2px}
+header a.game-nav{flex:none}
 h1{flex:1;margin:0;font-size:15px;color:#f8fafc;text-align:center;font-weight:800;letter-spacing:.01em}
 header button{
   border:1.5px solid #64748b;background:#1a2233;color:#e2e8f0;
@@ -106,6 +107,10 @@ header button{
 .ov p{margin:0;font-size:14px;line-height:1.45;color:#cbd5e1;max-width:320px}
 .ov button{
   border:2px solid #000;background:#fde047;color:#0b1020;
+  font:900 16px inherit;padding:10px 22px;border-radius:6px;box-shadow:3px 3px 0 #000;min-height:44px;cursor:pointer;
+}
+.ov a.game-nav-to-menu{
+  border:2px solid #000;background:#e2e8f0;color:#0b1020;
   font:900 16px inherit;padding:10px 22px;border-radius:6px;box-shadow:3px 3px 0 #000;
 }
 .ov .stats{font-size:15px;color:#e2e8f0;font-weight:700}
@@ -119,7 +124,7 @@ header button{
 <body>
 <div id="wrap">
   <header>
-    <a href="../menu/" id="menu">☰ Меню</a>
+    <a href="../menu/" id="menu" class="game-nav" data-game-nav>≡ Меню</a>
     <h1 id="title"></h1>
     <button id="lang" type="button">UA</button>
     <button id="pauseBtn" type="button">⏸</button>
@@ -160,10 +165,14 @@ header button{
     <p id="oBody"></p>
     <div class="stats" id="oStats" hidden></div>
     <a class="zsu-donate" data-zsu-donate hidden href="https://www.sternenkofund.org/donate" target="_blank" rel="noopener noreferrer">Підтримати ЗСУ</a>
-    <button id="oBtn" type="button"></button>
+    <div class="game-nav-actions">
+      <button id="oBtn" type="button"></button>
+      <a href="../menu/" class="game-nav-to-menu" data-game-nav-to-menu hidden>В меню</a>
+    </div>
   </div>
 </div>
 <script src="../shared/zsu-donate.js"></script>
+<script src="../shared/game-nav.js"></script>
 <script src="game.js"></script>
 </body>
 </html>

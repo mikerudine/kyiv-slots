@@ -165,11 +165,13 @@
     }
     $('overlay').classList.remove('hidden');
     if (typeof setZsuDonateVisible === 'function') setZsuDonateVisible(!!showZsu);
+    if (typeof setGameNavToMenuVisible === 'function') setGameNavToMenuVisible(!!showZsu);
   }
 
   function hideOverlay() {
     $('overlay').classList.add('hidden');
     if (typeof setZsuDonateVisible === 'function') setZsuDonateVisible(false);
+    if (typeof setGameNavToMenuVisible === 'function') setGameNavToMenuVisible(false);
   }
 
   function fillFor(f) {
@@ -305,7 +307,7 @@
     const L = T[lang];
     document.documentElement.lang = lang === 'ua' ? 'uk' : 'en';
     $('title').textContent = L.title;
-    $('menu').textContent = L.menu;
+    if (typeof setGameNavLang === 'function') setGameNavLang(lang);
     $('lang').textContent = lang.toUpperCase();
     $('pauseBtn').textContent = paused ? '▶' : '⏸';
     $('pauseTxt').textContent = L.pause;

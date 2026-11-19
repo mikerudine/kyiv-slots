@@ -8,12 +8,13 @@
 <script data-goatcounter="https://mikerudine.goatcounter.com/count"
         async src="//gc.zgo.at/count.js"></script>
 <link rel="stylesheet" href="../shared/zsu-donate.css">
+<link rel="stylesheet" href="../shared/game-nav.css">
 <style>
 *{box-sizing:border-box;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;background:#e9ecf1;font-family:system-ui,-apple-system,sans-serif;color:#1c2742}
 #wrap{position:relative;margin:0 auto;width:min(100vw,calc(100dvh*9/16),480px);height:100dvh;background:#f2f3f6;display:flex;flex-direction:column;padding:calc(10px + env(safe-area-inset-top,0px)) 14px calc(10px + env(safe-area-inset-bottom,0px));overflow:hidden}
 header{display:flex;align-items:center;justify-content:space-between;gap:8px}
-header a{color:#64748b;text-decoration:none;font-size:13px;padding:4px 2px}
+header a.game-nav{flex:none}
 h1{font-size:18px;margin:0;font-weight:800}
 #lang{border:0;border-radius:999px;background:#1c2742;color:#fff;font-weight:800;padding:6px 12px;font-size:12px}
 .card{background:#fff;border-radius:16px;padding:10px 12px;margin-top:8px;box-shadow:0 1px 3px #0001}
@@ -75,14 +76,16 @@ h1{font-size:18px;margin:0;font-weight:800}
 #wrap.done .cell{height:clamp(22px,3.6dvh,36px);font-size:11px;border-radius:8px}
 #wrap.done #legend{margin-top:4px;font-size:11px;gap:10px}
 #wrap.done #result{flex:1 1 auto;min-height:0}
-#btn{margin-top:auto;flex-shrink:0;border:0;border-radius:999px;background:#f5b400;color:#1c2742;font-weight:900;font-size:17px;padding:14px;width:100%}
+#endActions{margin-top:auto;flex-shrink:0;max-width:none;width:100%}
+#btn{border:0;border-radius:999px;background:#f5b400;color:#1c2742;font-weight:900;font-size:17px;padding:14px;width:100%;min-height:44px;cursor:pointer}
 #btn:disabled{opacity:.5}
+#endActions a.game-nav-to-menu{border:0;background:#1c2742;color:#fff;font-weight:900;font-size:17px;padding:14px;border-radius:999px}
 a.zsu-donate.zsu-block{flex-shrink:0}
 </style>
 </head>
 <body>
 <div id="wrap">
-  <header><a href="../menu/">☰ Меню</a><h1 id="title">Кості світла</h1><button id="lang" type="button">UA</button></header>
+  <header><a href="../menu/" id="menu" class="game-nav game-nav-light" data-game-nav>≡ Меню</a><h1 id="title">Кості світла</h1><button id="lang" type="button">UA</button></header>
   <div class="card" id="guessRow">
     <label id="guessLbl" for="guess"></label>
     <input id="guess" type="range" min="1" max="24" value="12"><span id="guessVal">12</span>
@@ -105,9 +108,13 @@ a.zsu-donate.zsu-block{flex-shrink:0}
     <div id="resultDiff"></div>
   </div>
   <a class="zsu-donate zsu-light zsu-block" data-zsu-donate hidden href="https://www.sternenkofund.org/donate" target="_blank" rel="noopener noreferrer">Підтримати ЗСУ</a>
-  <button id="btn" type="button"></button>
+  <div class="game-nav-actions" id="endActions">
+    <button id="btn" type="button"></button>
+    <a href="../menu/" class="game-nav-to-menu" data-game-nav-to-menu hidden>В меню</a>
+  </div>
 </div>
 <script src="../shared/zsu-donate.js"></script>
+<script src="../shared/game-nav.js"></script>
 <script src="game.js"></script>
 </body>
 </html>

@@ -8,6 +8,7 @@
 <script data-goatcounter="https://mikerudine.goatcounter.com/count"
         async src="//gc.zgo.at/count.js"></script>
 <link rel="stylesheet" href="../shared/zsu-donate.css">
+<link rel="stylesheet" href="../shared/game-nav.css">
 <style>
 *{box-sizing:border-box;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;background:#02040c;color:#f1f5f9;font-family:system-ui,-apple-system,sans-serif;overflow:hidden;display:flex;align-items:center;justify-content:center}
@@ -34,16 +35,13 @@ canvas#game{display:block;width:100%;height:100%;background:#05040a}
 #overlay h1,#pauseOverlay h1{margin:0 0 8px;font-size:1.45rem}
 #pauseOverlay h1{font-size:2rem;font-weight:900}
 #overlay p,#pauseOverlay p{margin:0 0 16px;opacity:.85;line-height:1.4;max-width:320px}
-#overlay button{pointer-events:auto;border:0;border-radius:999px;background:#facc15;color:#111;font-weight:800;font-size:1.05rem;padding:12px 28px}
-#nav{position:fixed;top:calc(8px + env(safe-area-inset-top,0px));left:max(8px,env(safe-area-inset-left,0px));right:max(8px,env(safe-area-inset-right,0px));z-index:50;pointer-events:auto;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-#nav a{color:#e2e8f0;font-size:12px;text-decoration:none;background:#0f172add;padding:7px 10px;border-radius:999px;font-weight:600}
-#nav a.menu{background:#facc15;color:#111;font-weight:800}
+#overlay button{pointer-events:auto;border:2px solid #111;border-radius:999px;background:#facc15;color:#111;font-weight:800;font-size:1.05rem;padding:12px 28px;min-height:44px;cursor:pointer}
+#overlay a.game-nav-to-menu{border-radius:999px;background:#e2e8f0;color:#111;border:2px solid #111;font-weight:800;font-size:1.05rem;padding:12px 28px}
 </style>
 </head>
 <body>
 <div id="wrap">
   <canvas id="game" width="360" height="640"></canvas>
-  <div id="nav"><a class="menu" href="../menu/">☰ Меню</a><a href="../">Слоти</a><a href="../dogwalk/">Прогулянка</a><a href="../laundry/">Стирка</a></div>
   <div id="hud">
     <div class="row">
       <div>
@@ -71,7 +69,10 @@ canvas#game{display:block;width:100%;height:100%;background:#05040a}
       <h1 id="oTitle">Самокат</h1>
       <p id="oBody"></p>
       <a class="zsu-donate" data-zsu-donate hidden href="https://www.sternenkofund.org/donate" target="_blank" rel="noopener noreferrer">Підтримати ЗСУ</a>
-      <button type="button" id="oBtn">Старт</button>
+      <div class="game-nav-actions">
+        <button type="button" id="oBtn">Старт</button>
+        <a href="../menu/" class="game-nav-to-menu" data-game-nav-to-menu hidden>В меню</a>
+      </div>
     </div>
   </div>
   <div id="pauseOverlay">
@@ -82,6 +83,7 @@ canvas#game{display:block;width:100%;height:100%;background:#05040a}
   </div>
 </div>
 <script src="../shared/zsu-donate.js"></script>
+<script src="../shared/game-nav.js"></script>
 <script src="game.js"></script>
 </body>
 </html>

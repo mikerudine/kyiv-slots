@@ -146,7 +146,8 @@ function paint(opts = {}) {
   setPieceEl($('holdPiece'), game.hold);
   $('nextName').textContent = L.names[game.next] || '';
   $('holdName').textContent = game.hold === KIND.EMPTY ? L.holdEmpty : (L.names[game.hold] || '');
-  $('scoreVal').innerHTML = `${game.score}<span>кВт</span>`;
+  const score = (typeof game.score === 'number' && Number.isFinite(game.score)) ? game.score : 0;
+  $('scoreVal').innerHTML = `${score}<span>кВт</span>`;
   $('bestVal').textContent = `${best} кВт`;
 }
 
@@ -218,7 +219,7 @@ function applyLang() {
   $('overTitle').textContent = L.overTitle;
   $('overMsg').textContent = L.overMsg;
   $('again').textContent = L.again;
-  $('menu').textContent = lang === 'ua' ? '☰ Меню' : '☰ Menu';
+  if (typeof setGameNavLang === 'function') setGameNavLang(lang);
   paint();
   if (!game.over) {
     // keep overlay text in sync if visible
@@ -229,6 +230,8 @@ function applyLang() {
 
 function showOver(animate) {
   const L = T[lang];
+  // Coerce so a bad test hook / NaN never paints "undefined кВт"
+  if (typeof game.score !== 'number' || !Number.isFinite(game.score)) game.score = 0;
   best = writeBest(localStorage, BEST_KEY, game.score);
   $('overScore').innerHTML = `${game.score}<small>кВт</small>`;
   $('overBest').textContent = L.overBest(best);
@@ -311,7 +314,9 @@ window.__merge = {
     paint();
   },
   forceOver(score) {
-    game.score = score;
+    // Keep current score when omitted; never assign undefined
+    if (typeof score === 'number' && Number.isFinite(score)) game.score = score;
+    else if (typeof game.score !== 'number' || !Number.isFinite(game.score)) game.score = 0;
     game.over = true;
     showOver(true);
   },
