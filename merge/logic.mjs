@@ -229,8 +229,10 @@ export function rollNext(rng = Math.random) {
 }
 
 /**
- * Pre-place 4–5 low-tier items (batteries + at most two power banks).
- * Never places blackouts; rejects placements that would form an immediate 3+ match.
+ * Pre-place 4–5 low-tier items (batteries + at most two power banks),
+ * then 1 (occasionally 2) blackouts on cells that still have a free neighbour
+ * so they are not trapped at start. Rejects item placements that would form
+ * an immediate 3+ match.
  */
 export function seedStarter(board, rng = Math.random) {
   const count = 4 + ((rng() * 2) | 0); // 4 or 5
@@ -259,6 +261,29 @@ export function seedStarter(board, rng = Math.random) {
       tried.add(at);
       board[at] = kind;
       if (flood(board, at).length >= 3) {
+        board[at] = KIND.EMPTY;
+        continue;
+      }
+      placed.push(at);
+      ok = true;
+    }
+  }
+
+  // At least one blackout; ~30% of games get a second
+  const blackoutCount = rng() < 0.3 ? 2 : 1;
+  for (let n = 0; n < blackoutCount; n++) {
+    const tried = new Set();
+    let ok = false;
+    for (let attempt = 0; attempt < 64 && !ok; attempt++) {
+      const candidates = emptyCells(board).filter(
+        (i) => !tried.has(i) && emptyAdjacent(board, i).length > 0
+      );
+      if (!candidates.length) break;
+      const at = candidates[(rng() * candidates.length) | 0];
+      tried.add(at);
+      board[at] = KIND.BLACKOUT;
+      // Still free after placing (another blackout shouldn't trap it immediately)
+      if (emptyAdjacent(board, at).length === 0) {
         board[at] = KIND.EMPTY;
         continue;
       }
