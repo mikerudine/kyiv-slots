@@ -1,7 +1,7 @@
 import {
   KIND, SIZE, createGame, place, swapHold, flood, emptyBoard, idx,
   resolveItemMerges, resolveObstacleMerges, moveBlackouts, unlitSet, isBoardFull,
-  seedStarter, emptyAdjacent,
+  seedStarter, emptyAdjacent, nextPiece, rollNext, MAX_BATTERY_STREAK,
 } from './logic.mjs';
 
 let failed = 0;
@@ -160,6 +160,65 @@ function boardOf(pairs) {
 }
 
 assert(SIZE === 6, 'grid size 6');
+
+// Anti-streak: rng that always yields battery under the early table must never
+// produce 4+ batteries in a row when going through nextPiece.
+{
+  const g = createGame(() => 0.4);
+  g.batteryStreak = 0;
+  g.board = emptyBoard(); // not crowded — plain table, rng 0.5 → battery
+  const rolls = [];
+  for (let i = 0; i < 50; i++) {
+    rolls.push(nextPiece(g, () => 0.5));
+  }
+  assert(rolls.every((k) => k === KIND.BATTERY || k === KIND.POWERBANK || k === KIND.STATION || k === KIND.GENERATOR || k === KIND.BLACKOUT), 'streak rolls are valid kinds');
+  let run = 0;
+  let maxRun = 0;
+  for (const k of rolls) {
+    if (k === KIND.BATTERY) {
+      run += 1;
+      if (run > maxRun) maxRun = run;
+    } else {
+      run = 0;
+    }
+  }
+  assert(maxRun <= MAX_BATTERY_STREAK, `no 4+ battery run (max was ${maxRun})`);
+  assert(maxRun === MAX_BATTERY_STREAK, 'streak reaches the cap when rng always prefers battery');
+  // After 3 batteries, 0.5 on the forbid table → powerbank
+  assert(rolls.includes(KIND.POWERBANK), 'forced non-battery after streak is powerbank at rng 0.5');
+}
+
+// Crowded board lowers battery weight (0.50 is battery early, powerbank when crowded+forbid off:
+// crowded cumulative: BO10 + BAT45 → battery ends at 55; 0.50 still battery.
+// Use 0.60: early → battery (<78); crowded → powerbank (>=55 and <80).
+{
+  assert(rollNext(() => 0.60) === KIND.BATTERY, 'early table: 0.60 → battery');
+  assert(rollNext(() => 0.60, { crowded: true }) === KIND.POWERBANK, 'crowded table: 0.60 → powerbank');
+  assert(rollNext(() => 0.05, { crowded: true }) === KIND.BLACKOUT, 'crowded keeps ~10% blackout');
+}
+
+// place() and empty-hold swapHold() both go through nextPiece (streak updates)
+{
+  const g = createGame(() => 0.4);
+  g.board = emptyBoard();
+  g.board[0] = KIND.EMPTY;
+  g.next = KIND.STATION;
+  g.hold = KIND.EMPTY;
+  g.batteryStreak = MAX_BATTERY_STREAK;
+  g.over = false;
+  place(g, 0, () => 0.5);
+  assert(g.next !== KIND.BATTERY, 'place respects battery streak cap');
+  assert(g.batteryStreak === 0, 'non-battery roll resets streak');
+
+  const g2 = createGame(() => 0.4);
+  g2.board = emptyBoard();
+  g2.next = KIND.GENERATOR;
+  g2.hold = KIND.EMPTY;
+  g2.batteryStreak = MAX_BATTERY_STREAK;
+  swapHold(g2, () => 0.5);
+  assert(g2.hold === KIND.GENERATOR, 'hold stores piece');
+  assert(g2.next !== KIND.BATTERY, 'swapHold roll respects battery streak cap');
+}
 
 if (failed) {
   console.error(`${failed} test(s) failed`);

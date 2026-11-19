@@ -218,14 +218,83 @@ export function moveBlackouts(board, rng = Math.random) {
   return events;
 }
 
-/** Weighted next-piece spawn. Mostly batteries; occasional higher; sometimes blackout. */
-export function rollNext(rng = Math.random) {
-  const r = rng();
-  if (r < 0.10) return KIND.BLACKOUT;
-  if (r < 0.78) return KIND.BATTERY;
-  if (r < 0.90) return KIND.POWERBANK;
-  if (r < 0.97) return KIND.STATION;
-  return KIND.GENERATOR;
+/** Max consecutive batteries allowed as the rolled next piece. */
+export const MAX_BATTERY_STREAK = 3;
+
+/** Board is "crowded" when empty cells are at or below this share of the grid. */
+export const CROWDED_EMPTY_RATIO = 0.25;
+
+export function isCrowded(board) {
+  return emptyCells(board).length / board.length <= CROWDED_EMPTY_RATIO;
+}
+
+/**
+ * Pick from a list of [kind, weight] pairs using rng() ∈ [0, 1).
+ * Weights are relative; they need not sum to 1.
+ */
+function pickWeighted(rng, pairs) {
+  let total = 0;
+  for (const [, w] of pairs) total += w;
+  let r = rng() * total;
+  for (const [kind, w] of pairs) {
+    r -= w;
+    if (r < 0) return kind;
+  }
+  return pairs[pairs.length - 1][0];
+}
+
+/**
+ * Weighted next-piece spawn. Mostly batteries; occasional higher; sometimes blackout.
+ *
+ * Optional `opts`:
+ * - `forbidBattery` — after a battery streak, roll only non-batteries (relative weights kept).
+ * - `crowded` — late-game table: ~45% battery, more powerbanks/stations, blackout still ~10%.
+ *
+ * Plain `rollNext(rng)` keeps the original early-game table for tests/callers.
+ */
+export function rollNext(rng = Math.random, opts = {}) {
+  const forbidBattery = !!(opts && opts.forbidBattery);
+  const crowded = !!(opts && opts.crowded);
+
+  // Early: BO 10, BAT 68, PB 12, ST 7, GEN 3
+  // Crowded: BO 10, BAT 45, PB 25, ST 15, GEN 5
+  const blackout = 10;
+  const battery = crowded ? 45 : 68;
+  const powerbank = crowded ? 25 : 12;
+  const station = crowded ? 15 : 7;
+  const generator = crowded ? 5 : 3;
+
+  const table = forbidBattery
+    ? [
+        [KIND.BLACKOUT, blackout],
+        [KIND.POWERBANK, powerbank],
+        [KIND.STATION, station],
+        [KIND.GENERATOR, generator],
+      ]
+    : [
+        [KIND.BLACKOUT, blackout],
+        [KIND.BATTERY, battery],
+        [KIND.POWERBANK, powerbank],
+        [KIND.STATION, station],
+        [KIND.GENERATOR, generator],
+      ];
+
+  return pickWeighted(rng, table);
+}
+
+/**
+ * Roll the next piece for a live game: applies battery-streak cap and crowded-board weights,
+ * then updates `game.batteryStreak`. Use this from place()/swapHold(); keep rollNext for raw rolls.
+ */
+export function nextPiece(game, rng = Math.random) {
+  if (typeof game.batteryStreak !== 'number' || game.batteryStreak < 0) {
+    game.batteryStreak = 0;
+  }
+  const crowded = isCrowded(game.board);
+  const forbidBattery = game.batteryStreak >= MAX_BATTERY_STREAK;
+  const piece = rollNext(rng, { forbidBattery, crowded });
+  game.batteryStreak = piece === KIND.BATTERY ? game.batteryStreak + 1 : 0;
+  return piece;
 }
 
 /**
@@ -297,17 +366,22 @@ export function seedStarter(board, rng = Math.random) {
 export function createGame(rng = Math.random) {
   const board = emptyBoard();
   seedStarter(board, rng);
-  let next = rollNext(rng);
-  // Prefer a playable first piece (not blackout) on a fresh board
-  if (next === KIND.BLACKOUT) next = KIND.BATTERY;
-  return {
+  const game = {
     board,
-    next,
+    next: KIND.EMPTY,
     hold: KIND.EMPTY,
     score: 0,
     over: false,
     turns: 0,
+    batteryStreak: 0,
   };
+  game.next = nextPiece(game, rng);
+  // Prefer a playable first piece (not blackout) on a fresh board
+  if (game.next === KIND.BLACKOUT) {
+    game.next = KIND.BATTERY;
+    game.batteryStreak = 1;
+  }
+  return game;
 }
 
 export function emptyCells(board) {
@@ -350,7 +424,7 @@ export function place(game, at, rng = Math.random) {
 
   game.score = scoreRef.score;
   game.turns += 1;
-  game.next = rollNext(rng);
+  game.next = nextPiece(game, rng);
 
   if (isBoardFull(game.board)) {
     game.over = true;
@@ -398,7 +472,7 @@ export function swapHold(game, rng = Math.random) {
   if (game.over) return { ok: false };
   if (game.hold === KIND.EMPTY) {
     game.hold = game.next;
-    game.next = rollNext(rng);
+    game.next = nextPiece(game, rng);
   } else {
     const tmp = game.hold;
     game.hold = game.next;
