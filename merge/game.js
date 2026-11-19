@@ -114,9 +114,15 @@ function buildBoard() {
   }
 }
 
-function paint() {
+const sparksEl = $('sparks');
+let busy = false;
+const SPARK_MS = 340;
+
+function paint(opts = {}) {
+  const { popAt = null, skipMotion = false } = opts;
   const L = T[lang];
   const unlit = unlitSet(game.board);
+  const motion = !skipMotion && !reduceMotion();
   for (let i = 0; i < cells.length; i++) {
     const kind = game.board[i];
     const cell = cells[i];
@@ -124,11 +130,16 @@ function paint() {
     cell.dataset.kind = String(kind);
     cell.innerHTML = pieceHTML(kind);
     cell.classList.toggle('unlit', unlit.has(i) && kind !== KIND.EMPTY && kind !== KIND.BLACKOUT);
-    cell.disabled = game.over || kind !== KIND.EMPTY;
-    if (!reduceMotion() && was !== String(kind) && kind !== KIND.EMPTY) {
-      cell.classList.remove('pop', 'fade');
-      void cell.offsetWidth;
-      cell.classList.add(was === '0' ? 'fade' : 'pop');
+    cell.disabled = busy || game.over || kind !== KIND.EMPTY;
+    cell.classList.remove('pop', 'fade');
+    if (motion && kind !== KIND.EMPTY) {
+      if (popAt && popAt.has(i)) {
+        void cell.offsetWidth;
+        cell.classList.add('pop');
+      } else if (!popAt && was !== String(kind)) {
+        void cell.offsetWidth;
+        cell.classList.add(was === '0' ? 'fade' : 'pop');
+      }
     }
   }
   setPieceEl($('nextPiece'), game.next);
@@ -137,6 +148,59 @@ function paint() {
   $('holdName').textContent = game.hold === KIND.EMPTY ? L.holdEmpty : (L.names[game.hold] || '');
   $('scoreVal').innerHTML = `${game.score}<span>кВт</span>`;
   $('bestVal').textContent = `${best} кВт`;
+}
+
+function cellCenterInShell(i) {
+  const shell = boardEl.parentElement.getBoundingClientRect();
+  const cr = cells[i].getBoundingClientRect();
+  return {
+    x: cr.left - shell.left + cr.width / 2,
+    y: cr.top - shell.top + cr.height / 2,
+  };
+}
+
+/** Short zig-zag path from neighbour → merge target (single calm discharge). */
+function zigPath(x1, y1, x2, y2) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const len = Math.hypot(dx, dy) || 1;
+  const nx = -dy / len;
+  const ny = dx / len;
+  const amp = Math.min(9, len * 0.18);
+  const ax = x1 + dx * 0.33 + nx * amp;
+  const ay = y1 + dy * 0.33 + ny * amp;
+  const bx = x1 + dx * 0.66 - nx * amp * 0.7;
+  const by = y1 + dy * 0.66 - ny * amp * 0.7;
+  return `M${x1.toFixed(1)} ${y1.toFixed(1)} L${ax.toFixed(1)} ${ay.toFixed(1)} L${bx.toFixed(1)} ${by.toFixed(1)} L${x2.toFixed(1)} ${y2.toFixed(1)}`;
+}
+
+function clearSparks() {
+  while (sparksEl.firstChild) sparksEl.removeChild(sparksEl.firstChild);
+}
+
+function playMergeSparks(merges) {
+  clearSparks();
+  const shell = boardEl.parentElement.getBoundingClientRect();
+  sparksEl.setAttribute('viewBox', `0 0 ${shell.width} ${shell.height}`);
+  const popAt = new Set();
+  for (const m of merges) {
+    popAt.add(m.at);
+    const to = cellCenterInShell(m.at);
+    for (const from of m.cells) {
+      if (from === m.at) continue;
+      const a = cellCenterInShell(from);
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', zigPath(a.x, a.y, to.x, to.y));
+      sparksEl.appendChild(path);
+      const plen = typeof path.getTotalLength === 'function' ? path.getTotalLength() : 80;
+      path.style.setProperty('--len', `${Math.max(1, plen)}`);
+      path.style.strokeDasharray = String(plen);
+      path.style.strokeDashoffset = String(plen);
+      void path.getBoundingClientRect();
+      path.classList.add('spark-run');
+    }
+  }
+  return popAt;
 }
 
 function applyLang() {
@@ -179,20 +243,35 @@ function hideOver() {
 }
 
 function onCell(i) {
-  if (game.over) return;
+  if (game.over || busy) return;
   const res = place(game, i);
   if (!res.ok) return;
+  const merges = (res.events || []).filter((e) => e.type === 'merge');
+  if (merges.length && !reduceMotion()) {
+    busy = true;
+    const popAt = playMergeSparks(merges);
+    paint({ popAt });
+    window.setTimeout(() => {
+      clearSparks();
+      busy = false;
+      paint({ skipMotion: true });
+      if (game.over) showOver(true);
+    }, SPARK_MS);
+    return;
+  }
   paint();
   if (game.over) showOver(true);
 }
 
 function onHold() {
-  if (game.over) return;
+  if (game.over || busy) return;
   swapHold(game);
   paint();
 }
 
 function restart() {
+  if (busy) return;
+  clearSparks();
   game = createGame();
   hideOver();
   paint();
