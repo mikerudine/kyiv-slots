@@ -17,13 +17,24 @@
   const BRUSH_CSS = 11;
   const COLOURS = {
     // hint = pale pastel paper tint (opaque) — never the dark fill colour
-    1: { fill: '#3d5e38', nameUa: 'без тривоги', nameEn: 'no alert', swatch: '#5f9a52', hint: '#dde8d6', dot: '#5f9a52' },
-    2: { fill: '#8a7428', nameUa: 'жовта', nameEn: 'yellow', swatch: '#d4ae3a', hint: '#f2ebcf', dot: '#c9a52e' },
-    3: { fill: '#7a3030', nameUa: 'ракети', nameEn: 'missile', swatch: '#c44545', hint: '#f0e2e2', dot: '#c44545' },
+    // Land alert fills: bright + saturated (mid relief band). Hue held; L varies by DEM.
+    1: { fill: '#3cbc3a', nameUa: 'без тривоги', nameEn: 'no alert', swatch: '#3cbc3a', hint: '#dde8d6', dot: '#4ecf4c' },
+    2: { fill: '#f0c020', nameUa: 'жовта', nameEn: 'yellow', swatch: '#f0c020', hint: '#f2ebcf', dot: '#e0b52e' },
+    3: { fill: '#ef3535', nameUa: 'ракети', nameEn: 'missile', swatch: '#ef3535', hint: '#f0e2e2', dot: '#ff5555' },
     4: { fill: '#3f8f9e', nameUa: 'річка', nameEn: 'river', swatch: '#5eb8c9', hint: '#d9eef2', dot: '#3f8f9e' },
     5: { fill: '#8b939e', nameUa: 'місто', nameEn: 'town', swatch: '#b0b8c4', hint: '#e4e7ec', dot: '#8b939e' },
     // Highway: blank dark grey (readable vs navy BG); painted near-black
     6: { fill: '#1d1d1d', nameUa: 'траса', nameEn: 'highway', swatch: '#2a2a2a', hint: '#c5c9ce', dot: '#4a4a4a' },
+  };
+  // Relief maps shade 0..4 linearly across [min,max] L (≈±28% around mid).
+  // Highlands (4) = min (darker); lowlands (0) = max (lighter). Hue preserved.
+  const RELIEF_CLAMP = {
+    1: { min: 0.22, max: 0.60 }, // green: ~±0.19 from mid; no white wash-out
+    2: { min: 0.38, max: 0.72 }, // yellow: floor stops brown/olive
+    3: { min: 0.24, max: 0.64 }, // red
+    4: { min: 0.38, max: 0.58 },
+    5: { min: 0.45, max: 0.62 },
+    6: { min: 0.08, max: 0.16 },
   };
   const EMPTY = '#eef1f4';
   const BG = '#0b1020';
@@ -340,50 +351,97 @@
     return EMPTY;
   }
 
-  /** Shift hex lightness: amount in [-1,1] (positive = lighter). */
-  function shiftLight(hex, amount) {
-    const [r, g, b] = parseHex(hex);
-    // Relative luminance blend toward white (amount>0) or black (amount<0)
-    const t = Math.max(-1, Math.min(1, amount));
-    let nr, ng, nb;
-    if (t >= 0) {
-      nr = Math.round(r + (255 - r) * t);
-      ng = Math.round(g + (255 - g) * t);
-      nb = Math.round(b + (255 - b) * t);
+  function rgbToHsl(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const l = (max + min) / 2;
+    if (max === min) return { h: 0, s: 0, l };
+    const d = max - min;
+    const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    let h;
+    if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+    else if (max === g) h = ((b - r) / d + 2) / 6;
+    else h = ((r - g) / d + 4) / 6;
+    return { h, s, l };
+  }
+
+  function hslToHex(h, s, l) {
+    let r; let g; let b;
+    if (s === 0) {
+      r = g = b = l;
     } else {
-      const k = 1 + t;
-      nr = Math.round(r * k);
-      ng = Math.round(g * k);
-      nb = Math.round(b * k);
+      const hue2rgb = (p, q, t) => {
+        if (t < 0) t += 1;
+        if (t > 1) t -= 1;
+        if (t < 1 / 6) return p + (q - p) * 6 * t;
+        if (t < 1 / 2) return q;
+        if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+        return p;
+      };
+      const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+      const p = 2 * l - q;
+      r = hue2rgb(p, q, h + 1 / 3);
+      g = hue2rgb(p, q, h);
+      b = hue2rgb(p, q, h - 1 / 3);
     }
-    const h = (n) => n.toString(16).padStart(2, '0');
-    return `#${h(nr)}${h(ng)}${h(nb)}`;
+    const hex = (n) => Math.round(Math.max(0, Math.min(1, n)) * 255).toString(16).padStart(2, '0');
+    return `#${hex(r)}${hex(g)}${hex(b)}`;
   }
 
   /**
-   * Relief: band 0 (low) lighter, band mid = base, band max (high) darker.
-   * Painted: ±~10% around status colour. Blanks: very subtle (±3%).
+   * Relief via HSL lightness only (hue + sat from base fill).
+   * Shade band 0..4 maps linearly across RELIEF_CLAMP (lowland light → highland dark).
+   * Land statuses get the full band range (~±25–30% L); river/town/highway stay nearly flat.
    */
-  function reliefAmount(shade, painted) {
-    const mid = (shadeBands - 1) / 2;
-    const span = painted ? 0.10 : 0.03;
-    return -((shade - mid) / (mid || 1)) * span;
+  function applyRelief(hex, shade, colourId, painted) {
+    const [r, g, b] = parseHex(hex);
+    const hsl = rgbToHsl(r, g, b);
+    const clamp = RELIEF_CLAMP[colourId] || { min: hsl.l - 0.05, max: hsl.l + 0.05 };
+    const band = Math.max(0, Math.min(shadeBands - 1, shade | 0));
+    const t = band / (shadeBands - 1); // 0 = lowland, 1 = highland
+    let s = hsl.s;
+    let l;
+    if (!painted) {
+      // Blanks / selection hints: keep their pale L, only a tiny DEM nudge
+      const tiny = 0.025;
+      l = Math.max(0.05, Math.min(0.95, hsl.l - (t - 0.5) * 2 * tiny));
+    } else if (colourId >= 4) {
+      // Keep river / town / highway colours stable
+      l = hsl.l;
+    } else {
+      // Painted land: full highland/lowland band range (~±25–30% L)
+      l = clamp.max - t * (clamp.max - clamp.min);
+      // Dark yellow: bump sat so it stays gold, not olive/brown
+      if (colourId === 2 && t > 0.5) s = Math.min(1, s + (t - 0.5) * 0.4);
+      // Light green: hold sat so lowlands stay green, not chalky
+      if (colourId === 1 && t < 0.5) s = Math.min(1, Math.max(s, 0.55));
+      // Light red: keep sat so it doesn't go pink-grey
+      if (colourId === 3 && t < 0.5) s = Math.min(1, Math.max(s, 0.60));
+    }
+    return hslToHex(hsl.h, s, l);
   }
 
   function cellFill(c) {
     let base;
     let painted = false;
+    let colourId = 0;
     if (c.painted) {
-      base = COLOURS[c.painted].fill;
+      colourId = c.painted;
+      base = COLOURS[colourId].fill;
       painted = true;
     } else if (features[c.fi].target === selected) {
+      colourId = selected;
       base = COLOURS[selected].hint;
     } else {
       base = blankFill(c);
+      const kind = features[c.fi].kind;
+      if (kind === 'river') colourId = 4;
+      else if (kind === 'town') colourId = 5;
+      else if (kind === 'highway') colourId = 6;
+      else colourId = features[c.fi].target || 1;
     }
-    const amt = reliefAmount(c.shade | 0, painted);
-    if (Math.abs(amt) < 0.001) return base;
-    return shiftLight(base, amt);
+    return applyRelief(base, c.shade | 0, colourId, painted);
   }
 
   function writeCellPixel(c) {
