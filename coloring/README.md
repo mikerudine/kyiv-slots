@@ -2,11 +2,12 @@
 
 Paint-by-numbers map of Kyiv city, Kyiv oblast raions, and neighbouring oblasts
 (Zhytomyr, Chernihiv, Cherkasy, Poltava, Sumy, Vinnytsia), styled like an air-raid
-alert map. The map is rasterized into a fine grid of square cells (~96 across,
-≈4–5 CSS px at default zoom on a phone so the silhouette stays readable). Paint
-every cell before the 1-minute timer ends; a “change” then reassigns ~60% of
-land targets and wipes paint on those cells. Incomplete map at change time ends
-the run.
+alert map. The original SVG region geometry (`map.json`) is the source of truth;
+a uniform square grid (~96 across) is overlaid with area-majority ownership
+(8×8 supersamples per cell). On screen every cell is an identical integer pixel
+size (1px/cell buffer, nearest-neighbour scale). Paint every cell before the
+1-minute timer ends; a “change” then reassigns ~60% of land targets and wipes
+paint on those cells. Incomplete map at change time ends the run.
 
 ## Map data
 
@@ -15,8 +16,8 @@ the run.
 - Rivers (Dnipro, Desna): [Natural Earth](https://www.naturalearthdata.com/) 10m
   rivers/lake centerlines (public domain).
 - Simplified and projected offline into `map.json` (SVG paths). Labels in Ukrainian.
-- Cell ownership is precomputed in `grid.json` (centre pip for land; overlap /
-  distance tests for rivers, city edges, and towns). Regenerate with
+- Cell ownership is precomputed in `grid.json` (area-majority supersampling of
+  the original polygons; no river/town thickening). Regenerate with
   `python3 build-grid.py` after editing `map.json`.
 
 ## Controls

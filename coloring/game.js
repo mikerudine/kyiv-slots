@@ -8,10 +8,10 @@
   const URGENT_SEC = 5;
   const CHANGE_BANNER_MS = 900;
   const CHANGE_FADE_MS = 250;
-  // Numbers only when zoomed enough (~3×+ on a phone with the fine grid).
-  const MIN_NUM_CSS = 12;
-  const MIN_GRID_CSS = 7;
-  // Forgiving finger brush in CSS pixels (map-space radius derived from zoom).
+  // Numbers / grid lines only when each on-screen cell is large enough (integer px).
+  const MIN_NUM_PX = 12;
+  const MIN_GRID_PX = 8;
+  // Forgiving finger brush in CSS pixels.
   const BRUSH_CSS = 11;
   const COLOURS = {
     // hint = pale pastel paper tint (opaque) — never the dark fill colour
@@ -88,11 +88,28 @@
   const canvas = $('board');
   const ctx = canvas.getContext('2d', { alpha: false });
   const viewport = $('mapViewport');
+  // 1×1 pixel per cell; displayed with nearest-neighbour integer scale.
+  const cellBuf = document.createElement('canvas');
+  const cellBufCtx = cellBuf.getContext('2d', { alpha: false });
+  let cellImg = null; // ImageData for fast pixel writes
+  let hexRgb = {};
+  let dpr = 1;
+  let cssW = 1;
+  let cssH = 1;
 
-  let view = { x: 0, y: 0, s: 1 };
+  let view = { zoom: 1, x: 0, y: 0 }; // zoom multiplies fit; x/y = CSS pan (integers)
   let pointers = new Map();
   let pinch0 = null;
   let paintPointerId = null;
+
+  function parseHex(hex) {
+    if (hexRgb[hex]) return hexRgb[hex];
+    const h = hex.replace('#', '');
+    const n = parseInt(h.length === 3 ? h.split('').map((c) => c + c).join('') : h, 16);
+    const rgb = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    hexRgb[hex] = rgb;
+    return rgb;
+  }
 
   function landColour() {
     return 1 + ((Math.random() * 3) | 0);
@@ -214,37 +231,33 @@
 
   function resizeCanvas() {
     const box = viewport.getBoundingClientRect();
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const w = Math.max(1, Math.round(box.width));
-    const h = Math.max(1, Math.round(box.height));
-    canvas.style.width = w + 'px';
-    canvas.style.height = h + 'px';
-    canvas.width = Math.round(w * dpr);
-    canvas.height = Math.round(h * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    cssW = Math.max(1, Math.round(box.width));
+    cssH = Math.max(1, Math.round(box.height));
+    canvas.style.width = cssW + 'px';
+    canvas.style.height = cssH + 'px';
+    // Draw in device pixels directly (no setTransform) so cell sizes stay integer.
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.imageSmoothingEnabled = false;
     fullDirty = true;
   }
 
-  function mapLayout() {
-    const rect = viewport.getBoundingClientRect();
-    const cssW = rect.width;
-    const cssH = rect.height;
-    const vb = gridData.viewBox;
-    const mapW = vb[2];
-    const mapH = vb[3];
-    const fit = Math.min(cssW / mapW, cssH / mapH);
-    const ox = (cssW - mapW * fit) / 2;
-    const oy = (cssH - mapH * fit) / 2;
-    return { rect, cssW, cssH, mapW, mapH, fit, ox, oy };
-  }
-
-  function scheduleDraw() {
-    paintDirty = true;
+  function initCellBuf() {
+    cellBuf.width = cols;
+    cellBuf.height = rows;
+    cellImg = cellBufCtx.createImageData(cols, rows);
+    // fill BG
+    const [br, bg, bb] = parseHex(BG);
+    const d = cellImg.data;
+    for (let i = 0; i < cols * rows; i++) {
+      const o = i * 4;
+      d[o] = br; d[o + 1] = bg; d[o + 2] = bb; d[o + 3] = 255;
+    }
   }
 
   function blankFill(c) {
-    // Kind-based pale paper so rivers / towns / city read in the silhouette
-    // even before paint (static — no animation).
     const kind = features[c.fi].kind;
     if (kind === 'river') return '#d2e8ee';
     if (kind === 'town') return '#dde1e7';
@@ -254,129 +267,163 @@
 
   function cellFill(c) {
     if (c.painted) return COLOURS[c.painted].fill;
-    // Selected-colour blanks: light pastel (never the dark fill colour)
     if (features[c.fi].target === selected) return COLOURS[selected].hint;
     return blankFill(c);
   }
 
-  function beginMapTransform(layout) {
-    ctx.save();
-    ctx.translate(view.x, view.y);
-    ctx.scale(view.s, view.s);
-    ctx.translate(layout.ox, layout.oy);
-    ctx.scale(layout.fit, layout.fit);
+  function writeCellPixel(c) {
+    const [r, g, b] = parseHex(cellFill(c));
+    const o = (c.row * cols + c.col) * 4;
+    cellImg.data[o] = r;
+    cellImg.data[o + 1] = g;
+    cellImg.data[o + 2] = b;
+    cellImg.data[o + 3] = 255;
   }
 
-  function paintCellRect(c, cellCss) {
-    const x = c.col * cellW;
-    const y = c.row * cellH;
-    ctx.fillStyle = cellFill(c);
-    ctx.fillRect(x, y, cellW + 0.35, cellH + 0.35);
-    // Subtle static dot on selected-colour blanks (readable without dark fill)
-    if (!c.painted && cellTarget(c) === selected && cellCss >= 5) {
-      const dotR = Math.min(cellW, cellH) * 0.18;
-      ctx.fillStyle = COLOURS[selected].dot;
-      ctx.beginPath();
-      ctx.arc(x + cellW / 2, y + cellH / 2, dotR, 0, Math.PI * 2);
-      ctx.fill();
+  function rebuildCellBuf() {
+    if (!cellImg) initCellBuf();
+    const [br, bg, bb] = parseHex(BG);
+    const d = cellImg.data;
+    for (let i = 0; i < cols * rows; i++) {
+      const o = i * 4;
+      d[o] = br; d[o + 1] = bg; d[o + 2] = bb; d[o + 3] = 255;
     }
+    for (let i = 0; i < cells.length; i++) writeCellPixel(cells[i]);
+    cellBufCtx.putImageData(cellImg, 0, 0);
   }
 
-  function drawFull() {
-    const layout = mapLayout();
-    const { cssW, cssH, fit } = layout;
+  function scheduleDraw() {
+    paintDirty = true;
+  }
+
+  /**
+   * Uniform square cells in DEVICE pixels: every cell is exactly `cellDev`×`cellDev`.
+   * CSS size is cellDev/dpr (may be fractional in CSS, but identical on screen).
+   */
+  function gridLayout() {
+    const rect = viewport.getBoundingClientRect();
+    const baseDev = Math.min((cssW * dpr) / cols, (cssH * dpr) / rows);
+    const cellDev = Math.max(1, Math.round(baseDev * view.zoom));
+    const mapDevW = cols * cellDev;
+    const mapDevH = rows * cellDev;
+    const originDevX = Math.round(view.x * dpr);
+    const originDevY = Math.round(view.y * dpr);
+    const cellCss = cellDev / dpr;
+    return {
+      rect,
+      cssW,
+      cssH,
+      cellDev,
+      cellCss,
+      cellPx: cellCss, // alias for brush/hit tests in CSS space
+      mapDevW,
+      mapDevH,
+      originDevX,
+      originDevY,
+      originX: originDevX / dpr,
+      originY: originDevY / dpr,
+      base: baseDev / dpr,
+    };
+  }
+
+  function draw() {
+    if (!gridData) return;
     if (canvas.width === 0) resizeCanvas();
 
+    if (fullDirty || !cellImg) {
+      rebuildCellBuf();
+    } else if (dirtyCells.size) {
+      for (const i of dirtyCells) writeCellPixel(cells[i]);
+      cellBufCtx.putImageData(cellImg, 0, 0);
+    }
+    dirtyCells.clear();
+    fullDirty = false;
+    paintDirty = false;
+
+    const layout = gridLayout();
+    const {
+      cellDev, cellCss, mapDevW, mapDevH, originDevX, originDevY,
+    } = layout;
+
+    ctx.imageSmoothingEnabled = false;
+    if ('webkitImageSmoothingEnabled' in ctx) ctx.webkitImageSmoothingEnabled = false;
+    if ('mozImageSmoothingEnabled' in ctx) ctx.mozImageSmoothingEnabled = false;
+
     ctx.fillStyle = BG;
-    ctx.fillRect(0, 0, cssW, cssH);
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    beginMapTransform(layout);
+    // Nearest-neighbour blit — every cell is identically cellDev×cellDev device px.
+    ctx.drawImage(
+      cellBuf, 0, 0, cols, rows,
+      originDevX, originDevY, mapDevW, mapDevH
+    );
 
-    const cellCss = cellW * fit * view.s;
-    const showNums = cellCss >= MIN_NUM_CSS;
-    const showGrid = cellCss >= MIN_GRID_CSS;
-
-    for (let i = 0; i < cells.length; i++) paintCellRect(cells[i], cellCss);
-
-    if (showGrid) {
+    // Optional uniform 1 device-px grid on integer boundaries when zoomed in.
+    if (cellCss >= MIN_GRID_PX) {
       ctx.strokeStyle = GRID_LINE;
-      ctx.lineWidth = Math.max(0.25, 0.55 / (fit * view.s));
+      ctx.lineWidth = 1;
       ctx.beginPath();
       for (let c = 0; c <= cols; c++) {
-        const x = c * cellW;
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, rows * cellH);
+        const x = originDevX + c * cellDev + 0.5;
+        ctx.moveTo(x, originDevY);
+        ctx.lineTo(x, originDevY + mapDevH);
       }
       for (let r = 0; r <= rows; r++) {
-        const y = r * cellH;
-        ctx.moveTo(0, y);
-        ctx.lineTo(cols * cellW, y);
+        const y = originDevY + r * cellDev + 0.5;
+        ctx.moveTo(originDevX, y);
+        ctx.lineTo(originDevX + mapDevW, y);
       }
       ctx.stroke();
     }
 
-    if (showNums) {
-      const fontPx = Math.min(cellH * 0.55, cellW * 0.55);
-      ctx.font = `700 ${fontPx}px ui-sans-serif,system-ui,sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
+    if (cellCss >= 5) {
+      const showNums = cellCss >= MIN_NUM_PX;
+      if (showNums) {
+        const fontPx = Math.max(8, Math.floor(cellCss * 0.55)) * dpr;
+        ctx.font = `700 ${fontPx}px ui-sans-serif,system-ui,sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+      }
       for (const c of cells) {
-        if (c.painted === cellTarget(c)) continue;
-        const x = c.col * cellW + cellW / 2;
-        const y = c.row * cellH + cellH / 2;
-        ctx.lineWidth = Math.max(1.2, fontPx * 0.16);
-        ctx.strokeStyle = '#f8fafcee';
-        ctx.fillStyle = '#0f172a';
-        const t = String(cellTarget(c));
-        ctx.strokeText(t, x, y);
-        ctx.fillText(t, x, y);
+        const cx = originDevX + c.col * cellDev + cellDev / 2;
+        const cy = originDevY + c.row * cellDev + cellDev / 2;
+        const target = cellTarget(c);
+        if (!c.painted && target === selected) {
+          const dotR = Math.max(1, Math.floor(cellDev * 0.16));
+          ctx.fillStyle = COLOURS[selected].dot;
+          ctx.beginPath();
+          ctx.arc(cx, cy, dotR, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        if (showNums && c.painted !== target) {
+          ctx.lineWidth = Math.max(1, Math.floor(cellDev * 0.08));
+          ctx.strokeStyle = '#f8fafcee';
+          ctx.fillStyle = '#0f172a';
+          const t = String(target);
+          ctx.strokeText(t, cx, cy);
+          ctx.fillText(t, cx, cy);
+        }
       }
     }
 
-    // Town labels: majors at modest zoom; all when zoomed in
-    const labelZoom = view.s * fit;
-    if (labelZoom > 0.45) {
-      const labelPx = Math.max(8, 10 / Math.max(view.s, 0.01));
+    if (cellCss >= 6) {
+      const labelPx = Math.max(9, Math.min(14, cellCss)) * dpr;
       ctx.font = `600 ${labelPx}px ui-sans-serif,system-ui,sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
       ctx.fillStyle = '#f1f5f9';
       ctx.strokeStyle = '#0b1020ee';
-      ctx.lineWidth = Math.max(2, 2.5 / view.s);
+      ctx.lineWidth = 3 * dpr;
+      const scale = cellDev / cellW;
       for (const f of features) {
         if (f.kind !== 'town' || !f.label) continue;
-        if (!f.major && labelZoom < 0.7) continue;
-        const ly = f.cy + (f.major ? 14 : 12);
-        ctx.strokeText(f.label, f.cx, ly);
-        ctx.fillText(f.label, f.cx, ly);
+        if (!f.major && cellCss < 10) continue;
+        const lx = originDevX + f.cx * scale;
+        const ly = originDevY + f.cy * scale + (f.major ? 10 : 8) * dpr;
+        ctx.strokeText(f.label, lx, ly);
+        ctx.fillText(f.label, lx, ly);
       }
     }
-
-    ctx.restore();
-    dirtyCells.clear();
-    fullDirty = false;
-    paintDirty = false;
-  }
-
-  function drawDirtyOnly() {
-    if (!dirtyCells.size) {
-      paintDirty = false;
-      return;
-    }
-    const layout = mapLayout();
-    const cellCss = cellW * layout.fit * view.s;
-    beginMapTransform(layout);
-    for (const i of dirtyCells) paintCellRect(cells[i], cellCss);
-    ctx.restore();
-    dirtyCells.clear();
-    paintDirty = false;
-  }
-
-  function draw() {
-    if (!gridData) return;
-    if (fullDirty) drawFull();
-    else if (dirtyCells.size) drawDirtyOnly();
-    else paintDirty = false;
   }
 
   function renderPalette() {
@@ -430,30 +477,30 @@
   }
 
   function applyView() {
-    fullDirty = true;
+    // Pan/zoom only changes blit scale — cell colours unchanged.
     scheduleDraw();
   }
 
   function fitView() {
-    const rect = viewport.getBoundingClientRect();
-    view = { x: 0, y: 0, s: 1.15 };
-    view.x = (rect.width - rect.width * view.s) / 2;
-    view.y = (rect.height - rect.height * view.s) / 2;
     resizeCanvas();
+    view.zoom = 1;
+    const layout = gridLayout();
+    view.x = Math.round((cssW - cols * layout.cellCss) / 2);
+    view.y = Math.round((cssH - rows * layout.cellCss) / 2);
+    fullDirty = true;
     applyView();
   }
 
   function clampView() {
-    const rect = viewport.getBoundingClientRect();
-    const minS = 1;
-    const maxS = 8;
-    view.s = Math.min(maxS, Math.max(minS, view.s));
-    const w = rect.width * view.s;
-    const h = rect.height * view.s;
-    const maxX = rect.width * 0.25;
-    const maxY = rect.height * 0.25;
-    view.x = Math.min(maxX, Math.max(rect.width - w - maxX, view.x));
-    view.y = Math.min(maxY, Math.max(rect.height - h - maxY, view.y));
+    const maxZoom = Math.max(8, Math.ceil(Math.min(cssW, cssH) / 4));
+    view.zoom = Math.min(maxZoom, Math.max(1, view.zoom));
+    const layout = gridLayout();
+    const mapCssW = cols * layout.cellCss;
+    const mapCssH = rows * layout.cellCss;
+    const maxX = cssW * 0.25;
+    const maxY = cssH * 0.25;
+    view.x = Math.round(Math.min(maxX, Math.max(cssW - mapCssW - maxX, view.x)));
+    view.y = Math.round(Math.min(maxY, Math.max(cssH - mapCssH - maxY, view.y)));
   }
 
   let cellIndex = null;
@@ -466,17 +513,13 @@
     }
   }
 
-  function clientToMap(clientX, clientY) {
-    const { rect, mapW, mapH, fit, ox, oy } = mapLayout();
-    const lx = (clientX - rect.left - view.x) / view.s;
-    const ly = (clientY - rect.top - view.y) / view.s;
-    return {
-      mx: (lx - ox) / fit,
-      my: (ly - oy) / fit,
-      mapW,
-      mapH,
-      fit,
-    };
+  function clientToCell(clientX, clientY) {
+    const { rect, cellCss, originX, originY } = gridLayout();
+    const lx = clientX - rect.left - originX;
+    const ly = clientY - rect.top - originY;
+    const col = Math.floor(lx / cellCss);
+    const row = Math.floor(ly / cellCss);
+    return { col, row, cellPx: cellCss, lx, ly };
   }
 
   function paintCellIndex(i) {
@@ -503,22 +546,23 @@
   /** Paint matching cells under a CSS-pixel brush around the finger. */
   function paintBrushAt(clientX, clientY) {
     if (!state || state.over || paused) return 0;
-    const { mx, my, mapW, mapH, fit } = clientToMap(clientX, clientY);
-    const brushMap = BRUSH_CSS / (fit * view.s);
-    const brush2 = brushMap * brushMap;
-    const col0 = Math.max(0, ((mx - brushMap) / cellW) | 0);
-    const col1 = Math.min(cols - 1, ((mx + brushMap) / cellW) | 0);
-    const row0 = Math.max(0, ((my - brushMap) / cellH) | 0);
-    const row1 = Math.min(rows - 1, ((my + brushMap) / cellH) | 0);
+    const { col: hitCol, row: hitRow, cellPx, lx, ly } = clientToCell(clientX, clientY);
+    const brushCells = BRUSH_CSS / cellPx;
+    const brush2 = brushCells * brushCells;
+    const rad = Math.ceil(brushCells);
+    const col0 = Math.max(0, hitCol - rad);
+    const col1 = Math.min(cols - 1, hitCol + rad);
+    const row0 = Math.max(0, hitRow - rad);
+    const row1 = Math.min(rows - 1, hitRow + rad);
+    // Finger position in cell-space
+    const fx = lx / cellPx;
+    const fy = ly / cellPx;
     let n = 0;
     for (let row = row0; row <= row1; row++) {
       for (let col = col0; col <= col1; col++) {
-        const cx = (col + 0.5) * cellW;
-        const cy = (row + 0.5) * cellH;
-        const dx = cx - mx;
-        const dy = cy - my;
+        const dx = (col + 0.5) - fx;
+        const dy = (row + 0.5) - fy;
         if (dx * dx + dy * dy > brush2) continue;
-        if (mx < -brushMap || my < -brushMap || mx > mapW + brushMap || my > mapH + brushMap) continue;
         const i = cellIndex[row * cols + col];
         if (paintCellIndex(i)) n++;
       }
@@ -567,9 +611,11 @@
       const pts = [...pointers.values()];
       const dx = pts[1].x - pts[0].x;
       const dy = pts[1].y - pts[0].y;
+      const layout = gridLayout();
       pinch0 = {
         dist: Math.hypot(dx, dy) || 1,
-        s: view.s,
+        zoom: view.zoom,
+        cellCss: layout.cellCss,
         midX: (pts[0].x + pts[1].x) / 2,
         midY: (pts[0].y + pts[1].y) / 2,
         vx: view.x,
@@ -594,16 +640,23 @@
       const midX = (pts[0].x + pts[1].x) / 2;
       const midY = (pts[0].y + pts[1].y) / 2;
       const rect = viewport.getBoundingClientRect();
-      const scale = pinch0.s * (dist / pinch0.dist);
-      const lx = (pinch0.midX - rect.left - pinch0.vx) / pinch0.s;
-      const ly = (pinch0.midY - rect.top - pinch0.vy) / pinch0.s;
-      view.s = scale;
-      view.x = midX - rect.left - lx * view.s;
-      view.y = midY - rect.top - ly * view.s;
+      view.zoom = pinch0.zoom * (dist / pinch0.dist);
+      clampView();
+      const layout = gridLayout();
+      // Keep the map point under the original midpoint stable
+      const localX = pinch0.midX - rect.left - pinch0.vx;
+      const localY = pinch0.midY - rect.top - pinch0.vy;
+      const mapCol = localX / pinch0.cellCss;
+      const mapRow = localY / pinch0.cellCss;
+      view.x = Math.round(midX - rect.left - mapCol * layout.cellCss);
+      view.y = Math.round(midY - rect.top - mapRow * layout.cellCss);
       clampView();
       applyView();
     } else if (pointers.size === 1 && paintPointerId === e.pointerId) {
-      void prev;
+      // two-finger pan uses midpoint; one-finger paints
+      if (prev && pointers.size === 1) {
+        // no pan on one finger
+      }
       paintAt(e.clientX, e.clientY);
     }
   });
@@ -630,13 +683,16 @@
   viewport.addEventListener('wheel', (e) => {
     e.preventDefault();
     const rect = viewport.getBoundingClientRect();
-    const factor = e.deltaY > 0 ? 0.9 : 1.1;
-    const lx = (e.clientX - rect.left - view.x) / view.s;
-    const ly = (e.clientY - rect.top - view.y) / view.s;
-    view.s *= factor;
+    const before = gridLayout();
+    const localX = e.clientX - rect.left - before.originX;
+    const localY = e.clientY - rect.top - before.originY;
+    const mapCol = localX / before.cellCss;
+    const mapRow = localY / before.cellCss;
+    view.zoom *= e.deltaY > 0 ? 0.9 : 1.1;
     clampView();
-    view.x = e.clientX - rect.left - lx * view.s;
-    view.y = e.clientY - rect.top - ly * view.s;
+    const after = gridLayout();
+    view.x = Math.round(e.clientX - rect.left - mapCol * after.cellCss);
+    view.y = Math.round(e.clientY - rect.top - mapRow * after.cellCss);
     clampView();
     applyView();
   }, { passive: false });

@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Rasterize coloring/map.json into coloring/grid.json.
 
-Cell ownership uses centre point-in-polygon for land, plus meaningful cell↔geometry
-overlap for thin features (rivers, city edges, towns) so the silhouette stays readable.
+Each cell is assigned the feature with the largest overlap inside that cell
+(area-majority via supersampling). Features are tested in SVG paint order
+(oblast → raion → city → river → town) so nested/overlapping geometry matches
+the original map; there is no distance-based thickening of rivers or towns.
 """
 from __future__ import annotations
 
 import json
-import math
 import re
 from collections import Counter
 from pathlib import Path
@@ -16,8 +17,13 @@ ROOT = Path(__file__).resolve().parent
 MAP_PATH = ROOT / "map.json"
 OUT_PATH = ROOT / "grid.json"
 
-# ~90–100 across → ~4–5 CSS px at default phone zoom; numbers appear when zoomed.
+# Fine grid so the silhouette reads; keep square cells in map space.
 COLS = 96
+# 8×8 = 64 samples/cell — enough for area-majority without being too slow.
+SAMPLES = 8
+
+# Paint order (low → high). Higher wins at a sample point when polygons overlap.
+Z = {"oblast": 0, "raion": 1, "city": 2, "river": 3, "town": 4}
 
 
 def parse_path(d: str):
@@ -58,204 +64,109 @@ def pip(x, y, poly):
     return inside
 
 
-def dist_to_seg(px, py, ax, ay, bx, by):
-    abx, aby = bx - ax, by - ay
-    apx, apy = px - ax, py - ay
-    ab2 = abx * abx + aby * aby
-    t = 0.0 if ab2 == 0 else max(0.0, min(1.0, (apx * abx + apy * aby) / ab2))
-    cx, cy = ax + t * abx, ay + t * aby
-    return math.hypot(px - cx, py - cy)
-
-
 def poly_bbox(poly):
     xs = [p[0] for p in poly]
     ys = [p[1] for p in poly]
     return min(xs), min(ys), max(xs), max(ys)
 
 
-def cell_samples(x0, y0, cw, ch):
-    """Centre + corners + edge midpoints — catches thin polygon overlaps."""
-    x1, y1 = x0 + cw, y0 + ch
-    xm, ym = x0 + cw * 0.5, y0 + ch * 0.5
-    return (
-        (xm, ym),
-        (x0, y0),
-        (x1, y0),
-        (x0, y1),
-        (x1, y1),
-        (xm, y0),
-        (xm, y1),
-        (x0, ym),
-        (x1, ym),
-    )
-
-
-def cell_overlaps_poly(x0, y0, cw, ch, poly, edge_thresh):
-    for x, y in cell_samples(x0, y0, cw, ch):
-        if pip(x, y, poly):
-            return True
-    # Cell near a boundary (thin peninsula / city edge)
-    xm, ym = x0 + cw * 0.5, y0 + ch * 0.5
-    for i in range(len(poly)):
-        a = poly[i]
-        b = poly[(i + 1) % len(poly)]
-        if dist_to_seg(xm, ym, a[0], a[1], b[0], b[1]) <= edge_thresh:
-            return True
-    return False
-
-
-def cell_near_poly(x0, y0, cw, ch, poly, thresh):
-    """True if cell centre/corners are inside or within thresh of an edge."""
-    for x, y in cell_samples(x0, y0, cw, ch):
-        if pip(x, y, poly):
-            return True
-        for i in range(len(poly)):
-            a = poly[i]
-            b = poly[(i + 1) % len(poly)]
-            if dist_to_seg(x, y, a[0], a[1], b[0], b[1]) <= thresh:
-                return True
-    return False
-
-
-def spiral(col, row, max_r=12):
-    yield col, row
-    for r in range(1, max_r + 1):
-        for dy in range(-r, r + 1):
-            for dx in range(-r, r + 1):
-                if max(abs(dx), abs(dy)) != r:
-                    continue
-                yield col + dx, row + dy
+def feature_at(x, y, parsed, ordered):
+    """Topmost feature covering (x,y), or -1."""
+    hit = -1
+    hit_z = -1
+    for fi in ordered:
+        f = parsed[fi]
+        bx0, by0, bx1, by1 = f["bbox"]
+        if x < bx0 or x > bx1 or y < by0 or y > by1:
+            continue
+        if any(pip(x, y, p) for p in f["polys"]):
+            z = Z.get(f["kind"], -1)
+            if z >= hit_z:
+                hit = fi
+                hit_z = z
+    return hit
 
 
 def main():
     data = json.loads(MAP_PATH.read_text())
     vb = data["viewBox"]
-    w, h = vb[2], vb[3]
-    rows = int(round(COLS * h / w))
-    cw, ch = w / COLS, h / rows
+    w, h = float(vb[2]), float(vb[3])
+    # Square cells: rows from aspect so cellW == cellH
+    cw = w / COLS
+    rows = int(round(h / cw))
+    ch = h / rows  # ≈ cw
     features = data["features"]
-    parsed = [{**f, "polys": parse_path(f["path"])} for f in features]
-    for f in parsed:
-        bbs = [poly_bbox(p) for p in f["polys"]] if f["polys"] else []
-        if bbs:
-            f["bbox"] = (
+    parsed = []
+    for f in features:
+        polys = parse_path(f["path"])
+        if polys:
+            bbs = [poly_bbox(p) for p in polys]
+            bbox = (
                 min(b[0] for b in bbs),
                 min(b[1] for b in bbs),
                 max(b[2] for b in bbs),
                 max(b[3] for b in bbs),
             )
         else:
-            f["bbox"] = (f["cx"], f["cy"], f["cx"], f["cy"])
+            bbox = (f["cx"], f["cy"], f["cx"], f["cy"])
+        parsed.append({**f, "polys": polys, "bbox": bbox})
 
-    order = {"oblast": 0, "raion": 1, "city": 2, "river": 3, "town": 4}
+    # Process low→high so later overwrites in ordered list are fine; feature_at uses Z.
+    ordered = sorted(range(len(parsed)), key=lambda i: Z.get(parsed[i]["kind"], -1))
+
     cell = [-1] * (COLS * rows)
-    # Half-diagonal + a little — claims cells that only graze a boundary
-    edge_thresh = math.hypot(cw, ch) * 0.55
-    river_thresh = max(cw, ch) * 0.85
+    step = 1.0 / SAMPLES
+    # Sample at centres of SAMPLES×SAMPLES subcells
+    offsets = [(i + 0.5) * step for i in range(SAMPLES)]
 
-    # 1) Land regions — centre pip first, then overlap for city/raion edges
-    for fi, f in enumerate(parsed):
-        if f["kind"] not in ("oblast", "raion", "city"):
-            continue
-        bx0, by0, bx1, by1 = f["bbox"]
-        pad = edge_thresh if f["kind"] == "city" else 0
-        c0 = max(0, int((bx0 - pad) / cw))
-        c1 = min(COLS - 1, int((bx1 + pad) / cw))
-        r0 = max(0, int((by0 - pad) / ch))
-        r1 = min(rows - 1, int((by1 + pad) / ch))
-        use_overlap = f["kind"] in ("city", "raion")
-        for row in range(r0, r1 + 1):
-            for col in range(c0, c1 + 1):
-                x0, y0 = col * cw, row * ch
-                xm, ym = x0 + cw * 0.5, y0 + ch * 0.5
-                hit = False
-                for p in f["polys"]:
-                    if pip(xm, ym, p):
-                        hit = True
-                        break
-                    if use_overlap and cell_overlaps_poly(x0, y0, cw, ch, p, edge_thresh):
-                        hit = True
-                        break
-                if not hit:
-                    continue
-                prev = cell[row * COLS + col]
-                if prev < 0 or order[f["kind"]] >= order[parsed[prev]["kind"]]:
-                    cell[row * COLS + col] = fi
-
-    # 2) Rivers — thicken so Dnipro/Desna stay continuous ribbons
-    for fi, f in enumerate(parsed):
-        if f["kind"] != "river":
-            continue
-        bx0, by0, bx1, by1 = f["bbox"]
-        c0 = max(0, int((bx0 - river_thresh) / cw))
-        c1 = min(COLS - 1, int((bx1 + river_thresh) / cw))
-        r0 = max(0, int((by0 - river_thresh) / ch))
-        r1 = min(rows - 1, int((by1 + river_thresh) / ch))
-        for row in range(r0, r1 + 1):
-            for col in range(c0, c1 + 1):
-                x0, y0 = col * cw, row * ch
-                if any(cell_near_poly(x0, y0, cw, ch, p, river_thresh) for p in f["polys"]):
-                    cell[row * COLS + col] = fi
-
-    # 3) Towns — every cell whose rect intersects the settlement disc
-    for fi, f in enumerate(parsed):
-        if f["kind"] != "town":
-            continue
-        # Match original SVG radii, but never thinner than ~1 cell
-        base_r = 16.0 if f.get("major") else 13.0
-        rad = max(base_r, math.hypot(cw, ch) * 0.9)
-        cx, cy = f["cx"], f["cy"]
-        c0 = max(0, int((cx - rad) / cw))
-        c1 = min(COLS - 1, int((cx + rad) / cw))
-        r0 = max(0, int((cy - rad) / ch))
-        r1 = min(rows - 1, int((cy + rad) / ch))
-        for row in range(r0, r1 + 1):
-            for col in range(c0, c1 + 1):
-                # circle vs cell AABB (closest point)
-                x0, y0 = col * cw, row * ch
-                qx = min(max(cx, x0), x0 + cw)
-                qy = min(max(cy, y0), y0 + ch)
-                if (qx - cx) ** 2 + (qy - cy) ** 2 <= rad * rad:
-                    prev = cell[row * COLS + col]
-                    if prev >= 0 and parsed[prev]["kind"] == "town" and prev != fi:
-                        # keep earlier town; displace later ones below
-                        continue
-                    cell[row * COLS + col] = fi
-
-    # Ensure every town that lost its cells (collision) still gets one
-    counts = Counter(cell)
-    for fi, f in enumerate(parsed):
-        if f["kind"] != "town" or counts[fi] > 0:
-            continue
-        col0 = min(COLS - 1, max(0, int(f["cx"] / cw)))
-        row0 = min(rows - 1, max(0, int(f["cy"] / ch)))
-        for col, row in spiral(col0, row0):
-            if not (0 <= col < COLS and 0 <= row < rows):
+    for row in range(rows):
+        y0 = row * ch
+        for col in range(COLS):
+            x0 = col * cw
+            votes = Counter()
+            for oy in offsets:
+                for ox in offsets:
+                    fi = feature_at(x0 + ox * cw, y0 + oy * ch, parsed, ordered)
+                    if fi >= 0:
+                        votes[fi] += 1
+            if not votes:
                 continue
-            prev = cell[row * COLS + col]
-            if prev >= 0 and parsed[prev]["kind"] == "town":
-                continue
-            cell[row * COLS + col] = fi
-            counts = Counter(cell)
-            break
+            # Majority; ties → higher Z, then lower index for stability
+            best = max(
+                votes.items(),
+                key=lambda kv: (kv[1], Z.get(parsed[kv[0]]["kind"], -1), -kv[0]),
+            )[0]
+            cell[row * COLS + col] = best
 
     counts = Counter(cell)
+    # Ensure every feature that had geometry but lost the majority vote still
+    # appears at least once (centroid cell), otherwise the colour can't be played.
     for fi, f in enumerate(parsed):
         if counts[fi] > 0:
             continue
-        col0 = min(COLS - 1, max(0, int(f["cx"] / cw)))
-        row0 = min(rows - 1, max(0, int(f["cy"] / ch)))
-        for col, row in spiral(col0, row0):
-            if not (0 <= col < COLS and 0 <= row < rows):
-                continue
-            prev = cell[row * COLS + col]
-            if prev >= 0 and parsed[prev]["kind"] == "town":
-                continue
-            if prev >= 0 and counts[prev] <= 1:
-                continue
-            cell[row * COLS + col] = fi
-            counts = Counter(cell)
-            break
+        col = min(COLS - 1, max(0, int(f["cx"] / cw)))
+        row = min(rows - 1, max(0, int(f["cy"] / ch)))
+        # Prefer empty or lower-Z overwrite of multi-cell features
+        placed = False
+        for rad in range(0, 8):
+            for dy in range(-rad, rad + 1):
+                for dx in range(-rad, rad + 1):
+                    if max(abs(dx), abs(dy)) != rad and rad > 0:
+                        continue
+                    c, r = col + dx, row + dy
+                    if not (0 <= c < COLS and 0 <= r < rows):
+                        continue
+                    prev = cell[r * COLS + c]
+                    if prev >= 0 and counts[prev] <= 1:
+                        continue
+                    cell[r * COLS + c] = fi
+                    counts = Counter(cell)
+                    placed = True
+                    break
+                if placed:
+                    break
+            if placed:
+                break
 
     counts = Counter(cell)
     out = {
@@ -264,13 +175,17 @@ def main():
         "viewBox": list(vb),
         "cellW": cw,
         "cellH": ch,
+        "samples": SAMPLES,
         "cells": cell,
     }
     OUT_PATH.write_text(json.dumps(out, separators=(",", ":")))
     have = sum(1 for i in range(len(parsed)) if counts[i] > 0)
-    print(f"wrote {OUT_PATH} ({COLS}×{rows}, {have}/{len(parsed)} features, filled={COLS * rows - counts[-1]})")
+    print(
+        f"wrote {OUT_PATH} ({COLS}×{rows}, cell≈{cw:.3f}, "
+        f"{have}/{len(parsed)} features, filled={COLS * rows - counts[-1]}, samples={SAMPLES}²)"
+    )
     for fi, f in enumerate(parsed):
-        if f["kind"] in ("city", "river", "town") or counts[fi] < 3:
+        if f["kind"] in ("city", "river", "town") or counts[fi] < 5:
             print(f"  {counts[fi]:5d}  {f['id']:20s}  {f['kind']}")
 
 
