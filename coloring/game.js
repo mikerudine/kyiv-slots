@@ -6,6 +6,7 @@
   const CHANGE_FRAC = 0.6;
   const WARN_SEC = 15;
   const URGENT_SEC = 5;
+  const MAX_LIVES = 5;
   const CHANGE_BANNER_MS = 900;
   const CHANGE_FADE_MS = 250;
   // Numbers / grid lines only when each on-screen cell is large enough (integer px).
@@ -31,13 +32,15 @@
       menu: '☰ Меню',
       round: (n) => `Раунд ${n}`,
       progress: (a, b) => `${a}/${b}`,
+      lives: (n) => `Спроби: ${n}`,
+      attempt: (n, max) => `Спроба ${n} з ${max}`,
       hint: 'Обери колір і веди пальцем. Два пальці — зсув/масштаб.',
       pause: 'Пауза',
       startT: 'Розфарбуй тривоги',
-      startB: 'Карта тривог навколо Києва. Зафарбуй усі клітинки за номерами за 1 хвилину. Потім «зміна» — нові цілі на більшості карти.',
+      startB: 'Карта тривог навколо Києва. Зафарбуй усі клітинки за номерами за 1 хвилину. Потім «зміна» — нові цілі на більшості карти. 5 спроб.',
       go: 'Малювати',
       overT: 'Зміна застала!',
-      overB: 'Карта була не готова, коли оновились цілі.',
+      overB: 'Спроби скінчились — карта не була готова вчасно.',
       again: 'Ще раз',
       change: 'Зміна тривог!',
       score: (r, b, t) => `Раундів: ${r} · бонус часу: ${b} · разом: ${t}`,
@@ -47,13 +50,15 @@
       menu: '☰ Menu',
       round: (n) => `Round ${n}`,
       progress: (a, b) => `${a}/${b}`,
+      lives: (n) => `Attempts: ${n}`,
+      attempt: (n, max) => `Attempt ${n} of ${max}`,
       hint: 'Pick a colour and drag to paint. Two fingers pan/zoom.',
       pause: 'Paused',
       startT: 'Colour the alerts',
-      startB: 'Alert map around Kyiv. Paint every cell by number in 1 minute. Then a “change” reassigns most targets.',
+      startB: 'Alert map around Kyiv. Paint every cell by number in 1 minute. Then a “change” reassigns most targets. 5 attempts.',
       go: 'Paint',
       overT: 'Caught by the change!',
-      overB: 'The map wasn’t finished when targets updated.',
+      overB: 'Out of attempts — the map wasn’t finished in time.',
       again: 'Play again',
       change: 'Alert change!',
       score: (r, b, t) => `Rounds: ${r} · time bonus: ${b} · total: ${t}`,
@@ -158,12 +163,43 @@
       timeLeft: ROUND_SEC,
       scoreRounds: 0,
       timeBonus: 0,
+      lives: MAX_LIVES,
       over: false,
       started: true,
     };
     selected = 1;
     fitView();
     renderPalette();
+    fullDirty = true;
+    scheduleDraw();
+    ui();
+  }
+
+  function showBanner(text) {
+    const banner = $('changeBanner');
+    banner.textContent = text;
+    if (reduceMotion()) {
+      banner.style.transition = 'none';
+    } else {
+      banner.style.transition = `opacity ${CHANGE_FADE_MS}ms ease`;
+    }
+    banner.classList.add('show');
+    changeFlashUntil = performance.now() + CHANGE_BANNER_MS;
+  }
+
+  /** Timer ran out incomplete: spend one life, keep matching paint, restart clock. */
+  function failAttempt() {
+    state.lives -= 1;
+    if (state.lives <= 0) {
+      gameOver();
+      return;
+    }
+    for (const c of cells) {
+      if (c.painted && c.painted !== cellTarget(c)) c.painted = 0;
+    }
+    state.timeLeft = ROUND_SEC;
+    const attemptNum = MAX_LIVES - state.lives + 1;
+    showBanner(T[lang].attempt(attemptNum, MAX_LIVES));
     fullDirty = true;
     scheduleDraw();
     ui();
@@ -181,16 +217,7 @@
     state.round++;
     state.scoreRounds++;
     state.timeLeft = ROUND_SEC;
-    const bannerMs = reduceMotion() ? CHANGE_BANNER_MS : CHANGE_BANNER_MS;
-    changeFlashUntil = performance.now() + bannerMs;
-    const banner = $('changeBanner');
-    banner.textContent = T[lang].change;
-    if (reduceMotion()) {
-      banner.style.transition = 'none';
-    } else {
-      banner.style.transition = `opacity ${CHANGE_FADE_MS}ms ease`;
-    }
-    banner.classList.add('show');
+    showBanner(T[lang].change);
     fullDirty = true;
     scheduleDraw();
     ui();
@@ -461,6 +488,7 @@
       $('timer').textContent = ROUND_SEC.toFixed(1);
       $('timer').classList.remove('warn', 'urgent');
       $('round').textContent = '';
+      $('lives').textContent = L.lives(MAX_LIVES);
       $('progress').textContent = '';
       return;
     }
@@ -469,6 +497,7 @@
     $('timer').classList.toggle('warn', t <= WARN_SEC && t > URGENT_SEC);
     $('timer').classList.toggle('urgent', t <= URGENT_SEC);
     $('round').textContent = L.round(state.round);
+    $('lives').textContent = L.lives(state.lives);
     $('progress').textContent = L.progress(correctCount(), cells.length);
     if (changeFlashUntil && performance.now() > changeFlashUntil) {
       $('changeBanner').classList.remove('show');
@@ -736,7 +765,7 @@
         if (allCorrect()) {
           doChange();
         } else {
-          gameOver();
+          failAttempt();
         }
       }
       uiAcc += dt;
@@ -760,8 +789,10 @@
       total: cells.length,
       scoreRounds: state.scoreRounds,
       timeBonus: state.timeBonus,
+      lives: state.lives,
       selected,
     },
+    failAttempt: () => { if (state && !state.over) failAttempt(); },
     select: (n) => { selected = n; renderPalette(); fullDirty = true; scheduleDraw(); },
     paintId: (id) => {
       const fi = features.findIndex((x) => x.id === id);

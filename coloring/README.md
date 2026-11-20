@@ -7,7 +7,8 @@ a uniform square grid (~96 across) is overlaid with area-majority ownership
 (8×8 supersamples per cell). On screen every cell is an identical integer pixel
 size (1px/cell buffer, nearest-neighbour scale). Paint every cell before the
 1-minute timer ends; a “change” then reassigns ~60% of land targets and wipes
-paint on those cells. Incomplete map at change time ends the run.
+paint on those cells. Incomplete map spends one of 5 attempts (lives); the run
+ends only after the 5th failed attempt.
 
 ## Map data
 

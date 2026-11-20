@@ -168,6 +168,67 @@ def main():
             if placed:
                 break
 
+    # Fill interior holes (empty cells inside the outer silhouette) with the
+    # majority feature of their 8-neighbours. Exterior empties stay background.
+    exterior = [False] * (COLS * rows)
+    stack = []
+    for col in range(COLS):
+        for row in (0, rows - 1):
+            i = row * COLS + col
+            if cell[i] < 0 and not exterior[i]:
+                exterior[i] = True
+                stack.append(i)
+    for row in range(rows):
+        for col in (0, COLS - 1):
+            i = row * COLS + col
+            if cell[i] < 0 and not exterior[i]:
+                exterior[i] = True
+                stack.append(i)
+    while stack:
+        i = stack.pop()
+        r, c = i // COLS, i % COLS
+        for dy in (-1, 0, 1):
+            for dx in (-1, 0, 1):
+                if dx == 0 and dy == 0:
+                    continue
+                rr, cc = r + dy, c + dx
+                if not (0 <= rr < rows and 0 <= cc < COLS):
+                    continue
+                j = rr * COLS + cc
+                if cell[j] < 0 and not exterior[j]:
+                    exterior[j] = True
+                    stack.append(j)
+
+    holes = 0
+    changed = True
+    while changed:
+        changed = False
+        for row in range(rows):
+            for col in range(COLS):
+                i = row * COLS + col
+                if cell[i] >= 0 or exterior[i]:
+                    continue
+                votes = Counter()
+                for dy in (-1, 0, 1):
+                    for dx in (-1, 0, 1):
+                        if dx == 0 and dy == 0:
+                            continue
+                        rr, cc = row + dy, col + dx
+                        if not (0 <= rr < rows and 0 <= cc < COLS):
+                            continue
+                        prev = cell[rr * COLS + cc]
+                        if prev >= 0:
+                            votes[prev] += 1
+                if not votes:
+                    continue
+                best = max(
+                    votes.items(),
+                    key=lambda kv: (kv[1], Z.get(parsed[kv[0]]["kind"], -1), -kv[0]),
+                )[0]
+                cell[i] = best
+                holes += 1
+                changed = True
+
     counts = Counter(cell)
     out = {
         "cols": COLS,
@@ -182,7 +243,8 @@ def main():
     have = sum(1 for i in range(len(parsed)) if counts[i] > 0)
     print(
         f"wrote {OUT_PATH} ({COLS}×{rows}, cell≈{cw:.3f}, "
-        f"{have}/{len(parsed)} features, filled={COLS * rows - counts[-1]}, samples={SAMPLES}²)"
+        f"{have}/{len(parsed)} features, filled={COLS * rows - counts[-1]}, "
+        f"holes_filled={holes}, samples={SAMPLES}²)"
     )
     for fi, f in enumerate(parsed):
         if f["kind"] in ("city", "river", "town") or counts[fi] < 5:
