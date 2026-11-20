@@ -8,17 +8,22 @@
   const URGENT_SEC = 5;
   const CHANGE_BANNER_MS = 900;
   const CHANGE_FADE_MS = 250;
-  const MIN_NUM_CSS = 14;
+  // Numbers only when zoomed enough (~3×+ on a phone with the fine grid).
+  const MIN_NUM_CSS = 12;
+  const MIN_GRID_CSS = 7;
+  // Forgiving finger brush in CSS pixels (map-space radius derived from zoom).
+  const BRUSH_CSS = 11;
   const COLOURS = {
-    1: { fill: '#3d5e38', nameUa: 'без тривоги', nameEn: 'no alert', swatch: '#5f9a52', hint: 'rgba(95,154,82,0.28)' },
-    2: { fill: '#8a7428', nameUa: 'жовта', nameEn: 'yellow', swatch: '#d4ae3a', hint: 'rgba(212,174,58,0.30)' },
-    3: { fill: '#7a3030', nameUa: 'ракети', nameEn: 'missile', swatch: '#c44545', hint: 'rgba(196,69,69,0.28)' },
-    4: { fill: '#3f8f9e', nameUa: 'річка', nameEn: 'river', swatch: '#5eb8c9', hint: 'rgba(94,184,201,0.30)' },
-    5: { fill: '#8b939e', nameUa: 'місто', nameEn: 'town', swatch: '#b0b8c4', hint: 'rgba(176,184,196,0.32)' },
+    // hint = pale pastel paper tint (opaque) — never the dark fill colour
+    1: { fill: '#3d5e38', nameUa: 'без тривоги', nameEn: 'no alert', swatch: '#5f9a52', hint: '#dde8d6', dot: '#5f9a52' },
+    2: { fill: '#8a7428', nameUa: 'жовта', nameEn: 'yellow', swatch: '#d4ae3a', hint: '#f2ebcf', dot: '#c9a52e' },
+    3: { fill: '#7a3030', nameUa: 'ракети', nameEn: 'missile', swatch: '#c44545', hint: '#f0e2e2', dot: '#c44545' },
+    4: { fill: '#3f8f9e', nameUa: 'річка', nameEn: 'river', swatch: '#5eb8c9', hint: '#d9eef2', dot: '#3f8f9e' },
+    5: { fill: '#8b939e', nameUa: 'місто', nameEn: 'town', swatch: '#b0b8c4', hint: '#e4e7ec', dot: '#8b939e' },
   };
   const EMPTY = '#eef1f4';
   const BG = '#0b1020';
-  const GRID_LINE = '#d4dae3';
+  const GRID_LINE = '#cfd6df';
 
   const T = {
     ua: {
@@ -74,7 +79,11 @@
   let last = performance.now();
   let uiAcc = 0;
   let changeFlashUntil = 0;
-  let dirty = true;
+  let fullDirty = true;
+  /** @type {Set<number>} */
+  let dirtyCells = new Set();
+  let paintDirty = false;
+  let lastPaintClient = null;
 
   const canvas = $('board');
   const ctx = canvas.getContext('2d', { alpha: false });
@@ -84,7 +93,6 @@
   let pointers = new Map();
   let pinch0 = null;
   let paintPointerId = null;
-  let lastPaintKey = -1;
 
   function landColour() {
     return 1 + ((Math.random() * 3) | 0);
@@ -107,7 +115,7 @@
         if (set.has(features[c.fi].id)) c.painted = 0;
       }
     }
-    dirty = true;
+    fullDirty = true;
   }
 
   function cellTarget(c) {
@@ -139,8 +147,8 @@
     selected = 1;
     fitView();
     renderPalette();
-    dirty = true;
-    draw();
+    fullDirty = true;
+    scheduleDraw();
     ui();
   }
 
@@ -166,8 +174,8 @@
       banner.style.transition = `opacity ${CHANGE_FADE_MS}ms ease`;
     }
     banner.classList.add('show');
-    dirty = true;
-    draw();
+    fullDirty = true;
+    scheduleDraw();
     ui();
   }
 
@@ -214,7 +222,7 @@
     canvas.width = Math.round(w * dpr);
     canvas.height = Math.round(h * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    dirty = true;
+    fullDirty = true;
   }
 
   function mapLayout() {
@@ -230,55 +238,82 @@
     return { rect, cssW, cssH, mapW, mapH, fit, ox, oy };
   }
 
-  function draw() {
-    if (!gridData) return;
-    const { cssW, cssH, fit, ox, oy } = mapLayout();
+  function scheduleDraw() {
+    paintDirty = true;
+  }
+
+  function blankFill(c) {
+    // Kind-based pale paper so rivers / towns / city read in the silhouette
+    // even before paint (static — no animation).
+    const kind = features[c.fi].kind;
+    if (kind === 'river') return '#d2e8ee';
+    if (kind === 'town') return '#dde1e7';
+    if (kind === 'city') return '#e5ebe3';
+    return EMPTY;
+  }
+
+  function cellFill(c) {
+    if (c.painted) return COLOURS[c.painted].fill;
+    // Selected-colour blanks: light pastel (never the dark fill colour)
+    if (features[c.fi].target === selected) return COLOURS[selected].hint;
+    return blankFill(c);
+  }
+
+  function beginMapTransform(layout) {
+    ctx.save();
+    ctx.translate(view.x, view.y);
+    ctx.scale(view.s, view.s);
+    ctx.translate(layout.ox, layout.oy);
+    ctx.scale(layout.fit, layout.fit);
+  }
+
+  function paintCellRect(c, cellCss) {
+    const x = c.col * cellW;
+    const y = c.row * cellH;
+    ctx.fillStyle = cellFill(c);
+    ctx.fillRect(x, y, cellW + 0.35, cellH + 0.35);
+    // Subtle static dot on selected-colour blanks (readable without dark fill)
+    if (!c.painted && cellTarget(c) === selected && cellCss >= 5) {
+      const dotR = Math.min(cellW, cellH) * 0.18;
+      ctx.fillStyle = COLOURS[selected].dot;
+      ctx.beginPath();
+      ctx.arc(x + cellW / 2, y + cellH / 2, dotR, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function drawFull() {
+    const layout = mapLayout();
+    const { cssW, cssH, fit } = layout;
     if (canvas.width === 0) resizeCanvas();
 
     ctx.fillStyle = BG;
     ctx.fillRect(0, 0, cssW, cssH);
 
-    // Pan/zoom only in canvas (no CSS transform) so zoom stays crisp.
-    ctx.save();
-    ctx.translate(view.x, view.y);
-    ctx.scale(view.s, view.s);
-    ctx.translate(ox, oy);
-    ctx.scale(fit, fit);
+    beginMapTransform(layout);
 
     const cellCss = cellW * fit * view.s;
     const showNums = cellCss >= MIN_NUM_CSS;
-    const hint = COLOURS[selected].hint;
+    const showGrid = cellCss >= MIN_GRID_CSS;
 
-    for (const c of cells) {
-      const x = c.col * cellW;
-      const y = c.row * cellH;
-      const target = cellTarget(c);
-      let fill;
-      if (c.painted) {
-        fill = COLOURS[c.painted].fill;
-      } else if (target === selected) {
-        fill = hint;
-      } else {
-        fill = EMPTY;
+    for (let i = 0; i < cells.length; i++) paintCellRect(cells[i], cellCss);
+
+    if (showGrid) {
+      ctx.strokeStyle = GRID_LINE;
+      ctx.lineWidth = Math.max(0.25, 0.55 / (fit * view.s));
+      ctx.beginPath();
+      for (let c = 0; c <= cols; c++) {
+        const x = c * cellW;
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, rows * cellH);
       }
-      ctx.fillStyle = fill;
-      ctx.fillRect(x, y, cellW + 0.5, cellH + 0.5);
+      for (let r = 0; r <= rows; r++) {
+        const y = r * cellH;
+        ctx.moveTo(0, y);
+        ctx.lineTo(cols * cellW, y);
+      }
+      ctx.stroke();
     }
-
-    ctx.strokeStyle = GRID_LINE;
-    ctx.lineWidth = Math.max(0.4, 0.8 / (fit * view.s));
-    ctx.beginPath();
-    for (let c = 0; c <= cols; c++) {
-      const x = c * cellW;
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, rows * cellH);
-    }
-    for (let r = 0; r <= rows; r++) {
-      const y = r * cellH;
-      ctx.moveTo(0, y);
-      ctx.lineTo(cols * cellW, y);
-    }
-    ctx.stroke();
 
     if (showNums) {
       const fontPx = Math.min(cellH * 0.55, cellW * 0.55);
@@ -286,29 +321,31 @@
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       for (const c of cells) {
-        const target = cellTarget(c);
-        if (c.painted === target) continue;
+        if (c.painted === cellTarget(c)) continue;
         const x = c.col * cellW + cellW / 2;
         const y = c.row * cellH + cellH / 2;
-        ctx.lineWidth = Math.max(1.5, fontPx * 0.18);
+        ctx.lineWidth = Math.max(1.2, fontPx * 0.16);
         ctx.strokeStyle = '#f8fafcee';
         ctx.fillStyle = '#0f172a';
-        const t = String(target);
+        const t = String(cellTarget(c));
         ctx.strokeText(t, x, y);
         ctx.fillText(t, x, y);
       }
     }
 
-    if (view.s * fit > 0.55) {
-      const labelPx = Math.max(9, 11 / Math.max(view.s, 0.01));
+    // Town labels: majors at modest zoom; all when zoomed in
+    const labelZoom = view.s * fit;
+    if (labelZoom > 0.45) {
+      const labelPx = Math.max(8, 10 / Math.max(view.s, 0.01));
       ctx.font = `600 ${labelPx}px ui-sans-serif,system-ui,sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
       ctx.fillStyle = '#f1f5f9';
       ctx.strokeStyle = '#0b1020ee';
-      ctx.lineWidth = Math.max(2, 3 / view.s);
+      ctx.lineWidth = Math.max(2, 2.5 / view.s);
       for (const f of features) {
         if (f.kind !== 'town' || !f.label) continue;
+        if (!f.major && labelZoom < 0.7) continue;
         const ly = f.cy + (f.major ? 14 : 12);
         ctx.strokeText(f.label, f.cx, ly);
         ctx.fillText(f.label, f.cx, ly);
@@ -316,7 +353,30 @@
     }
 
     ctx.restore();
-    dirty = false;
+    dirtyCells.clear();
+    fullDirty = false;
+    paintDirty = false;
+  }
+
+  function drawDirtyOnly() {
+    if (!dirtyCells.size) {
+      paintDirty = false;
+      return;
+    }
+    const layout = mapLayout();
+    const cellCss = cellW * layout.fit * view.s;
+    beginMapTransform(layout);
+    for (const i of dirtyCells) paintCellRect(cells[i], cellCss);
+    ctx.restore();
+    dirtyCells.clear();
+    paintDirty = false;
+  }
+
+  function draw() {
+    if (!gridData) return;
+    if (fullDirty) drawFull();
+    else if (dirtyCells.size) drawDirtyOnly();
+    else paintDirty = false;
   }
 
   function renderPalette() {
@@ -334,8 +394,8 @@
       b.onclick = () => {
         selected = id;
         renderPalette();
-        dirty = true;
-        draw();
+        fullDirty = true;
+        scheduleDraw();
       };
       pal.appendChild(b);
     }
@@ -370,7 +430,8 @@
   }
 
   function applyView() {
-    dirty = true;
+    fullDirty = true;
+    scheduleDraw();
   }
 
   function fitView() {
@@ -380,13 +441,12 @@
     view.y = (rect.height - rect.height * view.s) / 2;
     resizeCanvas();
     applyView();
-    draw();
   }
 
   function clampView() {
     const rect = viewport.getBoundingClientRect();
     const minS = 1;
-    const maxS = 5.5;
+    const maxS = 8;
     view.s = Math.min(maxS, Math.max(minS, view.s));
     const w = rect.width * view.s;
     const h = rect.height * view.s;
@@ -406,16 +466,17 @@
     }
   }
 
-  function hitCellFast(clientX, clientY) {
+  function clientToMap(clientX, clientY) {
     const { rect, mapW, mapH, fit, ox, oy } = mapLayout();
     const lx = (clientX - rect.left - view.x) / view.s;
     const ly = (clientY - rect.top - view.y) / view.s;
-    const mx = (lx - ox) / fit;
-    const my = (ly - oy) / fit;
-    if (mx < 0 || my < 0 || mx >= mapW || my >= mapH) return -1;
-    const col = Math.min(cols - 1, Math.max(0, (mx / cellW) | 0));
-    const row = Math.min(rows - 1, Math.max(0, (my / cellH) | 0));
-    return cellIndex[row * cols + col];
+    return {
+      mx: (lx - ox) / fit,
+      my: (ly - oy) / fit,
+      mapW,
+      mapH,
+      fit,
+    };
   }
 
   function paintCellIndex(i) {
@@ -425,26 +486,74 @@
     if (target !== selected) return false;
     if (c.painted === target) return false;
     c.painted = selected;
-    dirty = true;
+    dirtyCells.add(i);
+    scheduleDraw();
     return true;
   }
 
-  function afterPaint() {
-    draw();
-    ui();
+  function checkComplete() {
     if (allCorrect()) {
       state.timeBonus += Math.floor(state.timeLeft);
       doChange();
+      return true;
+    }
+    return false;
+  }
+
+  /** Paint matching cells under a CSS-pixel brush around the finger. */
+  function paintBrushAt(clientX, clientY) {
+    if (!state || state.over || paused) return 0;
+    const { mx, my, mapW, mapH, fit } = clientToMap(clientX, clientY);
+    const brushMap = BRUSH_CSS / (fit * view.s);
+    const brush2 = brushMap * brushMap;
+    const col0 = Math.max(0, ((mx - brushMap) / cellW) | 0);
+    const col1 = Math.min(cols - 1, ((mx + brushMap) / cellW) | 0);
+    const row0 = Math.max(0, ((my - brushMap) / cellH) | 0);
+    const row1 = Math.min(rows - 1, ((my + brushMap) / cellH) | 0);
+    let n = 0;
+    for (let row = row0; row <= row1; row++) {
+      for (let col = col0; col <= col1; col++) {
+        const cx = (col + 0.5) * cellW;
+        const cy = (row + 0.5) * cellH;
+        const dx = cx - mx;
+        const dy = cy - my;
+        if (dx * dx + dy * dy > brush2) continue;
+        if (mx < -brushMap || my < -brushMap || mx > mapW + brushMap || my > mapH + brushMap) continue;
+        const i = cellIndex[row * cols + col];
+        if (paintCellIndex(i)) n++;
+      }
+    }
+    return n;
+  }
+
+  /** Interpolate between pointer samples so fast swipes don't skip cells. */
+  function paintStroke(x0, y0, x1, y1) {
+    const dist = Math.hypot(x1 - x0, y1 - y0);
+    const step = BRUSH_CSS * 0.4;
+    const steps = Math.max(1, Math.ceil(dist / step));
+    let painted = 0;
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      painted += paintBrushAt(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t);
+    }
+    if (painted) {
+      ui();
+      checkComplete();
     }
   }
 
   function paintAt(clientX, clientY) {
     if (!state || state.over || paused) return;
-    const i = hitCellFast(clientX, clientY);
-    if (i < 0) return;
-    if (i === lastPaintKey) return;
-    lastPaintKey = i;
-    if (paintCellIndex(i)) afterPaint();
+    if (lastPaintClient) {
+      paintStroke(lastPaintClient.x, lastPaintClient.y, clientX, clientY);
+    } else {
+      const n = paintBrushAt(clientX, clientY);
+      if (n) {
+        ui();
+        checkComplete();
+      }
+    }
+    lastPaintClient = { x: clientX, y: clientY };
   }
 
   // one finger / mouse = paint; two fingers = pan + pinch zoom
@@ -454,7 +563,7 @@
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointers.size === 2) {
       paintPointerId = null;
-      lastPaintKey = -1;
+      lastPaintClient = null;
       const pts = [...pointers.values()];
       const dx = pts[1].x - pts[0].x;
       const dy = pts[1].y - pts[0].y;
@@ -468,13 +577,14 @@
       };
     } else if (pointers.size === 1) {
       paintPointerId = e.pointerId;
-      lastPaintKey = -1;
+      lastPaintClient = null;
       paintAt(e.clientX, e.clientY);
     }
   });
 
   viewport.addEventListener('pointermove', (e) => {
     if (!pointers.has(e.pointerId)) return;
+    const prev = pointers.get(e.pointerId);
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointers.size >= 2 && pinch0) {
       const pts = [...pointers.values()];
@@ -487,18 +597,13 @@
       const scale = pinch0.s * (dist / pinch0.dist);
       const lx = (pinch0.midX - rect.left - pinch0.vx) / pinch0.s;
       const ly = (pinch0.midY - rect.top - pinch0.vy) / pinch0.s;
-      // two-finger pan follows midpoint delta + pinch zoom
-      const midDx = midX - pinch0.midX;
-      const midDy = midY - pinch0.midY;
       view.s = scale;
       view.x = midX - rect.left - lx * view.s;
       view.y = midY - rect.top - ly * view.s;
-      // incorporate pan relative to original mid (already in midX/midY)
-      void midDx; void midDy;
       clampView();
       applyView();
-      draw();
     } else if (pointers.size === 1 && paintPointerId === e.pointerId) {
+      void prev;
       paintAt(e.clientX, e.clientY);
     }
   });
@@ -508,14 +613,13 @@
     pointers.delete(e.pointerId);
     if (e.pointerId === paintPointerId) {
       paintPointerId = null;
-      lastPaintKey = -1;
+      lastPaintClient = null;
     }
     if (pointers.size < 2) pinch0 = null;
     if (pointers.size === 1) {
-      // remaining finger becomes paint
       const [id, p] = [...pointers.entries()][0];
       paintPointerId = id;
-      lastPaintKey = -1;
+      lastPaintClient = null;
       paintAt(p.x, p.y);
     }
   }
@@ -535,7 +639,6 @@
     view.y = e.clientY - rect.top - ly * view.s;
     clampView();
     applyView();
-    draw();
   }, { passive: false });
 
   $('oBtn').onclick = () => {
@@ -588,7 +691,7 @@
     } else if (changeFlashUntil) {
       ui();
     }
-    if (dirty) draw();
+    if (paintDirty || fullDirty || dirtyCells.size) draw();
     requestAnimationFrame(frame);
   }
 
@@ -603,7 +706,7 @@
       timeBonus: state.timeBonus,
       selected,
     },
-    select: (n) => { selected = n; renderPalette(); dirty = true; draw(); },
+    select: (n) => { selected = n; renderPalette(); fullDirty = true; scheduleDraw(); },
     paintId: (id) => {
       const fi = features.findIndex((x) => x.id === id);
       if (fi < 0 || !state || state.over) return;
@@ -612,16 +715,25 @@
         if (cells[i].fi !== fi) continue;
         if (paintCellIndex(i)) any = true;
       }
-      if (any) afterPaint();
+      if (any) {
+        ui();
+        checkComplete();
+      }
     },
     paintCell: (i) => {
-      if (paintCellIndex(i)) afterPaint();
+      if (paintCellIndex(i)) {
+        ui();
+        checkComplete();
+      }
     },
-    paintAt: (x, y) => paintAt(x, y),
+    paintAt: (x, y) => {
+      lastPaintClient = null;
+      paintAt(x, y);
+    },
     paintCorrectAll: () => {
       for (const c of cells) c.painted = cellTarget(c);
-      dirty = true;
-      draw();
+      fullDirty = true;
+      scheduleDraw();
       ui();
     },
     forceChange: () => { if (state && !state.over) doChange(); },
