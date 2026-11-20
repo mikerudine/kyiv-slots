@@ -2,11 +2,12 @@
 (function () {
   'use strict';
 
-  const ROUND_SEC = 60;
+  const ROUND_SEC = 120;
   const CHANGE_FRAC = 0.6;
-  const WARN_SEC = 15;
-  const URGENT_SEC = 5;
-  const MAX_LIVES = 5;
+  const WARN_SEC = 20;
+  const URGENT_SEC = 10;
+  const MAX_ROUNDS = 5;
+  const EARLY_BONUS_CAP = 5;
   const CHANGE_BANNER_MS = 900;
   const CHANGE_FADE_MS = 250;
   // Numbers / grid lines only when each on-screen cell is large enough (integer px).
@@ -16,52 +17,70 @@
   const BRUSH_CSS = 11;
   const COLOURS = {
     // hint = pale pastel paper tint (opaque) — never the dark fill colour
-    1: { fill: '#3d5e38', nameUa: 'без тривоги', nameEn: 'no alert', swatch: '#5f9a52', hint: '#dde8d6', dot: '#5f9a52' },
-    2: { fill: '#8a7428', nameUa: 'жовта', nameEn: 'yellow', swatch: '#d4ae3a', hint: '#f2ebcf', dot: '#c9a52e' },
-    3: { fill: '#7a3030', nameUa: 'ракети', nameEn: 'missile', swatch: '#c44545', hint: '#f0e2e2', dot: '#c44545' },
+    // Land alert fills: bright + saturated (mid relief band). Hue held; L varies by DEM.
+    1: { fill: '#3cbc3a', nameUa: 'без тривоги', nameEn: 'no alert', swatch: '#3cbc3a', hint: '#dde8d6', dot: '#4ecf4c' },
+    2: { fill: '#f0c020', nameUa: 'жовта', nameEn: 'yellow', swatch: '#f0c020', hint: '#f2ebcf', dot: '#e0b52e' },
+    3: { fill: '#ef3535', nameUa: 'ракети', nameEn: 'missile', swatch: '#ef3535', hint: '#f0e2e2', dot: '#ff5555' },
     4: { fill: '#3f8f9e', nameUa: 'річка', nameEn: 'river', swatch: '#5eb8c9', hint: '#d9eef2', dot: '#3f8f9e' },
     5: { fill: '#8b939e', nameUa: 'місто', nameEn: 'town', swatch: '#b0b8c4', hint: '#e4e7ec', dot: '#8b939e' },
+    // Highway: blank dark grey (readable vs navy BG); painted near-black
+    6: { fill: '#1d1d1d', nameUa: 'траса', nameEn: 'highway', swatch: '#2a2a2a', hint: '#c5c9ce', dot: '#4a4a4a' },
+  };
+  // Relief maps shade 0..4 linearly across [min,max] L (≈±28% around mid).
+  // Highlands (4) = min (darker); lowlands (0) = max (lighter). Hue preserved.
+  const RELIEF_CLAMP = {
+    1: { min: 0.22, max: 0.60 }, // green: ~±0.19 from mid; no white wash-out
+    2: { min: 0.38, max: 0.72 }, // yellow: floor stops brown/olive
+    3: { min: 0.24, max: 0.64 }, // red
+    4: { min: 0.38, max: 0.58 },
+    5: { min: 0.45, max: 0.62 },
+    6: { min: 0.08, max: 0.16 },
   };
   const EMPTY = '#eef1f4';
   const BG = '#0b1020';
   const GRID_LINE = '#cfd6df';
+  const HW_BLANK = '#7a828c'; // distinct dark grey vs navy outside
 
   const T = {
     ua: {
       title: 'Розфарбуй тривоги',
       menu: '☰ Меню',
-      round: (n) => `Раунд ${n}`,
-      progress: (a, b) => `${a}/${b}`,
-      lives: (n) => `Спроби: ${n}`,
-      attempt: (n, max) => `Спроба ${n} з ${max}`,
+      round: (n, max) => `Раунд ${n} з ${max}`,
+      coverage: (p) => `${p}% території`,
       hint: 'Обери колір і веди пальцем. Два пальці — зсув/масштаб.',
       pause: 'Пауза',
       startT: 'Розфарбуй тривоги',
-      startB: 'Карта тривог навколо Києва. Зафарбуй усі клітинки за номерами за 1 хвилину. Потім «зміна» — нові цілі на більшості карти. 5 спроб.',
+      startB: 'Карта тривог навколо Києва. Зафарбуй клітинки за номерами за 2 хвилини. Кожні 2 хвилини — «зміна»: нові цілі на ~60% регіонів. 5 раундів; після кожного додається % покриття. 100% до кінця таймера — бонус і «Далі».',
       go: 'Малювати',
-      overT: 'Зміна застала!',
-      overB: 'Спроби скінчились — карта не була готова вчасно.',
+      overT: 'Гру завершено',
+      overB: 'П’ять раундів змін тривог позаду.',
       again: 'Ще раз',
       change: 'Зміна тривог!',
-      score: (r, b, t) => `Раундів: ${r} · бонус часу: ${b} · разом: ${t}`,
+      next: 'Далі',
+      score: (total, avg, bonus) =>
+        bonus
+          ? `Разом: ${total}% · середнє: ${avg}% · бонус: +${bonus}`
+          : `Разом: ${total}% · середнє: ${avg}%`,
     },
     en: {
       title: 'Colour the alerts',
       menu: '☰ Menu',
-      round: (n) => `Round ${n}`,
-      progress: (a, b) => `${a}/${b}`,
-      lives: (n) => `Attempts: ${n}`,
-      attempt: (n, max) => `Attempt ${n} of ${max}`,
+      round: (n, max) => `Round ${n} of ${max}`,
+      coverage: (p) => `${p}% of territory`,
       hint: 'Pick a colour and drag to paint. Two fingers pan/zoom.',
       pause: 'Paused',
       startT: 'Colour the alerts',
-      startB: 'Alert map around Kyiv. Paint every cell by number in 1 minute. Then a “change” reassigns most targets. 5 attempts.',
+      startB: 'Alert map around Kyiv. Paint cells by number in 2 minutes. Every 2 minutes a “change” reassigns ~60% of regions. 5 rounds; each round’s coverage % adds to your score. Finish 100% early for a bonus and “Next”.',
       go: 'Paint',
-      overT: 'Caught by the change!',
-      overB: 'Out of attempts — the map wasn’t finished in time.',
+      overT: 'Run complete',
+      overB: 'Five rounds of alert changes are done.',
       again: 'Play again',
       change: 'Alert change!',
-      score: (r, b, t) => `Rounds: ${r} · time bonus: ${b} · total: ${t}`,
+      next: 'Next',
+      score: (total, avg, bonus) =>
+        bonus
+          ? `Total: ${total}% · average: ${avg}% · bonus: +${bonus}`
+          : `Total: ${total}% · average: ${avg}%`,
     },
   };
 
@@ -72,12 +91,13 @@
   let mapData = null;
   let gridData = null;
   let features = [];
-  /** @type {{fi:number,col:number,row:number,painted:number}[]} */
+  /** @type {{fi:number,col:number,row:number,painted:number,shade:number}[]} */
   let cells = [];
   let cols = 0;
   let rows = 0;
   let cellW = 0;
   let cellH = 0;
+  let shadeBands = 5;
   let state = null;
   let paused = false;
   let selected = 1;
@@ -123,6 +143,7 @@
   function targetFor(f) {
     if (f.kind === 'river') return 4;
     if (f.kind === 'town') return 5;
+    if (f.kind === 'highway') return 6;
     return landColour();
   }
 
@@ -130,6 +151,8 @@
     const set = reassignIds ? new Set(reassignIds) : null;
     for (const f of features) {
       if (set && !set.has(f.id)) continue;
+      // Static layers never get new alert colours from a change wipe list
+      if (set && (f.kind === 'river' || f.kind === 'town' || f.kind === 'highway')) continue;
       f.target = targetFor(f);
     }
     if (set) {
@@ -150,9 +173,26 @@
     return n;
   }
 
+  function coveragePct() {
+    if (!cells.length) return 0;
+    return Math.round((100 * correctCount()) / cells.length);
+  }
+
   function allCorrect() {
     for (const c of cells) if (c.painted !== cellTarget(c)) return false;
     return true;
+  }
+
+  function scoreTotals() {
+    const scores = (state && state.roundScores) || [];
+    const total = scores.reduce((a, b) => a + b, 0) + ((state && state.timeBonus) || 0);
+    const avg = scores.length ? Math.round(total / scores.length) : 0;
+    return { total, avg, bonus: (state && state.timeBonus) || 0 };
+  }
+
+  function hideChangeBanner() {
+    $('changeBanner').classList.remove('show');
+    changeFlashUntil = 0;
   }
 
   function newRun() {
@@ -161,15 +201,17 @@
     state = {
       round: 1,
       timeLeft: ROUND_SEC,
-      scoreRounds: 0,
+      roundScores: [],
       timeBonus: 0,
-      lives: MAX_LIVES,
       over: false,
       started: true,
+      earlyReady: false,
     };
     selected = 1;
     fitView();
     renderPalette();
+    hideNextBtn();
+    hideChangeBanner();
     fullDirty = true;
     scheduleDraw();
     ui();
@@ -187,22 +229,38 @@
     changeFlashUntil = performance.now() + CHANGE_BANNER_MS;
   }
 
-  /** Timer ran out incomplete: spend one life, keep matching paint, restart clock. */
-  function failAttempt() {
-    state.lives -= 1;
-    if (state.lives <= 0) {
+  function showNextBtn() {
+    const btn = $('nextBtn');
+    if (!btn) return;
+    btn.hidden = false;
+    btn.textContent = T[lang].next;
+    state.earlyReady = true;
+  }
+
+  function hideNextBtn() {
+    const btn = $('nextBtn');
+    if (btn) btn.hidden = true;
+    if (state) state.earlyReady = false;
+  }
+
+  /** End the current round: record coverage, then change or finish. */
+  function endRound(opts) {
+    const early = !!(opts && opts.early);
+    const pct = coveragePct();
+    let roundPts = pct;
+    if (early && pct >= 100) {
+      const bonus = Math.min(EARLY_BONUS_CAP, Math.floor(state.timeLeft / 24));
+      state.timeBonus += bonus;
+      roundPts = pct; // coverage stays 100; bonus tracked separately
+    }
+    state.roundScores.push(roundPts);
+    hideNextBtn();
+
+    if (state.round >= MAX_ROUNDS) {
       gameOver();
       return;
     }
-    for (const c of cells) {
-      if (c.painted && c.painted !== cellTarget(c)) c.painted = 0;
-    }
-    state.timeLeft = ROUND_SEC;
-    const attemptNum = MAX_LIVES - state.lives + 1;
-    showBanner(T[lang].attempt(attemptNum, MAX_LIVES));
-    fullDirty = true;
-    scheduleDraw();
-    ui();
+    doChange();
   }
 
   function doChange() {
@@ -215,7 +273,6 @@
     const ids = land.slice(0, n).map((f) => f.id);
     assignTargets(ids);
     state.round++;
-    state.scoreRounds++;
     state.timeLeft = ROUND_SEC;
     showBanner(T[lang].change);
     fullDirty = true;
@@ -225,12 +282,13 @@
 
   function gameOver() {
     state.over = true;
-    const total = state.scoreRounds + state.timeBonus;
+    hideNextBtn();
+    const { total, avg, bonus } = scoreTotals();
     overlay(
       T[lang].overT,
       T[lang].overB,
       T[lang].again,
-      T[lang].score(state.scoreRounds, state.timeBonus, total),
+      T[lang].score(total, avg, bonus),
       true
     );
   }
@@ -288,14 +346,102 @@
     const kind = features[c.fi].kind;
     if (kind === 'river') return '#d2e8ee';
     if (kind === 'town') return '#dde1e7';
+    if (kind === 'highway') return HW_BLANK;
     if (kind === 'city') return '#e5ebe3';
     return EMPTY;
   }
 
+  function rgbToHsl(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const l = (max + min) / 2;
+    if (max === min) return { h: 0, s: 0, l };
+    const d = max - min;
+    const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    let h;
+    if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+    else if (max === g) h = ((b - r) / d + 2) / 6;
+    else h = ((r - g) / d + 4) / 6;
+    return { h, s, l };
+  }
+
+  function hslToHex(h, s, l) {
+    let r; let g; let b;
+    if (s === 0) {
+      r = g = b = l;
+    } else {
+      const hue2rgb = (p, q, t) => {
+        if (t < 0) t += 1;
+        if (t > 1) t -= 1;
+        if (t < 1 / 6) return p + (q - p) * 6 * t;
+        if (t < 1 / 2) return q;
+        if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+        return p;
+      };
+      const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+      const p = 2 * l - q;
+      r = hue2rgb(p, q, h + 1 / 3);
+      g = hue2rgb(p, q, h);
+      b = hue2rgb(p, q, h - 1 / 3);
+    }
+    const hex = (n) => Math.round(Math.max(0, Math.min(1, n)) * 255).toString(16).padStart(2, '0');
+    return `#${hex(r)}${hex(g)}${hex(b)}`;
+  }
+
+  /**
+   * Relief via HSL lightness only (hue + sat from base fill).
+   * Shade band 0..4 maps linearly across RELIEF_CLAMP (lowland light → highland dark).
+   * Land statuses get the full band range (~±25–30% L); river/town/highway stay nearly flat.
+   */
+  function applyRelief(hex, shade, colourId, painted) {
+    const [r, g, b] = parseHex(hex);
+    const hsl = rgbToHsl(r, g, b);
+    const clamp = RELIEF_CLAMP[colourId] || { min: hsl.l - 0.05, max: hsl.l + 0.05 };
+    const band = Math.max(0, Math.min(shadeBands - 1, shade | 0));
+    const t = band / (shadeBands - 1); // 0 = lowland, 1 = highland
+    let s = hsl.s;
+    let l;
+    if (!painted) {
+      // Blanks / selection hints: keep their pale L, only a tiny DEM nudge
+      const tiny = 0.025;
+      l = Math.max(0.05, Math.min(0.95, hsl.l - (t - 0.5) * 2 * tiny));
+    } else if (colourId >= 4) {
+      // Keep river / town / highway colours stable
+      l = hsl.l;
+    } else {
+      // Painted land: full highland/lowland band range (~±25–30% L)
+      l = clamp.max - t * (clamp.max - clamp.min);
+      // Dark yellow: bump sat so it stays gold, not olive/brown
+      if (colourId === 2 && t > 0.5) s = Math.min(1, s + (t - 0.5) * 0.4);
+      // Light green: hold sat so lowlands stay green, not chalky
+      if (colourId === 1 && t < 0.5) s = Math.min(1, Math.max(s, 0.55));
+      // Light red: keep sat so it doesn't go pink-grey
+      if (colourId === 3 && t < 0.5) s = Math.min(1, Math.max(s, 0.60));
+    }
+    return hslToHex(hsl.h, s, l);
+  }
+
   function cellFill(c) {
-    if (c.painted) return COLOURS[c.painted].fill;
-    if (features[c.fi].target === selected) return COLOURS[selected].hint;
-    return blankFill(c);
+    let base;
+    let painted = false;
+    let colourId = 0;
+    if (c.painted) {
+      colourId = c.painted;
+      base = COLOURS[colourId].fill;
+      painted = true;
+    } else if (features[c.fi].target === selected) {
+      colourId = selected;
+      base = COLOURS[selected].hint;
+    } else {
+      base = blankFill(c);
+      const kind = features[c.fi].kind;
+      if (kind === 'river') colourId = 4;
+      else if (kind === 'town') colourId = 5;
+      else if (kind === 'highway') colourId = 6;
+      else colourId = features[c.fi].target || 1;
+    }
+    return applyRelief(base, c.shade | 0, colourId, painted);
   }
 
   function writeCellPixel(c) {
@@ -424,8 +570,14 @@
         }
         if (showNums && c.painted !== target) {
           ctx.lineWidth = Math.max(1, Math.floor(cellDev * 0.08));
-          ctx.strokeStyle = '#f8fafcee';
-          ctx.fillStyle = '#0f172a';
+          // Dark-grey highway blanks need light digits; others keep dark digits.
+          if (target === 6 && !c.painted) {
+            ctx.strokeStyle = '#0b1020cc';
+            ctx.fillStyle = '#f8fafc';
+          } else {
+            ctx.strokeStyle = '#f8fafcee';
+            ctx.fillStyle = '#0f172a';
+          }
           const t = String(target);
           ctx.strokeText(t, cx, cy);
           ctx.fillText(t, cx, cy);
@@ -456,7 +608,7 @@
   function renderPalette() {
     const pal = $('palette');
     pal.innerHTML = '';
-    for (const id of [1, 2, 3, 4, 5]) {
+    for (const id of [1, 2, 3, 4, 5, 6]) {
       const c = COLOURS[id];
       const b = document.createElement('button');
       b.type = 'button';
@@ -484,21 +636,21 @@
     $('pauseBtn').textContent = paused ? '▶' : '⏸';
     $('pauseTxt').textContent = L.pause;
     $('hint').textContent = L.hint;
+    const nextBtn = $('nextBtn');
+    if (nextBtn && !nextBtn.hidden) nextBtn.textContent = L.next;
     if (!state) {
       $('timer').textContent = ROUND_SEC.toFixed(1);
       $('timer').classList.remove('warn', 'urgent');
-      $('round').textContent = '';
-      $('lives').textContent = L.lives(MAX_LIVES);
-      $('progress').textContent = '';
+      $('round').textContent = L.round(1, MAX_ROUNDS);
+      $('progress').textContent = L.coverage(0);
       return;
     }
     const t = Math.max(0, state.timeLeft);
     $('timer').textContent = t.toFixed(1);
     $('timer').classList.toggle('warn', t <= WARN_SEC && t > URGENT_SEC);
     $('timer').classList.toggle('urgent', t <= URGENT_SEC);
-    $('round').textContent = L.round(state.round);
-    $('lives').textContent = L.lives(state.lives);
-    $('progress').textContent = L.progress(correctCount(), cells.length);
+    $('round').textContent = L.round(state.round, MAX_ROUNDS);
+    $('progress').textContent = L.coverage(coveragePct());
     if (changeFlashUntil && performance.now() > changeFlashUntil) {
       $('changeBanner').classList.remove('show');
       changeFlashUntil = 0;
@@ -564,9 +716,9 @@
   }
 
   function checkComplete() {
+    if (!state || state.over) return false;
     if (allCorrect()) {
-      state.timeBonus += Math.floor(state.timeLeft);
-      doChange();
+      if (!state.earlyReady) showNextBtn();
       return true;
     }
     return false;
@@ -732,6 +884,14 @@
     paused = false;
     $('pause').classList.add('hidden');
   };
+  if ($('nextBtn')) {
+    $('nextBtn').onclick = (e) => {
+      e.stopPropagation();
+      if (!state || state.over || paused) return;
+      if (!allCorrect()) return;
+      endRound({ early: true });
+    };
+  }
   $('lang').onclick = () => {
     lang = lang === 'ua' ? 'en' : 'ua';
     localStorage.setItem('coloring-lang', lang);
@@ -739,8 +899,8 @@
     ui();
     if (!$('overlay').classList.contains('hidden')) {
       if (state && state.over) {
-        const total = state.scoreRounds + state.timeBonus;
-        overlay(T[lang].overT, T[lang].overB, T[lang].again, T[lang].score(state.scoreRounds, state.timeBonus, total), true);
+        const { total, avg, bonus } = scoreTotals();
+        overlay(T[lang].overT, T[lang].overB, T[lang].again, T[lang].score(total, avg, bonus), true);
       } else {
         overlay(T[lang].startT, T[lang].startB, T[lang].go, null, false);
       }
@@ -762,11 +922,8 @@
       state.timeLeft -= dt;
       if (state.timeLeft <= 0) {
         state.timeLeft = 0;
-        if (allCorrect()) {
-          doChange();
-        } else {
-          failAttempt();
-        }
+        // Change always happens on the timer — complete or not
+        endRound({ early: false });
       }
       uiAcc += dt;
       if (uiAcc > 0.1) {
@@ -787,12 +944,13 @@
       over: state.over,
       correct: correctCount(),
       total: cells.length,
-      scoreRounds: state.scoreRounds,
+      coverage: coveragePct(),
+      roundScores: state.roundScores.slice(),
       timeBonus: state.timeBonus,
-      lives: state.lives,
+      earlyReady: state.earlyReady,
       selected,
     },
-    failAttempt: () => { if (state && !state.over) failAttempt(); },
+    endRound: () => { if (state && !state.over) endRound({ early: false }); },
     select: (n) => { selected = n; renderPalette(); fullDirty = true; scheduleDraw(); },
     paintId: (id) => {
       const fi = features.findIndex((x) => x.id === id);
@@ -822,8 +980,9 @@
       fullDirty = true;
       scheduleDraw();
       ui();
+      checkComplete();
     },
-    forceChange: () => { if (state && !state.over) doChange(); },
+    forceChange: () => { if (state && !state.over) endRound({ early: false }); },
     forceOver: () => { if (state) gameOver(); },
     features: () => features.map((f) => ({ id: f.id, kind: f.kind, target: f.target })),
     cells: () => cells.map((c, i) => ({
@@ -844,12 +1003,15 @@
       rows = grid.rows;
       cellW = grid.cellW;
       cellH = grid.cellH;
+      shadeBands = grid.shadeBands || 5;
+      const shadeArr = grid.shade || [];
       cells = [];
       for (let row = 0; row < rows; row++) {
         for (let col = 0; col < cols; col++) {
-          const fi = grid.cells[row * cols + col];
+          const idx = row * cols + col;
+          const fi = grid.cells[idx];
           if (fi < 0) continue;
-          cells.push({ fi, col, row, painted: 0 });
+          cells.push({ fi, col, row, painted: 0, shade: shadeArr[idx] | 0 });
         }
       }
       buildCellIndex();
