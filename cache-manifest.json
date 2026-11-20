@@ -1,9 +1,10 @@
 {
-  "version": 11,
+  "version": 15,
   "updatedHint": "App refreshes this list when online; bundled copy is the fallback.",
   "files": [
     "cache-manifest.json",
     "coloring/game.js",
+    "coloring/grid.json",
     "coloring/index.html",
     "coloring/map.json",
     "commute/game.js",
