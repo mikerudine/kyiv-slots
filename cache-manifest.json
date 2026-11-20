@@ -1,8 +1,12 @@
 {
-  "version": 15,
+  "version": 16,
   "updatedHint": "App refreshes this list when online; bundled copy is the fallback.",
   "files": [
     "cache-manifest.json",
+    "coloring/build-elev.py",
+    "coloring/build-grid.py",
+    "coloring/build-highways.py",
+    "coloring/elev-means.json",
     "coloring/game.js",
     "coloring/grid.json",
     "coloring/index.html",

@@ -2,11 +2,12 @@
 (function () {
   'use strict';
 
-  const ROUND_SEC = 60;
+  const ROUND_SEC = 120;
   const CHANGE_FRAC = 0.6;
-  const WARN_SEC = 15;
-  const URGENT_SEC = 5;
-  const MAX_LIVES = 5;
+  const WARN_SEC = 20;
+  const URGENT_SEC = 10;
+  const MAX_ROUNDS = 5;
+  const EARLY_BONUS_CAP = 5;
   const CHANGE_BANNER_MS = 900;
   const CHANGE_FADE_MS = 250;
   // Numbers / grid lines only when each on-screen cell is large enough (integer px).
@@ -21,47 +22,54 @@
     3: { fill: '#7a3030', nameUa: 'ракети', nameEn: 'missile', swatch: '#c44545', hint: '#f0e2e2', dot: '#c44545' },
     4: { fill: '#3f8f9e', nameUa: 'річка', nameEn: 'river', swatch: '#5eb8c9', hint: '#d9eef2', dot: '#3f8f9e' },
     5: { fill: '#8b939e', nameUa: 'місто', nameEn: 'town', swatch: '#b0b8c4', hint: '#e4e7ec', dot: '#8b939e' },
+    // Highway: blank dark grey (readable vs navy BG); painted near-black
+    6: { fill: '#1d1d1d', nameUa: 'траса', nameEn: 'highway', swatch: '#2a2a2a', hint: '#c5c9ce', dot: '#4a4a4a' },
   };
   const EMPTY = '#eef1f4';
   const BG = '#0b1020';
   const GRID_LINE = '#cfd6df';
+  const HW_BLANK = '#7a828c'; // distinct dark grey vs navy outside
 
   const T = {
     ua: {
       title: 'Розфарбуй тривоги',
       menu: '☰ Меню',
-      round: (n) => `Раунд ${n}`,
-      progress: (a, b) => `${a}/${b}`,
-      lives: (n) => `Спроби: ${n}`,
-      attempt: (n, max) => `Спроба ${n} з ${max}`,
+      round: (n, max) => `Раунд ${n} з ${max}`,
+      coverage: (p) => `${p}% території`,
       hint: 'Обери колір і веди пальцем. Два пальці — зсув/масштаб.',
       pause: 'Пауза',
       startT: 'Розфарбуй тривоги',
-      startB: 'Карта тривог навколо Києва. Зафарбуй усі клітинки за номерами за 1 хвилину. Потім «зміна» — нові цілі на більшості карти. 5 спроб.',
+      startB: 'Карта тривог навколо Києва. Зафарбуй клітинки за номерами за 2 хвилини. Кожні 2 хвилини — «зміна»: нові цілі на ~60% регіонів. 5 раундів; після кожного додається % покриття. 100% до кінця таймера — бонус і «Далі».',
       go: 'Малювати',
-      overT: 'Зміна застала!',
-      overB: 'Спроби скінчились — карта не була готова вчасно.',
+      overT: 'Гру завершено',
+      overB: 'П’ять раундів змін тривог позаду.',
       again: 'Ще раз',
       change: 'Зміна тривог!',
-      score: (r, b, t) => `Раундів: ${r} · бонус часу: ${b} · разом: ${t}`,
+      next: 'Далі',
+      score: (total, avg, bonus) =>
+        bonus
+          ? `Разом: ${total}% · середнє: ${avg}% · бонус: +${bonus}`
+          : `Разом: ${total}% · середнє: ${avg}%`,
     },
     en: {
       title: 'Colour the alerts',
       menu: '☰ Menu',
-      round: (n) => `Round ${n}`,
-      progress: (a, b) => `${a}/${b}`,
-      lives: (n) => `Attempts: ${n}`,
-      attempt: (n, max) => `Attempt ${n} of ${max}`,
+      round: (n, max) => `Round ${n} of ${max}`,
+      coverage: (p) => `${p}% of territory`,
       hint: 'Pick a colour and drag to paint. Two fingers pan/zoom.',
       pause: 'Paused',
       startT: 'Colour the alerts',
-      startB: 'Alert map around Kyiv. Paint every cell by number in 1 minute. Then a “change” reassigns most targets. 5 attempts.',
+      startB: 'Alert map around Kyiv. Paint cells by number in 2 minutes. Every 2 minutes a “change” reassigns ~60% of regions. 5 rounds; each round’s coverage % adds to your score. Finish 100% early for a bonus and “Next”.',
       go: 'Paint',
-      overT: 'Caught by the change!',
-      overB: 'Out of attempts — the map wasn’t finished in time.',
+      overT: 'Run complete',
+      overB: 'Five rounds of alert changes are done.',
       again: 'Play again',
       change: 'Alert change!',
-      score: (r, b, t) => `Rounds: ${r} · time bonus: ${b} · total: ${t}`,
+      next: 'Next',
+      score: (total, avg, bonus) =>
+        bonus
+          ? `Total: ${total}% · average: ${avg}% · bonus: +${bonus}`
+          : `Total: ${total}% · average: ${avg}%`,
     },
   };
 
@@ -72,12 +80,13 @@
   let mapData = null;
   let gridData = null;
   let features = [];
-  /** @type {{fi:number,col:number,row:number,painted:number}[]} */
+  /** @type {{fi:number,col:number,row:number,painted:number,shade:number}[]} */
   let cells = [];
   let cols = 0;
   let rows = 0;
   let cellW = 0;
   let cellH = 0;
+  let shadeBands = 5;
   let state = null;
   let paused = false;
   let selected = 1;
@@ -123,6 +132,7 @@
   function targetFor(f) {
     if (f.kind === 'river') return 4;
     if (f.kind === 'town') return 5;
+    if (f.kind === 'highway') return 6;
     return landColour();
   }
 
@@ -130,6 +140,8 @@
     const set = reassignIds ? new Set(reassignIds) : null;
     for (const f of features) {
       if (set && !set.has(f.id)) continue;
+      // Static layers never get new alert colours from a change wipe list
+      if (set && (f.kind === 'river' || f.kind === 'town' || f.kind === 'highway')) continue;
       f.target = targetFor(f);
     }
     if (set) {
@@ -150,9 +162,26 @@
     return n;
   }
 
+  function coveragePct() {
+    if (!cells.length) return 0;
+    return Math.round((100 * correctCount()) / cells.length);
+  }
+
   function allCorrect() {
     for (const c of cells) if (c.painted !== cellTarget(c)) return false;
     return true;
+  }
+
+  function scoreTotals() {
+    const scores = (state && state.roundScores) || [];
+    const total = scores.reduce((a, b) => a + b, 0) + ((state && state.timeBonus) || 0);
+    const avg = scores.length ? Math.round(total / scores.length) : 0;
+    return { total, avg, bonus: (state && state.timeBonus) || 0 };
+  }
+
+  function hideChangeBanner() {
+    $('changeBanner').classList.remove('show');
+    changeFlashUntil = 0;
   }
 
   function newRun() {
@@ -161,15 +190,17 @@
     state = {
       round: 1,
       timeLeft: ROUND_SEC,
-      scoreRounds: 0,
+      roundScores: [],
       timeBonus: 0,
-      lives: MAX_LIVES,
       over: false,
       started: true,
+      earlyReady: false,
     };
     selected = 1;
     fitView();
     renderPalette();
+    hideNextBtn();
+    hideChangeBanner();
     fullDirty = true;
     scheduleDraw();
     ui();
@@ -187,22 +218,38 @@
     changeFlashUntil = performance.now() + CHANGE_BANNER_MS;
   }
 
-  /** Timer ran out incomplete: spend one life, keep matching paint, restart clock. */
-  function failAttempt() {
-    state.lives -= 1;
-    if (state.lives <= 0) {
+  function showNextBtn() {
+    const btn = $('nextBtn');
+    if (!btn) return;
+    btn.hidden = false;
+    btn.textContent = T[lang].next;
+    state.earlyReady = true;
+  }
+
+  function hideNextBtn() {
+    const btn = $('nextBtn');
+    if (btn) btn.hidden = true;
+    if (state) state.earlyReady = false;
+  }
+
+  /** End the current round: record coverage, then change or finish. */
+  function endRound(opts) {
+    const early = !!(opts && opts.early);
+    const pct = coveragePct();
+    let roundPts = pct;
+    if (early && pct >= 100) {
+      const bonus = Math.min(EARLY_BONUS_CAP, Math.floor(state.timeLeft / 24));
+      state.timeBonus += bonus;
+      roundPts = pct; // coverage stays 100; bonus tracked separately
+    }
+    state.roundScores.push(roundPts);
+    hideNextBtn();
+
+    if (state.round >= MAX_ROUNDS) {
       gameOver();
       return;
     }
-    for (const c of cells) {
-      if (c.painted && c.painted !== cellTarget(c)) c.painted = 0;
-    }
-    state.timeLeft = ROUND_SEC;
-    const attemptNum = MAX_LIVES - state.lives + 1;
-    showBanner(T[lang].attempt(attemptNum, MAX_LIVES));
-    fullDirty = true;
-    scheduleDraw();
-    ui();
+    doChange();
   }
 
   function doChange() {
@@ -215,7 +262,6 @@
     const ids = land.slice(0, n).map((f) => f.id);
     assignTargets(ids);
     state.round++;
-    state.scoreRounds++;
     state.timeLeft = ROUND_SEC;
     showBanner(T[lang].change);
     fullDirty = true;
@@ -225,12 +271,13 @@
 
   function gameOver() {
     state.over = true;
-    const total = state.scoreRounds + state.timeBonus;
+    hideNextBtn();
+    const { total, avg, bonus } = scoreTotals();
     overlay(
       T[lang].overT,
       T[lang].overB,
       T[lang].again,
-      T[lang].score(state.scoreRounds, state.timeBonus, total),
+      T[lang].score(total, avg, bonus),
       true
     );
   }
@@ -288,14 +335,55 @@
     const kind = features[c.fi].kind;
     if (kind === 'river') return '#d2e8ee';
     if (kind === 'town') return '#dde1e7';
+    if (kind === 'highway') return HW_BLANK;
     if (kind === 'city') return '#e5ebe3';
     return EMPTY;
   }
 
+  /** Shift hex lightness: amount in [-1,1] (positive = lighter). */
+  function shiftLight(hex, amount) {
+    const [r, g, b] = parseHex(hex);
+    // Relative luminance blend toward white (amount>0) or black (amount<0)
+    const t = Math.max(-1, Math.min(1, amount));
+    let nr, ng, nb;
+    if (t >= 0) {
+      nr = Math.round(r + (255 - r) * t);
+      ng = Math.round(g + (255 - g) * t);
+      nb = Math.round(b + (255 - b) * t);
+    } else {
+      const k = 1 + t;
+      nr = Math.round(r * k);
+      ng = Math.round(g * k);
+      nb = Math.round(b * k);
+    }
+    const h = (n) => n.toString(16).padStart(2, '0');
+    return `#${h(nr)}${h(ng)}${h(nb)}`;
+  }
+
+  /**
+   * Relief: band 0 (low) lighter, band mid = base, band max (high) darker.
+   * Painted: ±~10% around status colour. Blanks: very subtle (±3%).
+   */
+  function reliefAmount(shade, painted) {
+    const mid = (shadeBands - 1) / 2;
+    const span = painted ? 0.10 : 0.03;
+    return -((shade - mid) / (mid || 1)) * span;
+  }
+
   function cellFill(c) {
-    if (c.painted) return COLOURS[c.painted].fill;
-    if (features[c.fi].target === selected) return COLOURS[selected].hint;
-    return blankFill(c);
+    let base;
+    let painted = false;
+    if (c.painted) {
+      base = COLOURS[c.painted].fill;
+      painted = true;
+    } else if (features[c.fi].target === selected) {
+      base = COLOURS[selected].hint;
+    } else {
+      base = blankFill(c);
+    }
+    const amt = reliefAmount(c.shade | 0, painted);
+    if (Math.abs(amt) < 0.001) return base;
+    return shiftLight(base, amt);
   }
 
   function writeCellPixel(c) {
@@ -424,8 +512,14 @@
         }
         if (showNums && c.painted !== target) {
           ctx.lineWidth = Math.max(1, Math.floor(cellDev * 0.08));
-          ctx.strokeStyle = '#f8fafcee';
-          ctx.fillStyle = '#0f172a';
+          // Dark-grey highway blanks need light digits; others keep dark digits.
+          if (target === 6 && !c.painted) {
+            ctx.strokeStyle = '#0b1020cc';
+            ctx.fillStyle = '#f8fafc';
+          } else {
+            ctx.strokeStyle = '#f8fafcee';
+            ctx.fillStyle = '#0f172a';
+          }
           const t = String(target);
           ctx.strokeText(t, cx, cy);
           ctx.fillText(t, cx, cy);
@@ -456,7 +550,7 @@
   function renderPalette() {
     const pal = $('palette');
     pal.innerHTML = '';
-    for (const id of [1, 2, 3, 4, 5]) {
+    for (const id of [1, 2, 3, 4, 5, 6]) {
       const c = COLOURS[id];
       const b = document.createElement('button');
       b.type = 'button';
@@ -484,21 +578,21 @@
     $('pauseBtn').textContent = paused ? '▶' : '⏸';
     $('pauseTxt').textContent = L.pause;
     $('hint').textContent = L.hint;
+    const nextBtn = $('nextBtn');
+    if (nextBtn && !nextBtn.hidden) nextBtn.textContent = L.next;
     if (!state) {
       $('timer').textContent = ROUND_SEC.toFixed(1);
       $('timer').classList.remove('warn', 'urgent');
-      $('round').textContent = '';
-      $('lives').textContent = L.lives(MAX_LIVES);
-      $('progress').textContent = '';
+      $('round').textContent = L.round(1, MAX_ROUNDS);
+      $('progress').textContent = L.coverage(0);
       return;
     }
     const t = Math.max(0, state.timeLeft);
     $('timer').textContent = t.toFixed(1);
     $('timer').classList.toggle('warn', t <= WARN_SEC && t > URGENT_SEC);
     $('timer').classList.toggle('urgent', t <= URGENT_SEC);
-    $('round').textContent = L.round(state.round);
-    $('lives').textContent = L.lives(state.lives);
-    $('progress').textContent = L.progress(correctCount(), cells.length);
+    $('round').textContent = L.round(state.round, MAX_ROUNDS);
+    $('progress').textContent = L.coverage(coveragePct());
     if (changeFlashUntil && performance.now() > changeFlashUntil) {
       $('changeBanner').classList.remove('show');
       changeFlashUntil = 0;
@@ -564,9 +658,9 @@
   }
 
   function checkComplete() {
+    if (!state || state.over) return false;
     if (allCorrect()) {
-      state.timeBonus += Math.floor(state.timeLeft);
-      doChange();
+      if (!state.earlyReady) showNextBtn();
       return true;
     }
     return false;
@@ -732,6 +826,14 @@
     paused = false;
     $('pause').classList.add('hidden');
   };
+  if ($('nextBtn')) {
+    $('nextBtn').onclick = (e) => {
+      e.stopPropagation();
+      if (!state || state.over || paused) return;
+      if (!allCorrect()) return;
+      endRound({ early: true });
+    };
+  }
   $('lang').onclick = () => {
     lang = lang === 'ua' ? 'en' : 'ua';
     localStorage.setItem('coloring-lang', lang);
@@ -739,8 +841,8 @@
     ui();
     if (!$('overlay').classList.contains('hidden')) {
       if (state && state.over) {
-        const total = state.scoreRounds + state.timeBonus;
-        overlay(T[lang].overT, T[lang].overB, T[lang].again, T[lang].score(state.scoreRounds, state.timeBonus, total), true);
+        const { total, avg, bonus } = scoreTotals();
+        overlay(T[lang].overT, T[lang].overB, T[lang].again, T[lang].score(total, avg, bonus), true);
       } else {
         overlay(T[lang].startT, T[lang].startB, T[lang].go, null, false);
       }
@@ -762,11 +864,8 @@
       state.timeLeft -= dt;
       if (state.timeLeft <= 0) {
         state.timeLeft = 0;
-        if (allCorrect()) {
-          doChange();
-        } else {
-          failAttempt();
-        }
+        // Change always happens on the timer — complete or not
+        endRound({ early: false });
       }
       uiAcc += dt;
       if (uiAcc > 0.1) {
@@ -787,12 +886,13 @@
       over: state.over,
       correct: correctCount(),
       total: cells.length,
-      scoreRounds: state.scoreRounds,
+      coverage: coveragePct(),
+      roundScores: state.roundScores.slice(),
       timeBonus: state.timeBonus,
-      lives: state.lives,
+      earlyReady: state.earlyReady,
       selected,
     },
-    failAttempt: () => { if (state && !state.over) failAttempt(); },
+    endRound: () => { if (state && !state.over) endRound({ early: false }); },
     select: (n) => { selected = n; renderPalette(); fullDirty = true; scheduleDraw(); },
     paintId: (id) => {
       const fi = features.findIndex((x) => x.id === id);
@@ -822,8 +922,9 @@
       fullDirty = true;
       scheduleDraw();
       ui();
+      checkComplete();
     },
-    forceChange: () => { if (state && !state.over) doChange(); },
+    forceChange: () => { if (state && !state.over) endRound({ early: false }); },
     forceOver: () => { if (state) gameOver(); },
     features: () => features.map((f) => ({ id: f.id, kind: f.kind, target: f.target })),
     cells: () => cells.map((c, i) => ({
@@ -844,12 +945,15 @@
       rows = grid.rows;
       cellW = grid.cellW;
       cellH = grid.cellH;
+      shadeBands = grid.shadeBands || 5;
+      const shadeArr = grid.shade || [];
       cells = [];
       for (let row = 0; row < rows; row++) {
         for (let col = 0; col < cols; col++) {
-          const fi = grid.cells[row * cols + col];
+          const idx = row * cols + col;
+          const fi = grid.cells[idx];
           if (fi < 0) continue;
-          cells.push({ fi, col, row, painted: 0 });
+          cells.push({ fi, col, row, painted: 0, shade: shadeArr[idx] | 0 });
         }
       }
       buildCellIndex();
