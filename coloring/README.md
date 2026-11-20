@@ -2,9 +2,10 @@
 
 Paint-by-numbers map of Kyiv city, Kyiv oblast raions, and neighbouring oblasts
 (Zhytomyr, Chernihiv, Cherkasy, Poltava, Sumy, Vinnytsia), styled like an air-raid
-alert map. Paint every region, river segment, and town before the ~20s timer ends;
-a “change” then reassigns ~60% of land targets. Incomplete map at change time ends
-the run.
+alert map. The map is rasterized into a grid of small square cells (~32 across,
+≈13 CSS px at default zoom on a phone). Paint every cell before the 1-minute
+timer ends; a “change” then reassigns ~60% of land targets and wipes paint on
+those cells. Incomplete map at change time ends the run.
 
 ## Map data
 
@@ -13,14 +14,19 @@ the run.
 - Rivers (Dnipro, Desna): [Natural Earth](https://www.naturalearthdata.com/) 10m
   rivers/lake centerlines (public domain).
 - Simplified and projected offline into `map.json` (SVG paths). Labels in Ukrainian.
+- Cell ownership is precomputed in `grid.json` (point-in-polygon at cell centres).
+  Regenerate with `python3 build-grid.py` after editing `map.json`.
 
 ## Controls
 
 - Palette swatches 1–5 (no alert / yellow / missile / river / town)
-- Tap regions to fill (wrong colour overwrites)
-- Pinch or wheel to zoom; drag to pan
-- `prefers-reduced-motion` disables short fades
+- Drag (or tap) to paint: only cells whose target matches the selected colour fill
+- Selected-colour cells get a subtle static tint so kids see where to paint
+- Numbers appear when cells are large enough on screen; otherwise pale blanks
+- Two fingers: pinch zoom + pan; mouse wheel zooms on desktop
+- `prefers-reduced-motion` disables the short «зміна» banner fade
 
 ## Test API
 
-`window.__coloring` — `state`, `select`, `paintId`, `paintCorrectAll`, `forceChange`, `forceOver`, `features`.
+`window.__coloring` — `state`, `select`, `paintId`, `paintCell`, `paintAt`,
+`paintCorrectAll`, `forceChange`, `forceOver`, `features`, `cells`.
