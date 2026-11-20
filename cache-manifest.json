@@ -1,5 +1,5 @@
 {
-  "version": 17,
+  "version": 18,
   "updatedHint": "App refreshes this list when online; bundled copy is the fallback.",
   "files": [
     "cache-manifest.json",
@@ -59,6 +59,7 @@
     "scooter/index.html",
     "shared/game-nav.css",
     "shared/game-nav.js",
+    "shared/no-zoom.js",
     "shared/zsu-donate.css",
     "shared/zsu-donate.js",
     "tetris/game.js",
