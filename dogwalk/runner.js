@@ -342,10 +342,12 @@
     if (!slotPhase) return;
     slotPhase = false;
     slotFullFlash = 3.2;
-    // Unlock full kit AFTER the calm bush break (enterBush follows immediately)
-    const afterBush = 7 + Math.random() * 4; // bush lasts ~5–10 s
-    if (!slotFlags.blackout) nextBlackoutIn = Math.max(nextBlackoutIn, afterBush + 2 + Math.random() * 5);
-    if (!slotFlags.rain) nextWeatherIn = Math.max(nextWeatherIn, afterBush + 1 + Math.random() * 5);
+    // Systems that were parked at ~9999 during the spin must be freshly scheduled —
+    // do NOT Math.max against that sentinel or they never unlock.
+    // Delay past the calm bush break (enterBush follows immediately, ~5–10 s).
+    const afterBush = 7 + Math.random() * 4;
+    if (!slotFlags.blackout) nextBlackoutIn = afterBush + 2 + Math.random() * 5;
+    if (!slotFlags.rain) nextWeatherIn = afterBush + 1 + Math.random() * 5;
     if (!slotFlags.alarm) {
       airAlert = false;
       airTimer = afterBush + 2 + Math.random() * 4;
@@ -564,7 +566,8 @@
       if (slotPhase && !slotFlags.rain) return;
       if (bushT > 0) return; // calm under bush — don't unlock weather mid-hide
       nextWeatherIn -= dt;
-      const unlockAt = slotPhase && slotFlags.rain ? 2 : 32;
+      // Slot+rain: early. Slot without: blocked. Full mode: nextWeatherIn only.
+      const unlockAt = slotPhase ? (slotFlags.rain ? 2 : 1e9) : 0;
       if (nextWeatherIn <= 0 && time > unlockAt) {
         // Slot rain lock → only rain; after first bush, snow returns
         spawnWeather(slotPhase ? 'rain' : (Math.random() < 0.45 ? 'snow' : 'rain'));
@@ -1976,7 +1979,9 @@
       }
     } else if (bushT <= 0) {
       nextBlackoutIn -= dt;
-      const unlockAt = slotPhase && slotFlags.blackout ? 8 : 45;
+      // Slot+blackout: early unlock at 8s. Slot without: blocked (timer parked).
+      // Full mode after bush: only nextBlackoutIn matters (endSlotPhase schedules it).
+      const unlockAt = slotPhase ? (slotFlags.blackout ? 8 : 1e9) : 0;
       if (nextBlackoutIn <= 0 && time > unlockAt) {
         blackout = true;
         blackoutTimer = (time < 90 ? 3.5 : 5.5) + Math.random() * 2.5;
@@ -2146,6 +2151,7 @@
       speed, time, perspective: true, dogOnly: true,
       lane, dogLaneF,
       slotPhase, slotFlags: { ...slotFlags }, slotReady,
+      nextBlackoutIn, nextWeatherIn, airTimer,
       dogs: obstacles.filter(o=>o.kind==='dog').map(o=>({lane:o.lane,z:o.z,rush:o.rush})),
       cats: obstacles.filter(o=>o.kind==='cat').map(o=>({x:o.x,z:o.z,dir:o.dir,lane:o.lane})),
       hazards: obstacles.filter(o=>!o.hit).map(o=>({
