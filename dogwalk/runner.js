@@ -342,12 +342,13 @@
     if (!slotPhase) return;
     slotPhase = false;
     slotFullFlash = 3.2;
-    // Unlock full kit: don't yank current blackout/weather mid-frame; just allow timers again
-    if (!slotFlags.blackout) nextBlackoutIn = Math.min(nextBlackoutIn, 8 + Math.random() * 6);
-    if (!slotFlags.rain) nextWeatherIn = Math.min(nextWeatherIn, 6 + Math.random() * 8);
+    // Unlock full kit AFTER the calm bush break (enterBush follows immediately)
+    const afterBush = 7 + Math.random() * 4; // bush lasts ~5–10 s
+    if (!slotFlags.blackout) nextBlackoutIn = Math.max(nextBlackoutIn, afterBush + 2 + Math.random() * 5);
+    if (!slotFlags.rain) nextWeatherIn = Math.max(nextWeatherIn, afterBush + 1 + Math.random() * 5);
     if (!slotFlags.alarm) {
       airAlert = false;
-      airTimer = 4 + Math.random() * 4;
+      airTimer = afterBush + 2 + Math.random() * 4;
     }
     refreshSlotPhaseChip();
   }
@@ -395,6 +396,7 @@
       airAlert = true;
       airTimer = 28 + Math.random() * 20;
       notifAcc = notifRate * 0.55;
+      spawnNotif(ALERT_ON()); // declare the alert — don't start mid-cycle silently
     } else {
       airAlert = false;
       airTimer = 9999;
@@ -560,6 +562,7 @@
     } else {
       // Slot phase without rain: no weather at all. With rain: only rain (no snow).
       if (slotPhase && !slotFlags.rain) return;
+      if (bushT > 0) return; // calm under bush — don't unlock weather mid-hide
       nextWeatherIn -= dt;
       const unlockAt = slotPhase && slotFlags.rain ? 2 : 32;
       if (nextWeatherIn <= 0 && time > unlockAt) {
@@ -1971,7 +1974,7 @@
         blackout = false;
         nextBlackoutIn = 18 + Math.random() * 14;
       }
-    } else {
+    } else if (bushT <= 0) {
       nextBlackoutIn -= dt;
       const unlockAt = slotPhase && slotFlags.blackout ? 8 : 45;
       if (nextBlackoutIn <= 0 && time > unlockAt) {
@@ -1983,8 +1986,10 @@
     updateWeather(dt);
     updateSkyFx(dt);
 
-    // Notifications: slot phase without alarm → silence
+    // Notifications: slot phase without alarm → silence; under bush = calm (freeze cycle)
     if (slotPhase && !slotFlags.alarm) {
+      notifAcc = 0;
+    } else if (bushT > 0) {
       notifAcc = 0;
     } else {
       notifAcc += dt;
@@ -2001,7 +2006,6 @@
         notifAcc = 0;
       }
       const rate = airAlert ? notifRate : notifRate * 2.6;
-      if (bushT > 0) notifAcc = 0;
       if (notifAcc >= rate) { notifAcc = 0; spawnNotif(airAlert ? null : CALM_PUSH()); }
     }
     // a screen full of pushes/drops never stops or hurts the run — the dog keeps going
@@ -2024,7 +2028,8 @@
       if (f.alarm) idxs.push(0);
       if (f.blackout) idxs.push(1);
       if (f.rain) idxs.push(2);
-      while (idxs.length < 3) idxs.push(idxs[idxs.length - 1] ?? 0);
+      if (!idxs.length) idxs.push(2); // match applySlotResult rain fallback
+      while (idxs.length < 3) idxs.push(idxs[idxs.length - 1]);
       applySlotResult(idxs.slice(0, 3));
       slotReady = true;
       beginWalk();
