@@ -11,7 +11,8 @@ async function oneRun(browser, runId) {
   page.on('pageerror', (e) => errors.push(String(e)));
   const url = 'file://' + path.resolve(path.dirname(new URL(import.meta.url).pathname), 'index.html');
   await page.goto(url, { waitUntil: 'domcontentloaded' });
-  await page.click('#oBtn');
+  // Skip bandit UI: start with all slot flags (alarm+blackout+rain)
+  await page.evaluate(() => window.__runner.start({ alarm: true, blackout: true, rain: true }));
   await page.waitForTimeout(100);
 
   let pending = null; // { lane, at }

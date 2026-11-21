@@ -27,9 +27,21 @@ canvas#game{display:block;width:100%;height:100%;image-rendering:pixelated;image
 #overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#010208e6;z-index:6;padding:calc(24px + env(safe-area-inset-top,0px)) 24px calc(24px + env(safe-area-inset-bottom,0px));text-align:center}
 #overlay.hidden{display:none}
 #overlay h1{margin:0 0 8px;font-size:1.4rem}
-#overlay p{margin:0 0 16px;opacity:.85;line-height:1.4}
+#overlay p{margin:0 0 12px;opacity:.85;line-height:1.4;max-width:340px}
 #overlay button{pointer-events:auto;border:2px solid #111;border-radius:999px;background:#facc15;color:#111;font-weight:800;font-size:1.05rem;padding:12px 28px;min-height:44px;cursor:pointer}
+#overlay button:disabled{opacity:.5;cursor:default}
 #overlay a.game-nav-to-menu{border-radius:999px;background:#e2e8f0;color:#111;border:2px solid #111;font-weight:800;font-size:1.05rem;padding:12px 28px}
+.slot-machine{pointer-events:auto;background:linear-gradient(#b91c1c,#7f1d1d);padding:14px 16px 12px;border-radius:18px;box-shadow:0 8px 28px #000a;margin:0 auto 14px;max-width:320px}
+.slot-reels{display:flex;gap:8px;justify-content:center}
+.slot-reel{width:86px;height:96px;background:#fff;color:#111;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:2.4rem;box-shadow:inset 0 3px 8px #0004;line-height:1}
+.slot-reel small{font-size:.62rem;margin-top:4px;color:#374151;font-weight:700;max-width:78px;line-height:1.15}
+.slot-reel.spin{animation:slotShake .1s infinite}
+@keyframes slotShake{50%{transform:translateY(3px)}}
+#slotMsg{min-height:1.2em;margin-top:10px;font-size:.92rem;font-weight:800;color:#fde047;text-shadow:0 1px 2px #000;line-height:1.25}
+#slotMsg.super{color:#f0abfc;animation:slotWin .35s ease-in-out infinite alternate}
+@keyframes slotWin{from{transform:scale(1)}to{transform:scale(1.06)}}
+#slotPhaseChip{display:none;position:absolute;left:12px;top:calc(56px + env(safe-area-inset-top,0px) + 44px);z-index:5;pointer-events:none;background:#7f1d1dcc;border:1px solid #facc1588;border-radius:10px;padding:6px 10px;font-size:11px;font-weight:800;color:#fef3c7;text-shadow:0 1px 2px #000;max-width:70%;line-height:1.3}
+#slotPhaseChip.show{display:block}
 #pauseOverlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:#020617e8;z-index:7;padding:calc(24px + env(safe-area-inset-top,0px)) 24px calc(24px + env(safe-area-inset-bottom,0px));text-align:center;pointer-events:auto}
 #pauseOverlay.show{display:flex}
 #pauseOverlay h1{margin:0 0 8px;font-size:2rem;font-weight:900;letter-spacing:.04em;text-shadow:0 2px 12px #000}
@@ -115,13 +127,22 @@ canvas#game{display:block;width:100%;height:100%;image-rendering:pixelated;image
       </div>
     </div>
   </div>
+  <div id="slotPhaseChip" aria-live="polite"></div>
   <div id="overlay">
     <div>
       <h1 id="oTitle">Прогулянка</h1>
       <p id="oBody"></p>
+      <div id="slotMachine" class="slot-machine" hidden>
+        <div class="slot-reels">
+          <div class="slot-reel" id="sr0">❓</div>
+          <div class="slot-reel" id="sr1">❓</div>
+          <div class="slot-reel" id="sr2">❓</div>
+        </div>
+        <div id="slotMsg"></div>
+      </div>
       <a class="zsu-donate" data-zsu-donate hidden href="https://www.sternenkofund.org/donate" target="_blank" rel="noopener noreferrer">Підтримати ЗСУ</a>
       <div class="game-nav-actions">
-        <button type="button" id="oBtn">Старт</button>
+        <button type="button" id="oBtn">Крутити!</button>
         <a href="../menu/" class="game-nav-to-menu" data-game-nav-to-menu hidden>В меню</a>
       </div>
     </div>

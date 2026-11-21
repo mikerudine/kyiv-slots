@@ -38,15 +38,22 @@
     return LANE_X[a] + (LANE_X[b] - LANE_X[a]) * (f - a);
   }
 
+  const SLOT_SYMBOLS = [
+    { id: 'alarm', e: '🚨', nUa: 'Тривога', nEn: 'Alert', jackUa: '🚨 ХОВАЙСЯ В ЖИТО', jackEn: '🚨 HIDE IN THE RYE' },
+    { id: 'blackout', e: '💡', nUa: 'Світла нема', nEn: 'Blackout', jackUa: '🕯️ ТЕМНО ЯК У ДУПІ', jackEn: '🕯️ PITCH BLACK' },
+    { id: 'rain', e: '🌧️', nUa: 'Дощ', nEn: 'Rain', jackUa: '🌧️ ЛЬЄ ЯК З ВІДРА', jackEn: '🌧️ POURING RAIN' },
+  ];
+
   const I18N = {
     ua: {
       title: 'Прогулянка з собакою',
       hint: 'Свайп ← → · змахни тривоги',
       score: (d, s) => `${d | 0} м · ${s | 0}`,
       lives: (n) => `❤ ${n}`,
-      overlayTitle: 'Прогулянка',
-      overlayBody: 'Веди пса двором: калюжі, злі пси, генератори. Світло може зникнути — лишається ореол ліхтарика. Пуші тривоги змахуй, інакше забʼють екран.',
-      start: 'Старт',
+      overlayTitle: 'Київський бандит',
+      overlayBody: 'Крути барабани — випаде тривога, блекаут чи дощ. Ці умови діють до першого куща (1000 м). Далі — звичайний режим: усі перешкоди.',
+      start: 'На прогулянку!',
+      spin: 'Крутити!',
       again: 'Ще раз',
       overTitle: 'Кінець прогулянки',
       overBody: (d, s) => `Дистанція ${d | 0} м · рахунок ${s | 0}`,
@@ -66,15 +73,20 @@
       lensWipe: 'змахни',
       weatherRain: '🌧 Дощ',
       weatherSnow: '❄ Сніг',
+      slotPhase: (flags) => `До куща (1000 м): ${flags}`,
+      slotFull: 'Звичайний режим · усі перешкоди',
+      superWin: '💥 СУПЕРВИГРАШ 💥',
+      spinning: '…',
     },
     en: {
       title: 'Walking the dog',
       hint: 'Swipe ← → · dismiss alerts',
       score: (d, s) => `${d | 0} m · ${s | 0}`,
       lives: (n) => `❤ ${n}`,
-      overlayTitle: 'Dog walk',
-      overlayBody: 'Guide the dog through the yard: puddles, angry dogs, rattling generators. Lights may cut out — only a flashlight halo remains. Swipe alert pushes away.',
-      start: 'Start',
+      overlayTitle: 'Kyiv bandit',
+      overlayBody: 'Spin the reels — alert, blackout or rain. Those conditions last until the first bush (1000 m). After that — normal mode: every obstacle.',
+      start: 'Walk!',
+      spin: 'Spin!',
       again: 'Again',
       overTitle: 'Walk over',
       overBody: (d, s) => `Distance ${d | 0} m · score ${s | 0}`,
@@ -94,6 +106,10 @@
       lensWipe: 'wipe',
       weatherRain: '🌧 Rain',
       weatherSnow: '❄ Snow',
+      slotPhase: (flags) => `Until bush (1000 m): ${flags}`,
+      slotFull: 'Normal mode · all obstacles',
+      superWin: '💥 JACKPOT 💥',
+      spinning: '…',
     },
   };
 
@@ -112,10 +128,16 @@
     if (!running) {
       document.getElementById('oTitle').textContent = dead ? L.overTitle : L.overlayTitle;
       document.getElementById('oBody').textContent = dead ? L.overBody(distance, score) : L.overlayBody;
-      document.getElementById('oBtn').textContent = dead ? L.again : L.start;
+      const btn = document.getElementById('oBtn');
+      if (dead) btn.textContent = L.again;
+      else if (slotReady) btn.textContent = L.start;
+      else btn.textContent = L.spin;
+      btn.disabled = slotSpinning;
+      syncSlotMachineUI();
       if (typeof setZsuDonateVisible === 'function') setZsuDonateVisible(dead);
       if (typeof setGameNavToMenuVisible === 'function') setGameNavToMenuVisible(dead);
     }
+    refreshSlotPhaseChip();
     document.querySelectorAll('.notif').forEach((el) => {
       el.querySelector('.app').textContent = L.notifApp;
       el.querySelector('.msg').textContent = lang === 'ua' ? el.dataset.ua : el.dataset.en;
@@ -144,6 +166,13 @@
   let spawnAcc = 0, notifAcc = 0, notifRate = 6.5;
   let bushT = 0, nextBushAt = 1000, bushSide = -1, bushOff = 0; // bush stands at the roadside by the houses // every 1000 m the dog dives under a bush: calm break
   let bushLiveBoost = 0; // extra lives granted while hidden (enter = ×2; leave removes remaining boost)
+  // Slot (київський бандит): rolled flags gate hazards until the first bush at 1000 m
+  let slotFlags = { alarm: false, blackout: false, rain: false };
+  let slotResult = []; // indices 0..2 into SLOT_SYMBOLS
+  let slotPhase = true; // true until first bush (1000 m)
+  let slotReady = false; // spin done → can start walk
+  let slotSpinning = false;
+  let slotFullFlash = 0; // brief HUD flash when leaving slot phase
   // ---- «Реальний Київ»-style pushes (phrasing modelled on t.me/s/kievreal1, rewritten short) ----
   const DISTRICTS = [ // [nominative UA, accusative UA, EN]
     ['Оболонь', 'Оболонь', 'Obolon'], ['Троєщина', 'Троєщину', 'Troieshchyna'], ['Дарниця', 'Дарницю', 'Darnytsia'],
@@ -215,11 +244,179 @@
     paused = false; hidePauseUI();
     weather = null; weatherTimer = 0; nextWeatherIn = 32 + Math.random() * 18;
     splatAcc = 0; particles = []; skyFx = [];
+    slotPhase = true; slotFullFlash = 0;
     update._catAcc = 0; update._nDrain = 0;
     seedScenery();
     clearNotifs();
     clearLensSplats();
     syncPauseBtn();
+    refreshSlotPhaseChip();
+  }
+
+  function emptySlotFlags() {
+    return { alarm: false, blackout: false, rain: false };
+  }
+
+  function applySlotResult(indices) {
+    slotResult = indices.slice(0, 3);
+    slotFlags = emptySlotFlags();
+    for (const i of slotResult) {
+      const sym = SLOT_SYMBOLS[i];
+      if (sym) slotFlags[sym.id] = true;
+    }
+    // At least one condition always (shouldn't happen, but keep walk playable)
+    if (!slotFlags.alarm && !slotFlags.blackout && !slotFlags.rain) slotFlags.rain = true;
+  }
+
+  function flagLabelList() {
+    const parts = [];
+    for (const s of SLOT_SYMBOLS) {
+      if (slotFlags[s.id]) parts.push(s.e + ' ' + (lang === 'en' ? s.nEn : s.nUa));
+    }
+    return parts.join(' · ') || '—';
+  }
+
+  function showSlotReel(i, sym) {
+    const el = document.getElementById('sr' + i);
+    if (!el || !sym) return;
+    el.innerHTML = sym.e + '<small>' + (lang === 'en' ? sym.nEn : sym.nUa) + '</small>';
+  }
+
+  function resetSlotUI() {
+    slotReady = false;
+    slotSpinning = false;
+    slotResult = [];
+    slotFlags = emptySlotFlags();
+    for (let i = 0; i < 3; i++) {
+      const el = document.getElementById('sr' + i);
+      if (el) {
+        el.classList.remove('spin');
+        el.textContent = '❓';
+      }
+    }
+    const msg = document.getElementById('slotMsg');
+    if (msg) { msg.textContent = ''; msg.className = ''; }
+  }
+
+  function syncSlotMachineUI() {
+    const machine = document.getElementById('slotMachine');
+    if (!machine) return;
+    // Show slot on start / after "again"; hide while running or on game-over copy
+    machine.hidden = running || dead;
+    if (slotResult.length === 3) {
+      slotResult.forEach((idx, i) => showSlotReel(i, SLOT_SYMBOLS[idx]));
+      const unique = [...new Set(slotResult)];
+      const msg = document.getElementById('slotMsg');
+      if (msg && slotReady) {
+        const lines = unique.map((k) => (lang === 'en' ? SLOT_SYMBOLS[k].jackEn : SLOT_SYMBOLS[k].jackUa));
+        msg.className = unique.length === 3 ? 'super' : '';
+        msg.innerHTML = (unique.length === 3 ? '<div>' + t().superWin + '</div>' : '') +
+          lines.map((l) => '<div>' + l + '</div>').join('');
+      }
+    }
+  }
+
+  function refreshSlotPhaseChip() {
+    const chip = document.getElementById('slotPhaseChip');
+    if (!chip) return;
+    if (!running || dead) {
+      chip.classList.remove('show');
+      chip.textContent = '';
+      return;
+    }
+    if (slotFullFlash > 0) {
+      chip.classList.add('show');
+      chip.textContent = t().slotFull;
+      return;
+    }
+    if (slotPhase) {
+      chip.classList.add('show');
+      chip.textContent = t().slotPhase(flagLabelList());
+    } else {
+      chip.classList.remove('show');
+      chip.textContent = '';
+    }
+  }
+
+  function endSlotPhase() {
+    if (!slotPhase) return;
+    slotPhase = false;
+    slotFullFlash = 3.2;
+    // Unlock full kit: don't yank current blackout/weather mid-frame; just allow timers again
+    if (!slotFlags.blackout) nextBlackoutIn = Math.min(nextBlackoutIn, 8 + Math.random() * 6);
+    if (!slotFlags.rain) nextWeatherIn = Math.min(nextWeatherIn, 6 + Math.random() * 8);
+    if (!slotFlags.alarm) {
+      airAlert = false;
+      airTimer = 4 + Math.random() * 4;
+    }
+    refreshSlotPhaseChip();
+  }
+
+  function spinSlot() {
+    if (slotSpinning || running) return;
+    slotSpinning = true;
+    slotReady = false;
+    const btn = document.getElementById('oBtn');
+    const msg = document.getElementById('slotMsg');
+    btn.disabled = true;
+    btn.textContent = t().spinning;
+    if (msg) { msg.textContent = ''; msg.className = ''; }
+    const res = [0, 1, 2].map(() => (Math.random() * 3) | 0);
+    [0, 1, 2].forEach((i) => {
+      const reel = document.getElementById('sr' + i);
+      reel.classList.add('spin');
+      const tick = setInterval(() => showSlotReel(i, SLOT_SYMBOLS[(Math.random() * 3) | 0]), 80);
+      setTimeout(() => {
+        clearInterval(tick);
+        reel.classList.remove('spin');
+        showSlotReel(i, SLOT_SYMBOLS[res[i]]);
+        if (i === 2) {
+          applySlotResult(res);
+          slotSpinning = false;
+          slotReady = true;
+          btn.disabled = false;
+          btn.textContent = t().start;
+          syncSlotMachineUI();
+        }
+      }, 700 + i * 450);
+    });
+  }
+
+  function beginWalk() {
+    resetGame();
+    // Keep the rolled flags across resetGame
+    if (slotResult.length === 3) applySlotResult(slotResult);
+    else applySlotResult([0, 1, 2]); // safety: all on
+    slotPhase = true;
+    running = true;
+    dead = false;
+    // Prime systems that rolled so the first km feels like the spin
+    if (slotFlags.alarm) {
+      airAlert = true;
+      airTimer = 28 + Math.random() * 20;
+      notifAcc = notifRate * 0.55;
+    } else {
+      airAlert = false;
+      airTimer = 9999;
+      notifAcc = 0;
+    }
+    if (slotFlags.blackout) {
+      nextBlackoutIn = 12 + Math.random() * 10;
+    } else {
+      nextBlackoutIn = 9999;
+      blackout = false;
+    }
+    if (slotFlags.rain) {
+      nextWeatherIn = 4 + Math.random() * 6;
+    } else {
+      weather = null; weatherTimer = 0; particles = [];
+      nextWeatherIn = 9999;
+    }
+    document.getElementById('overlay').classList.add('hidden');
+    document.getElementById('slotMachine').hidden = true;
+    applyLang();
+    syncPauseBtn();
+    refreshSlotPhaseChip();
   }
 
   function clearNotifs() {
@@ -361,9 +558,13 @@
       }
       if (weatherTimer <= 0) stopWeather();
     } else {
+      // Slot phase without rain: no weather at all. With rain: only rain (no snow).
+      if (slotPhase && !slotFlags.rain) return;
       nextWeatherIn -= dt;
-      if (nextWeatherIn <= 0 && time > 32) {
-        spawnWeather(Math.random() < 0.45 ? 'snow' : 'rain');
+      const unlockAt = slotPhase && slotFlags.rain ? 2 : 32;
+      if (nextWeatherIn <= 0 && time > unlockAt) {
+        // Slot rain lock → only rain; after first bush, snow returns
+        spawnWeather(slotPhase ? 'rain' : (Math.random() < 0.45 ? 'snow' : 'rain'));
       }
     }
   }
@@ -530,8 +731,11 @@
 
   function gameOver() {
     running = false; dead = true; paused = false; hidePauseUI();
-    stopWeather(); clearLensSplats(); skyFx = []; syncPauseBtn(); applyLang();
+    stopWeather(); clearLensSplats(); skyFx = []; syncPauseBtn();
+    document.getElementById('slotPhaseChip').classList.remove('show');
     document.getElementById('overlay').classList.remove('hidden');
+    document.getElementById('slotMachine').hidden = true; // hide bandit under game-over copy
+    applyLang();
   }
 
   function hit() {
@@ -684,6 +888,13 @@
       else if (r < 0.52) kind = 'dog';
       else if (r < 0.78) kind = 'cat';
       else kind = 'generator';
+    }
+    // Slot phase: only hazards matching the spin (dogs/cats always — core walk)
+    if (slotPhase) {
+      const puddleOk = slotFlags.rain;
+      const genOk = slotFlags.blackout;
+      if (kind === 'puddle' && !puddleOk) kind = Math.random() < 0.55 ? 'dog' : 'cat';
+      if (kind === 'generator' && !genOk) kind = Math.random() < 0.55 ? 'dog' : 'cat';
     }
     if (kind === 'cat') { spawnCat(); return; }
     const l = pickFreeLane();
@@ -876,10 +1087,22 @@
   canvas.addEventListener('pointercancel', () => { swipeArmed = false; });
 
   document.getElementById('oBtn').addEventListener('click', () => {
-    resetGame(); running = true;
-    document.getElementById('overlay').classList.add('hidden');
-    applyLang();
-    syncPauseBtn();
+    if (slotSpinning) return;
+    if (dead) {
+      // Replay: back to bandit spin
+      dead = false;
+      resetSlotUI();
+      applyLang();
+      syncSlotMachineUI();
+      if (typeof setZsuDonateVisible === 'function') setZsuDonateVisible(false);
+      if (typeof setGameNavToMenuVisible === 'function') setGameNavToMenuVisible(false);
+      return;
+    }
+    if (!slotReady) {
+      spinSlot();
+      return;
+    }
+    beginWalk();
   });
 
   pauseBtn.addEventListener('click', (e) => {
@@ -1676,7 +1899,12 @@
 
     if (bushT <= 0 && distance >= nextBushAt) {
       nextBushAt += 1000;
+      if (slotPhase) endSlotPhase(); // first bush ends bandit conditions → full mode
       enterBush(5 + Math.random() * 5);
+    }
+    if (slotFullFlash > 0) {
+      slotFullFlash = Math.max(0, slotFullFlash - dt);
+      if (slotFullFlash <= 0) refreshSlotPhaseChip();
     }
     {
       // run off sideways to the bush, hide, then come back to the lane in the last ~0.9 s
@@ -1734,8 +1962,10 @@
       }
     }
 
-    // blackout: first one after ~1 min; shorter early
-    if (blackout) {
+    // blackout: first one after ~1 min; shorter early — gated by slot during first 1000 m
+    if (slotPhase && !slotFlags.blackout) {
+      blackout = false;
+    } else if (blackout) {
       blackoutTimer -= dt;
       if (blackoutTimer <= 0) {
         blackout = false;
@@ -1743,7 +1973,8 @@
       }
     } else {
       nextBlackoutIn -= dt;
-      if (nextBlackoutIn <= 0 && time > 45) {
+      const unlockAt = slotPhase && slotFlags.blackout ? 8 : 45;
+      if (nextBlackoutIn <= 0 && time > unlockAt) {
         blackout = true;
         blackoutTimer = (time < 90 ? 3.5 : 5.5) + Math.random() * 2.5;
       }
@@ -1752,21 +1983,27 @@
     updateWeather(dt);
     updateSkyFx(dt);
 
-    notifAcc += dt;
-    // Slow pushes at start; still pressure later
-    notifRate = 7.5 - rampT * 4.5; // 7.5s → 3.0s
-    if (notifRate < 2.5) notifRate = 2.5;
-    // alert cycle: alert (40–70 s) ⇄ calm (15–30 s); start/end pushes, flavour pushes mostly during alerts
-    airTimer -= dt;
-    if (airTimer <= 0) {
-      airAlert = !airAlert;
-      airTimer = airAlert ? 40 + Math.random() * 30 : 15 + Math.random() * 15;
-      spawnNotif(airAlert ? ALERT_ON() : ALERT_OFF());
+    // Notifications: slot phase without alarm → silence
+    if (slotPhase && !slotFlags.alarm) {
       notifAcc = 0;
+    } else {
+      notifAcc += dt;
+      // Slow pushes at start; still pressure later
+      notifRate = 7.5 - rampT * 4.5; // 7.5s → 3.0s
+      if (notifRate < 2.5) notifRate = 2.5;
+      if (slotPhase && slotFlags.alarm) notifRate = Math.min(notifRate, 4.2);
+      // alert cycle: alert (40–70 s) ⇄ calm (15–30 s); start/end pushes, flavour pushes mostly during alerts
+      airTimer -= dt;
+      if (airTimer <= 0) {
+        airAlert = !airAlert;
+        airTimer = airAlert ? 40 + Math.random() * 30 : 15 + Math.random() * 15;
+        spawnNotif(airAlert ? ALERT_ON() : ALERT_OFF());
+        notifAcc = 0;
+      }
+      const rate = airAlert ? notifRate : notifRate * 2.6;
+      if (bushT > 0) notifAcc = 0;
+      if (notifAcc >= rate) { notifAcc = 0; spawnNotif(airAlert ? null : CALM_PUSH()); }
     }
-    const rate = airAlert ? notifRate : notifRate * 2.6;
-    if (bushT > 0) notifAcc = 0;
-    if (notifAcc >= rate) { notifAcc = 0; spawnNotif(airAlert ? null : CALM_PUSH()); }
     // a screen full of pushes/drops never stops or hurts the run — the dog keeps going
 
     document.getElementById('scoreLine').textContent = t().score(distance, score);
@@ -1780,7 +2017,38 @@
   window.__runner = {
     getFps: () => fps,
     getFpsSamples: () => fpsSamples.slice(),
-    start: () => document.getElementById('oBtn').click(),
+    /** QA / bots: skip UI spin, apply flags (default = all), begin walk. */
+    start: (flags) => {
+      const f = flags || { alarm: true, blackout: true, rain: true };
+      const idxs = [];
+      if (f.alarm) idxs.push(0);
+      if (f.blackout) idxs.push(1);
+      if (f.rain) idxs.push(2);
+      while (idxs.length < 3) idxs.push(idxs[idxs.length - 1] ?? 0);
+      applySlotResult(idxs.slice(0, 3));
+      slotReady = true;
+      beginWalk();
+    },
+    spinAndStart: () => {
+      applySlotResult([0, 1, 2].map(() => (Math.random() * 3) | 0));
+      slotReady = true;
+      beginWalk();
+    },
+    getSlot: () => ({
+      flags: { ...slotFlags },
+      result: slotResult.slice(),
+      phase: slotPhase,
+      ready: slotReady,
+    }),
+    setSlotFlags: (f) => {
+      slotFlags = {
+        alarm: !!(f && f.alarm),
+        blackout: !!(f && f.blackout),
+        rain: !!(f && f.rain),
+      };
+      refreshSlotPhaseChip();
+    },
+    endSlotPhase: () => endSlotPhase(),
     setBlackout: (v) => { blackout = !!v; blackoutTimer = v ? 99 : 0; nextBlackoutIn = v ? 99 : 12; },
     setWeather: (kind) => {
       if (!kind || kind === 'none') { stopWeather(); return; }
@@ -1872,6 +2140,7 @@
       bushT, bushLiveBoost, bushOff, hiding: bushT > 0, worldScroll: bushT <= 0,
       speed, time, perspective: true, dogOnly: true,
       lane, dogLaneF,
+      slotPhase, slotFlags: { ...slotFlags }, slotReady,
       dogs: obstacles.filter(o=>o.kind==='dog').map(o=>({lane:o.lane,z:o.z,rush:o.rush})),
       cats: obstacles.filter(o=>o.kind==='cat').map(o=>({x:o.x,z:o.z,dir:o.dir,lane:o.lane})),
       hazards: obstacles.filter(o=>!o.hit).map(o=>({
@@ -1899,7 +2168,9 @@
   }
 
   seedScenery();
+  resetSlotUI();
   applyLang();
+  syncSlotMachineUI();
   draw();
   requestAnimationFrame(frame);
 })();
